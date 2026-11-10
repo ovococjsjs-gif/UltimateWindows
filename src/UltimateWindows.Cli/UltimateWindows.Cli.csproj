@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>UltimateWindows.Cli</RootNamespace>
+    <Description>Консольный интерфейс и инструмент автоматизации UltimateWindows.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UltimateWindows.Core\UltimateWindows.Core.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Safety\UltimateWindows.Modules.Safety.csproj" />
+    <ProjectReference Include="..\UltimateWindows.NativeInterop\UltimateWindows.NativeInterop.csproj" />
+  </ItemGroup>
+</Project>

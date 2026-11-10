@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>UltimateWindows.Modules.Safety</RootNamespace>
+    <Description>Ядро транзакций, сжатого шифрованного CAS-карантина и не засоряющих систему квот (Zero-Bloat Vault).</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UltimateWindows.Core\UltimateWindows.Core.csproj" />
+  </ItemGroup>
+</Project>

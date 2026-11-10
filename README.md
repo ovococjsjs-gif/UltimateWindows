@@ -42,5 +42,23 @@
 Вся аналитическая и архитектурная документация расположена в каталоге [`docs/`](./docs):
 
 - [**`docs/01-RESEARCH.md`**](./docs/01-RESEARCH.md) — Детальное исследование существующих решений (`Optimizer` / `OptimizerNXT`, `MinerSearch`, `CCleaner` / `BleachBit`, менеджеров драйверов и DLL, `AIDA64` / `LibreHardwareMonitor`), разбор их кодовой базы, ограничений, рисков и конкретных точек роста.
-- [**`docs/02-ARCHITECTURE.md`**](./docs/02-ARCHITECTURE.md) — Техническая архитектура `UltimateWindows`, выбор технологического стека (`.NET 8/9`, `C#`, `WinUI 3` / `WPF Fluent`, `CsWin32`, привилегированный сервис с IPC), структура модулей, схемы баз знаний и механизмов безопасности.
+- [**`docs/02-ARCHITECTURE.md`**](./docs/02-ARCHITECTURE.md) — Техническая архитектура `UltimateWindows`, выбор технологического стека (`.NET 8`, `C#`, `WPF Fluent`, `CsWin32`), структура модулей, схемы баз знаний и механизмов безопасности.
 - [**`docs/03-ROADMAP.md`**](./docs/03-ROADMAP.md) — Поэтапный план разработки (от ядра транзакций и MVP до релиза `v1.0` и `v2.0`), стратегия тестирования на виртуальных стендах, CI/CD и цифровая подпись.
+- [**`docs/04-UX-AND-VAULT-DESIGN.md`**](./docs/04-UX-AND-VAULT-DESIGN.md) — Дизайн дружелюбного двухуровневого интерфейса (`Простой ↔ Эксперт`) и система не засоряющих ОС бэкапов (`Zero-Bloat Vault`).
+
+---
+
+## Быстрый старт и сборка (Фаза 0 — Реализовано)
+
+Требования: **.NET 8.0 SDK** на Windows 10 / Windows 11.
+
+```powershell
+# Восстановление зависимостей и сборка всего решения
+dotnet build UltimateWindows.sln -c Release
+
+# Запуск модульных тестов защитного ядра и квот бэкапов
+dotnet test UltimateWindows.sln -c Release
+
+# Запуск графического интерфейса (User-Friendly Fluent GUI)
+dotnet run --project src/UltimateWindows.App/UltimateWindows.App.csproj
+```

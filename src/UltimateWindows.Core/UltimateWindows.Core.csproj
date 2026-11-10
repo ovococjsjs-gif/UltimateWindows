@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>UltimateWindows.Core</RootNamespace>
+    <Description>Базовые контракты, модели транзакций, политики квот бэкапов и инварианты защиты данных UltimateWindows.</Description>
+  </PropertyGroup>
+</Project>

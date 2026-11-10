@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Company>UltimateWindows Project</Company>
+    <Product>UltimateWindows</Product>
+    <Version>0.1.0-alpha</Version>
+    <NeutralLanguage>ru-RU</NeutralLanguage>
+  </PropertyGroup>
+</Project>
