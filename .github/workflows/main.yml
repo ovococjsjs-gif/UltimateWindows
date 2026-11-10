@@ -1,0 +1,51 @@
+# Шаблон GitHub Actions для автоматической сборки и публикации портативного .exe/.zip в GitHub Releases.
+# Чтобы включить облачную автосборку на серверах GitHub (windows-latest):
+# скопируйте этот файл в .github/workflows/release-portable.yml через веб-интерфейс GitHub (Actions -> New workflow).
+
+name: Build & Publish Portable Release (win-x64)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Тег релиза в GitHub Releases (например, v1.0.0)"
+        required: true
+        default: "v1.0.0"
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-portable-win-x64:
+    name: Build Self-Contained Single-File Portable (.zip)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8.0 SDK (Deterministic)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Run xUnit Test Suite & Build Portable Single-File Archive
+        shell: pwsh
+        run: |
+          $tag = "${{ github.event.inputs.release_tag }}"
+          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "${{ github.event.release.tag_name }}" }
+          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "v1.0.0" }
+          $ver = $tag.TrimStart('v')
+          ./scripts/build-portable-release.ps1 -Version $ver -Runtime win-x64 -ReleaseTag $tag
+
+      - name: Upload Portable .zip & SHA256SUMS to GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ github.event.inputs.release_tag }}"
+          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "${{ github.event.release.tag_name }}" }
+          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "v1.0.0" }
+          gh release upload $tag artifacts/*.zip artifacts/SHA256SUMS-*.txt --clobber
