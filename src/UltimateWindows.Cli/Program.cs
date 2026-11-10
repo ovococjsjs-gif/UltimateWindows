@@ -3,11 +3,13 @@ using UltimateWindows.Core.Guards;
 using UltimateWindows.Modules.Cleaner.Models;
 using UltimateWindows.Modules.Cleaner.Services;
 using UltimateWindows.Modules.Hardware.Services;
+using UltimateWindows.Modules.Optimizer.Services;
 using UltimateWindows.Modules.Repair.Models;
 using UltimateWindows.Modules.Repair.Services;
 using UltimateWindows.Modules.Safety.Services;
 using UltimateWindows.NativeInterop.Cleaner;
 using UltimateWindows.NativeInterop.Hardware;
+using UltimateWindows.NativeInterop.Optimizer;
 using UltimateWindows.NativeInterop.Repair;
 using UltimateWindows.NativeInterop.Restore;
 using UltimateWindows.NativeInterop.Security;
@@ -18,6 +20,7 @@ var vault = new ZeroBloatVaultService(stateApplier: new WindowsSystemStateApplie
 var hardware = new HardwareStudioService(vault, new WindowsHardwarePlatformProvider());
 var cleaner = new VaultSafeCleanerService(vault, new WindowsCleanerPlatformBridge());
 var repair = new SystemRepairService(vault, new WindowsRepairPlatformBridge());
+var optimizer = new SmartOptimizerService(vault, new WindowsOptimizerPlatformBridge());
 var command = args.Length > 0 ? args[0].ToLowerInvariant() : "status";
 
 switch (command)
@@ -191,6 +194,89 @@ switch (command)
         break;
     }
 
+    case "tweak-list":
+    {
+        Console.WriteLine("=== UltimateWindows Phase 4 — Обратимые твики ОС ===");
+        foreach (var st in optimizer.EvaluateAllTweaks())
+        {
+            var mark = st.IsCurrentlyApplied ? "[ВКЛ ]" : "[СТНД]";
+            Console.WriteLine($"  {mark} {st.Rule.TweakId,-42} | {st.Rule.FriendlyTitle}");
+        }
+        break;
+    }
+
+    case "tweak-enable":
+    case "tweak-disable":
+    {
+        if (args.Length < 2)
+        {
+            Console.WriteLine($"Использование: UltimateWindows.Cli {command} <tweak-id>");
+            return 1;
+        }
+
+        var enable = command == "tweak-enable";
+        var res = await optimizer.SetTweakStateAsync(args[1], enable);
+        Console.WriteLine(res.UserFriendlyMessage);
+        break;
+    }
+
+    case "tweak-export":
+    {
+        var outPath = args.Length > 1 ? args[1] : "ultimatewindows-profile.yaml";
+        var yaml = optimizer.ExportActiveTweaksToYaml(Path.GetFileNameWithoutExtension(outPath));
+        await File.WriteAllTextAsync(outPath, yaml);
+        Console.WriteLine($"Профиль активных настроек сохранен в: {Path.GetFullPath(outPath)}");
+        break;
+    }
+
+    case "tweak-import":
+    {
+        if (args.Length < 2 || !File.Exists(args[1]))
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli tweak-import <путь-к-файлу.yaml>");
+            return 1;
+        }
+
+        var yaml = await File.ReadAllTextAsync(args[1]);
+        var res = await optimizer.ImportAndApplyYamlProfileAsync(yaml);
+        Console.WriteLine(res.UserFriendlyMessage);
+        break;
+    }
+
+    case "startup-list":
+    {
+        var startups = await optimizer.GetStartupEntriesAsync();
+        Console.WriteLine($"=== Автозагрузка Windows ({startups.Count} эл.) ===");
+        foreach (var s in startups)
+        {
+            Console.WriteLine($"  [{(s.IsEnabled ? "ВКЛ " : "ВЫКЛ")}] {s.DisplayName,-28} | {s.LocationSource} | {s.SignatureBadge}");
+        }
+        break;
+    }
+
+    case "unlock-check":
+    {
+        if (args.Length < 2)
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli unlock-check \"<путь к файлу или папке>\"");
+            return 1;
+        }
+
+        var lockers = await optimizer.FindLockingProcessesAsync(args[1]);
+        if (lockers.Count == 0)
+        {
+            Console.WriteLine("Путь не заблокирован ни одним процессом.");
+        }
+        else
+        {
+            foreach (var lp in lockers)
+            {
+                Console.WriteLine($"  - {lp.DisplayHeadline} | {lp.ProcessKindLabel} | {lp.ExecutablePath}");
+            }
+        }
+        break;
+    }
+
     case "history":
     {
         var history = await vault.GetHistoryAsync(25);
@@ -245,7 +331,7 @@ switch (command)
 
     default:
     {
-        Console.WriteLine("Доступные команды: status | hardware-audit | stress-test [сек] | clean-scan | clean-run | disk-map [путь] | pe-doctor <exe> | bsod-scan | repair-list | repair-run <id> | history | cleanup-blobs | rollback <id> | check-path <path>");
+        Console.WriteLine("Доступные команды: status | hardware-audit | stress-test [сек] | clean-scan | clean-run | disk-map [путь] | pe-doctor <exe> | bsod-scan | repair-list | repair-run <id> | tweak-list | tweak-enable <id> | tweak-disable <id> | tweak-export [yaml] | tweak-import <yaml> | startup-list | unlock-check <path> | history | cleanup-blobs | rollback <id> | check-path <path>");
         break;
     }
 }

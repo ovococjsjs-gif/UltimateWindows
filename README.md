@@ -48,15 +48,15 @@
 
 ---
 
-## Быстрый старт и сборка (Фазы 0, 1, 2 и 3 — Реализовано)
+## Быстрый старт и сборка (Фазы 0, 1, 2, 3 и 4 — Реализовано)
 
 Требования: **.NET 8.0 SDK** на Windows 10 / Windows 11.
 
 ```powershell
-# Восстановление зависимостей и сборка всего решения (9 проектов)
+# Восстановление зависимостей и сборка всего решения (10 проектов)
 dotnet build UltimateWindows.sln -c Release
 
-# Запуск всех модульных тестов (Vault, Hardware, Cleaner, PE Doctor & BSOD Analyzer)
+# Запуск всех модульных тестов (Vault, Hardware, Cleaner, PE/BSOD Repair & Smart Optimizer)
 dotnet test UltimateWindows.sln -c Release
 
 # Запуск графического интерфейса (User-Friendly Fluent GUI)
@@ -65,8 +65,9 @@ dotnet run --project src/UltimateWindows.App/UltimateWindows.App.csproj
 # Примеры использования консольного интерфейса (CLI)
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- hardware-audit
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- clean-scan
-dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- disk-map "C:\Users"
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- pe-doctor "C:\Games\App\game.exe"
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- bsod-scan
-dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- repair-list
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- tweak-list
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- tweak-export "my-profile.yaml"
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- unlock-check "D:\LockedFolder"
 ```

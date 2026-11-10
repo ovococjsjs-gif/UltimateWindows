@@ -184,6 +184,14 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
 
                 return;
             }
+
+            if (delta.TargetPath.StartsWith("DnsProfile:", StringComparison.OrdinalIgnoreCase))
+            {
+                _ = await UltimateWindows.NativeInterop.Optimizer.WindowsOptimizerPlatformBridge
+                    .RestoreDnsSnapshotJsonAsync(delta.PreviousStateJson, ct)
+                    .ConfigureAwait(false);
+                return;
+            }
         }
 
         await base.ApplyRollbackDeltaAsync(delta, restoreBlobBytesAsync, ct).ConfigureAwait(false);

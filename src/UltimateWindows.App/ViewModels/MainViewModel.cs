@@ -7,10 +7,12 @@ using UltimateWindows.Core.Guards;
 using UltimateWindows.Core.Models;
 using UltimateWindows.Modules.Cleaner.Services;
 using UltimateWindows.Modules.Hardware.Services;
+using UltimateWindows.Modules.Optimizer.Services;
 using UltimateWindows.Modules.Repair.Services;
 using UltimateWindows.Modules.Safety.Services;
 using UltimateWindows.NativeInterop.Cleaner;
 using UltimateWindows.NativeInterop.Hardware;
+using UltimateWindows.NativeInterop.Optimizer;
 using UltimateWindows.NativeInterop.Repair;
 using UltimateWindows.NativeInterop.Restore;
 using UltimateWindows.NativeInterop.Security;
@@ -133,6 +135,18 @@ public sealed class MainViewModel : ObservableObject
                 await RefreshVaultStateAsync();
             });
 
+        var optimizerService = new SmartOptimizerService(
+            _vaultService,
+            new WindowsOptimizerPlatformBridge());
+
+        OptimizerStudio = new OptimizerStudioViewModel(
+            optimizerService,
+            async msg =>
+            {
+                StatusNotification = msg;
+                await RefreshVaultStateAsync();
+            });
+
         _ = InitializeAsync();
     }
 
@@ -150,6 +164,8 @@ public sealed class MainViewModel : ObservableObject
 
     public RepairStudioViewModel RepairStudio { get; }
 
+    public OptimizerStudioViewModel OptimizerStudio { get; }
+
     public string PrivilegeBadgeText =>
         IsAdmin ? "Права Администратора активны" : "Обычный режим (безопасный просмотр)";
 
@@ -166,6 +182,7 @@ public sealed class MainViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(IsOverviewVisible));
                 OnPropertyChanged(nameof(IsCleanerVisible));
+                OnPropertyChanged(nameof(IsOptimizerVisible));
                 OnPropertyChanged(nameof(IsRepairVisible));
                 OnPropertyChanged(nameof(IsHardwareVisible));
                 OnPropertyChanged(nameof(IsTimeMachineVisible));
@@ -178,12 +195,14 @@ public sealed class MainViewModel : ObservableObject
 
     public bool IsOverviewVisible => SelectedDomain == SystemDomain.HealthOverview;
     public bool IsCleanerVisible => SelectedDomain == SystemDomain.SmartCleaner;
+    public bool IsOptimizerVisible => SelectedDomain == SystemDomain.Optimizer;
     public bool IsRepairVisible => SelectedDomain == SystemDomain.DllAndRepair;
     public bool IsHardwareVisible => SelectedDomain == SystemDomain.HardwareAndDrivers;
     public bool IsTimeMachineVisible => SelectedDomain == SystemDomain.TimeMachineVault;
     public bool IsModulePreviewVisible =>
         SelectedDomain is not SystemDomain.HealthOverview
             and not SystemDomain.SmartCleaner
+            and not SystemDomain.Optimizer
             and not SystemDomain.DllAndRepair
             and not SystemDomain.HardwareAndDrivers
             and not SystemDomain.TimeMachineVault;

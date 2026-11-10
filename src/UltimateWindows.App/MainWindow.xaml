@@ -1544,6 +1544,382 @@
             </Border>
           </StackPanel>
 
+          <!-- =============== ЭКРАН 3.9: УМНЫЙ ОПТИМИЗАТОР, АВТОЗАГРУЗКА, SHELLEX, РАЗБЛОКИРОВКА И DNS =============== -->
+          <StackPanel Visibility="{Binding IsOptimizerVisible, Converter={StaticResource BoolToVis}}"
+                      DataContext="{Binding OptimizerStudio}">
+
+            <!-- Баннер результата последнего действия -->
+            <Border Visibility="{Binding HasActionStatusBanner, Converter={StaticResource BoolToVis}}"
+                    Style="{StaticResource CardBorderStyle}"
+                    BorderBrush="{DynamicResource SafeEmeraldBrush}"
+                    Margin="0,0,0,16">
+              <TextBlock Text="{Binding ActionStatusBanner}"
+                         FontSize="13.5"
+                         FontWeight="SemiBold"
+                         TextWrapping="Wrap"
+                         Foreground="{DynamicResource SafeEmeraldBrush}" />
+            </Border>
+
+            <!-- 1. Безопасные обратимые твики ОС + YAML профили -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,16">
+              <StackPanel>
+                <DockPanel Margin="0,0,0,8">
+                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Style="{StaticResource SecondaryButtonStyle}"
+                            Command="{Binding ExportYamlProfileCommand}"
+                            Content="💾 Экспорт YAML-профиля"
+                            Margin="0,0,8,0" />
+                    <Button Style="{StaticResource SecondaryButtonStyle}"
+                            Command="{Binding ImportYamlProfileCommand}"
+                            Content="📂 Импорт YAML" />
+                  </StackPanel>
+                  <TextBlock Text="⚡ Безопасное ускорение интерфейса, игр и тишина в фоне (100% обратимо)"
+                             FontSize="16"
+                             FontWeight="SemiBold"
+                             VerticalAlignment="Center" />
+                </DockPanel>
+
+                <TextBlock Text="Ни одно правило не отключает Windows Defender, SmartScreen или Центр обновления. Перед изменением любое исходное значение автоматически записывается в Машину времени."
+                           FontSize="12.5"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,12"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                <ItemsControl ItemsSource="{Binding Tweaks}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                              BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="8"
+                              Padding="12,10"
+                              Margin="0,0,0,8">
+                        <StackPanel>
+                          <DockPanel>
+                            <Button DockPanel.Dock="Right"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Command="{Binding ToggleCommand}"
+                                    Content="{Binding ToggleButtonLabel}"
+                                    Margin="12,0,0,0" />
+                            <StackPanel>
+                              <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding IconGlyph}" FontSize="17" Margin="0,0,8,0" />
+                                <TextBlock Text="{Binding FriendlyTitle}"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center" />
+                              </StackPanel>
+                              <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                <TextBlock Text="{Binding StateBadge}"
+                                           FontSize="11.5"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource SafeEmeraldBrush}"
+                                           Margin="0,0,12,0" />
+                                <TextBlock Text="{Binding ImpactBadge}"
+                                           FontSize="11.5"
+                                           Foreground="{DynamicResource AccentPrimaryBrush}" />
+                              </StackPanel>
+                            </StackPanel>
+                          </DockPanel>
+
+                          <TextBlock Text="{Binding FriendlyExplanation}"
+                                     FontSize="12.5"
+                                     TextWrapping="Wrap"
+                                     Margin="0,6,0,0"
+                                     Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                          <Border Visibility="{Binding DataContext.IsExpertMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
+                                  Background="{DynamicResource ExpertPanelBackgroundBrush}"
+                                  BorderBrush="{DynamicResource ExpertPanelBorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="8,5"
+                                  Margin="0,6,0,0">
+                            <TextBlock Text="{Binding ExpertMutationsPreview}"
+                                       FontSize="11"
+                                       TextWrapping="Wrap" />
+                          </Border>
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <!-- 2. Менеджер Автозагрузки и Контекстного меню Проводника (ShellEx) -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,16">
+              <StackPanel>
+                <DockPanel Margin="0,0,0,8">
+                  <Button DockPanel.Dock="Right"
+                          Style="{StaticResource PrimaryButtonStyle}"
+                          Command="{Binding RefreshAllOptimizerDataCommand}"
+                          Content="🔄 Сканировать автозагрузку и меню" />
+                  <TextBlock Text="🚀 Автозагрузка при старте ПК и правый клик Проводника (ShellEx)"
+                             FontSize="16"
+                             FontWeight="SemiBold"
+                             VerticalAlignment="Center" />
+                </DockPanel>
+
+                <TextBlock Text="Отключение выполняется штатными флагами StartupApproved и Shell Extensions\Blocked без удаления ваших программ и веток CLSID."
+                           FontSize="12.5"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,10"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                <ItemsControl ItemsSource="{Binding StartupEntries}" Margin="0,0,0,10">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                              BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="8"
+                              Padding="12,8"
+                              Margin="0,0,0,6">
+                        <DockPanel>
+                          <Button DockPanel.Dock="Right"
+                                  Style="{StaticResource SecondaryButtonStyle}"
+                                  Command="{Binding ToggleCommand}"
+                                  Content="{Binding ToggleLabel}"
+                                  Margin="10,0,0,0" />
+                          <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                              <TextBlock Text="{Binding DisplayName}" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,10,0" />
+                              <TextBlock Text="{Binding StatusBadge}" FontSize="11.5" VerticalAlignment="Center" Foreground="{DynamicResource SafeEmeraldBrush}" Margin="0,0,10,0" />
+                              <TextBlock Text="{Binding SignatureBadge}" FontSize="11.5" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding LocationSource}" FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <TextBlock Visibility="{Binding DataContext.IsExpertMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
+                                       Text="{Binding CommandOrTarget}"
+                                       FontSize="11"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource AccentPrimaryBrush}" />
+                          </StackPanel>
+                        </DockPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <StackPanel Visibility="{Binding HasShellExtensions, Converter={StaticResource BoolToVis}}">
+                  <TextBlock Text="Сторонние пункты контекстного меню Проводника (могут замедлять правый клик):"
+                             FontSize="13.5"
+                             FontWeight="SemiBold"
+                             Margin="0,4,0,6" />
+                  <ItemsControl ItemsSource="{Binding ShellExtensions}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                                BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="12,8"
+                                Margin="0,0,0,6">
+                          <DockPanel>
+                            <Button DockPanel.Dock="Right"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Command="{Binding ToggleBlockCommand}"
+                                    Content="{Binding ToggleLabel}"
+                                    Margin="10,0,0,0" />
+                            <StackPanel>
+                              <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding HandlerName}" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,10,0" />
+                                <TextBlock Text="{Binding StateBadge}" FontSize="11.5" VerticalAlignment="Center" Foreground="{DynamicResource AccentPrimaryBrush}" />
+                              </StackPanel>
+                              <TextBlock Text="{Binding TargetScope}" FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" />
+                              <TextBlock Visibility="{Binding DataContext.IsExpertMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
+                                         Text="{Binding TechnicalPathAndClsid}"
+                                         FontSize="11"
+                                         TextWrapping="Wrap"
+                                         Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </StackPanel>
+                          </DockPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </StackPanel>
+            </Border>
+
+            <!-- 3. Разблокировщик занятых файлов и папок (File Lock Hunter) -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock Text="🔓 Разблокировщик занятых файлов и папок (File Lock Hunter)"
+                           FontSize="16"
+                           FontWeight="SemiBold" />
+                <TextBlock Text="{Binding LockHunterHeadline}"
+                           FontSize="12.5"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,10"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                <Grid Margin="0,0,0,10">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <TextBox Grid.Column="0"
+                           Text="{Binding LockedTargetPath, UpdateSourceTrigger=PropertyChanged}"
+                           Background="{DynamicResource SurfaceElevatedBrush}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                           Padding="10,8"
+                           FontSize="13"
+                           Margin="0,0,8,0" />
+                  <Button Grid.Column="1"
+                          Style="{StaticResource SecondaryButtonStyle}"
+                          Command="{Binding BrowseLockedPathCommand}"
+                          Content="📂 Выбрать файл..."
+                          Margin="0,0,8,0" />
+                  <Button Grid.Column="2"
+                          Style="{StaticResource PrimaryButtonStyle}"
+                          Command="{Binding FindLockersCommand}"
+                          Content="🔍 Кто держит файл?" />
+                </Grid>
+
+                <ItemsControl Visibility="{Binding HasLockingProcesses, Converter={StaticResource BoolToVis}}"
+                              ItemsSource="{Binding LockingProcesses}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                              BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="8"
+                              Padding="12,8"
+                              Margin="0,0,0,6">
+                        <DockPanel>
+                          <Button DockPanel.Dock="Right"
+                                  Visibility="{Binding CanCloseSafely, Converter={StaticResource BoolToVis}}"
+                                  Style="{StaticResource SecondaryButtonStyle}"
+                                  Command="{Binding CloseCommand}"
+                                  Content="Вежливо закрыть окно"
+                                  Margin="10,0,0,0" />
+                          <StackPanel>
+                            <TextBlock Text="{Binding DisplayHeadline}" FontSize="13.5" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding ProcessKindLabel}" FontSize="12" Foreground="{DynamicResource AccentPrimaryBrush}" />
+                            <TextBlock Text="{Binding ExecutablePath}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
+                          </StackPanel>
+                        </DockPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <!-- 4. Проверенные быстрые DNS, тест стабильности сети и инспектор hosts -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,16">
+              <StackPanel>
+                <DockPanel Margin="0,0,0,6">
+                  <Button DockPanel.Dock="Right"
+                          Style="{StaticResource PrimaryButtonStyle}"
+                          Command="{Binding RunLatencyTestCommand}"
+                          Content="📊 Тест пинга и джиттера" />
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🌐 Быстрые защищенные DNS и стабильность соединения"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0" />
+                    <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                            BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="8,2"
+                            VerticalAlignment="Center">
+                      <TextBlock Text="{Binding LatencyBadge}"
+                                 FontSize="11.5"
+                                 FontWeight="Bold"
+                                 Foreground="{DynamicResource SafeEmeraldBrush}" />
+                    </Border>
+                  </StackPanel>
+                </DockPanel>
+
+                <TextBlock Text="{Binding LatencyHeadline}"
+                           FontSize="12.5"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,12"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                <ItemsControl ItemsSource="{Binding DnsPresets}" Margin="0,0,0,10">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <UniformGrid Columns="2" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                              BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="8"
+                              Padding="12,9"
+                              Margin="0,0,10,10">
+                        <StackPanel>
+                          <TextBlock Text="{Binding FriendlyName}" FontSize="13.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+                          <TextBlock Text="{Binding ServersDisplay}" FontSize="12" Margin="0,2,0,4" Foreground="{DynamicResource AccentPrimaryBrush}" />
+                          <TextBlock Text="{Binding FriendlyBenefit}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
+                          <Button Style="{StaticResource SecondaryButtonStyle}"
+                                  HorizontalAlignment="Left"
+                                  Margin="0,8,0,0"
+                                  Command="{Binding ApplyCommand}"
+                                  Content="Применить (с откатом)" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                        BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12,8">
+                  <TextBlock Text="{Binding HostsStatusSummary}"
+                             FontSize="12.5"
+                             FontWeight="SemiBold"
+                             TextWrapping="Wrap" />
+                </Border>
+              </StackPanel>
+            </Border>
+
+            <!-- 5. Быстрый поиск по установленным программам -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock Text="📦 Установленные программы (быстрый фильтр)"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,8" />
+                <TextBox Text="{Binding AppSearchFilter, UpdateSourceTrigger=PropertyChanged}"
+                         Background="{DynamicResource SurfaceElevatedBrush}"
+                         Foreground="{DynamicResource TextPrimaryBrush}"
+                         BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                         Padding="10,8"
+                         FontSize="13"
+                         Margin="0,0,0,10" />
+                <ItemsControl ItemsSource="{Binding FilteredInstalledApps}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                              BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="8"
+                              Padding="10,7"
+                              Margin="0,0,0,6">
+                        <StackPanel>
+                          <TextBlock Text="{Binding DisplayName}" FontSize="13" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding PublisherAndVersion}" FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
           <!-- =============== ЭКРАН 4: ПРЕВЬЮ ОСТАЛЬНЫХ МОДУЛЕЙ ПО ДОРОЖНОЙ КАРТЕ =============== -->
           <Border Style="{StaticResource CardBorderStyle}"
                   Visibility="{Binding IsModulePreviewVisible, Converter={StaticResource BoolToVis}}">

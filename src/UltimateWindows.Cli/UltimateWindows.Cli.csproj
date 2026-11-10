@@ -12,6 +12,7 @@
     <ProjectReference Include="..\UltimateWindows.Modules.Hardware\UltimateWindows.Modules.Hardware.csproj" />
     <ProjectReference Include="..\UltimateWindows.Modules.Cleaner\UltimateWindows.Modules.Cleaner.csproj" />
     <ProjectReference Include="..\UltimateWindows.Modules.Repair\UltimateWindows.Modules.Repair.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Optimizer\UltimateWindows.Modules.Optimizer.csproj" />
     <ProjectReference Include="..\UltimateWindows.NativeInterop\UltimateWindows.NativeInterop.csproj" />
   </ItemGroup>
 </Project>
