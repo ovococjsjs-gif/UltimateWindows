@@ -286,10 +286,12 @@ public sealed class VaultSafeCleanerTests : IDisposable
         CommonAppDataDirectory: Path.Combine(_sandboxDir, "EmptyC"),
         WindowsDirectory: Path.Combine(_sandboxDir, "EmptyW"));
 
+    private static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
     private static string WriteFakeFile(string fullPath, string content)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-        File.WriteAllText(fullPath, content, Encoding.UTF8);
+        File.WriteAllText(fullPath, content, Utf8NoBom);
         return fullPath;
     }
 
