@@ -22,5 +22,6 @@
     <ProjectReference Include="..\..\src\UltimateWindows.Modules.Cleaner\UltimateWindows.Modules.Cleaner.csproj" />
     <ProjectReference Include="..\..\src\UltimateWindows.Modules.Repair\UltimateWindows.Modules.Repair.csproj" />
     <ProjectReference Include="..\..\src\UltimateWindows.Modules.Optimizer\UltimateWindows.Modules.Optimizer.csproj" />
+    <ProjectReference Include="..\..\src\UltimateWindows.Modules.Security\UltimateWindows.Modules.Security.csproj" />
   </ItemGroup>
 </Project>

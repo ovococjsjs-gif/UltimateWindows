@@ -192,6 +192,19 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
                     .ConfigureAwait(false);
                 return;
             }
+
+            if (string.Equals(delta.TargetPath, "HostsSabotageCleanup", StringComparison.OrdinalIgnoreCase))
+            {
+                using var doc = JsonDocument.Parse(delta.PreviousStateJson);
+                var p = doc.RootElement.TryGetProperty("Path", out var pEl) ? pEl.GetString() : null;
+                var c = doc.RootElement.TryGetProperty("Content", out var cEl) ? cEl.GetString() : null;
+                if (!string.IsNullOrWhiteSpace(p) && c is not null)
+                {
+                    await File.WriteAllTextAsync(p, c, ct).ConfigureAwait(false);
+                }
+
+                return;
+            }
         }
 
         await base.ApplyRollbackDeltaAsync(delta, restoreBlobBytesAsync, ct).ConfigureAwait(false);

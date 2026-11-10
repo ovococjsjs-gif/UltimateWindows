@@ -7,12 +7,14 @@ using UltimateWindows.Modules.Optimizer.Services;
 using UltimateWindows.Modules.Repair.Models;
 using UltimateWindows.Modules.Repair.Services;
 using UltimateWindows.Modules.Safety.Services;
+using UltimateWindows.Modules.Security.Services;
 using UltimateWindows.NativeInterop.Cleaner;
 using UltimateWindows.NativeInterop.Hardware;
 using UltimateWindows.NativeInterop.Optimizer;
 using UltimateWindows.NativeInterop.Repair;
 using UltimateWindows.NativeInterop.Restore;
 using UltimateWindows.NativeInterop.Security;
+using UltimateWindows.NativeInterop.SecurityHunter;
 
 Console.OutputEncoding = Encoding.UTF8;
 
@@ -21,6 +23,7 @@ var hardware = new HardwareStudioService(vault, new WindowsHardwarePlatformProvi
 var cleaner = new VaultSafeCleanerService(vault, new WindowsCleanerPlatformBridge());
 var repair = new SystemRepairService(vault, new WindowsRepairPlatformBridge());
 var optimizer = new SmartOptimizerService(vault, new WindowsOptimizerPlatformBridge());
+var security = new AntiMinerSecurityService(vault, new WindowsSecurityPlatformBridge());
 var command = args.Length > 0 ? args[0].ToLowerInvariant() : "status";
 
 switch (command)
@@ -277,6 +280,43 @@ switch (command)
         break;
     }
 
+    case "miner-scan":
+    {
+        var probe = args.Length < 2 || !string.Equals(args[1], "--fast", StringComparison.OrdinalIgnoreCase);
+        var report = await security.RunFullSecurityScanAsync(probe);
+        Console.WriteLine($"=== UltimateWindows Phase 5 — Охотник на майнеры (Индекс: {report.SecurityHealthScore}/100) ===");
+        Console.WriteLine(report.HeadlineSummary);
+
+        if (report.Threats.Count > 0)
+        {
+            Console.WriteLine($"\nОбнаружено угроз ({report.Threats.Count}):");
+            foreach (var t in report.Threats)
+            {
+                Console.WriteLine($"  - [{t.ConfidenceBadge}] {t.SimpleTitle}");
+                Console.WriteLine($"      {t.SimpleExplanation}");
+                Console.WriteLine($"      Доказательство: {t.ExpertTechnicalEvidence}");
+            }
+        }
+
+        if (report.SabotageLocks.Count > 0)
+        {
+            Console.WriteLine($"\nОбнаружено блокировок ОС после майнера ({report.SabotageLocks.Count}):");
+            foreach (var s in report.SabotageLocks)
+            {
+                Console.WriteLine($"  - {s.SimpleTitle}: {s.SimpleExplanation}");
+            }
+        }
+        break;
+    }
+
+    case "miner-heal-os":
+    {
+        var report = await security.RunFullSecurityScanAsync(enableDropOnInspectProbe: false);
+        var res = await security.HealAllSabotageLocksAsync(report.SabotageLocks);
+        Console.WriteLine(res.UserFriendlyMessage);
+        return res.Succeeded ? 0 : 1;
+    }
+
     case "history":
     {
         var history = await vault.GetHistoryAsync(25);
@@ -331,7 +371,7 @@ switch (command)
 
     default:
     {
-        Console.WriteLine("Доступные команды: status | hardware-audit | stress-test [сек] | clean-scan | clean-run | disk-map [путь] | pe-doctor <exe> | bsod-scan | repair-list | repair-run <id> | tweak-list | tweak-enable <id> | tweak-disable <id> | tweak-export [yaml] | tweak-import <yaml> | startup-list | unlock-check <path> | history | cleanup-blobs | rollback <id> | check-path <path>");
+        Console.WriteLine("Доступные команды: status | hardware-audit | stress-test [сек] | clean-scan | clean-run | disk-map [путь] | pe-doctor <exe> | bsod-scan | repair-list | repair-run <id> | tweak-list | tweak-enable <id> | tweak-disable <id> | tweak-export [yaml] | tweak-import <yaml> | startup-list | unlock-check <path> | miner-scan [--fast] | miner-heal-os | history | cleanup-blobs | rollback <id> | check-path <path>");
         break;
     }
 }

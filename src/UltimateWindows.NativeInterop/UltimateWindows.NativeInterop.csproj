@@ -13,5 +13,6 @@
     <ProjectReference Include="..\UltimateWindows.Modules.Cleaner\UltimateWindows.Modules.Cleaner.csproj" />
     <ProjectReference Include="..\UltimateWindows.Modules.Repair\UltimateWindows.Modules.Repair.csproj" />
     <ProjectReference Include="..\UltimateWindows.Modules.Optimizer\UltimateWindows.Modules.Optimizer.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Security\UltimateWindows.Modules.Security.csproj" />
   </ItemGroup>
 </Project>

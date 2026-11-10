@@ -1920,6 +1920,141 @@
             </Border>
           </StackPanel>
 
+          <!-- =============== ЭКРАН 6 (ФАЗА 5): ЗАЩИТА ОТ СКРЫТЫХ МАЙНЕРОВ, РЕВИЗОР ЗАКРЕПЛЕНИЯ И РЕАБИЛИТАЦИЯ ОС =============== -->
+          <StackPanel Visibility="{Binding IsAntiMinerVisible, Converter={StaticResource BoolToVis}}"
+                      DataContext="{Binding AntiMinerStudio}">
+
+            <!-- 6.1 Hero-карточка: Стелс-охотник Drop-on-Inspect и Stratum -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,16">
+              <StackPanel>
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                    <TextBlock Text="🛡️ Охотник на скрытые майнеры и подмены системных процессов"
+                               FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding ScanHeadline}"
+                               FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" VerticalAlignment="Top" HorizontalAlignment="Right">
+                    <Border Background="{DynamicResource AccentSubtleBrush}"
+                            CornerRadius="8" Padding="12,6" Margin="0,0,0,8" HorizontalAlignment="Right">
+                      <TextBlock Text="{Binding SecurityScoreBadge}" FontSize="13" FontWeight="SemiBold"
+                                 Foreground="{DynamicResource AccentBrush}" />
+                    </Border>
+                    <Button Style="{StaticResource PrimaryButtonStyle}"
+                            Command="{Binding RunSecurityScanCommand}"
+                            Content="🔍 Запустить глубокий поиск майнеров" />
+                  </StackPanel>
+                </Grid>
+
+                <CheckBox IsChecked="{Binding EnableDropOnInspectProbe}"
+                          Margin="0,12,0,0"
+                          Content="🕵️ Включить стелс-ловушку Drop-on-Inspect (ловит хитрые майнеры, которые затихают при открытии Диспетчера задач)"
+                          Foreground="{DynamicResource TextPrimaryBrush}" />
+
+                <Border Background="{DynamicResource AccentSubtleBrush}"
+                        CornerRadius="8" Padding="12,8" Margin="0,12,0,0"
+                        Visibility="{Binding HasRemediationBanner, Converter={StaticResource BoolToVis}}">
+                  <TextBlock Text="{Binding LastRemediationBanner}"
+                             FontSize="12.5" TextWrapping="Wrap"
+                             Foreground="{DynamicResource TextPrimaryBrush}" />
+                </Border>
+              </StackPanel>
+            </Border>
+
+            <!-- 6.2 Реабилитация ОС после майнера (разблокировка TaskMgr, Regedit, CMD и hosts) -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,16"
+                    Visibility="{Binding HasSabotageLocks, Converter={StaticResource BoolToVis}}">
+              <StackPanel>
+                <Grid Margin="0,0,0,12">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                    <TextBlock Text="🚑 Реабилитация Windows после вмешательства майнера"
+                               FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Text="Обнаружены принудительные блокировки системных утилит или сайтов антивирусов в файле hosts. Можно снять их одним нажатием с записью резервной копии."
+                               FontSize="12.5" TextWrapping="Wrap" Margin="0,4,0,0"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
+                  <Button Grid.Column="1" VerticalAlignment="Top"
+                          Style="{StaticResource PrimaryButtonStyle}"
+                          Command="{Binding HealSabotageCommand}"
+                          Content="✨ Разблокировать всё в 1 клик" />
+                </Grid>
+
+                <ItemsControl ItemsSource="{Binding SabotageLocks}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{DynamicResource SidebarBackgroundBrush}"
+                              BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                              BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,8">
+                        <StackPanel>
+                          <TextBlock Text="{Binding SimpleTitle}" FontSize="13.5" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding SimpleExplanation}" FontSize="12.5" TextWrapping="Wrap"
+                                     Margin="0,3,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                          <TextBlock Text="{Binding TargetDisplayPath}" FontSize="11.5" FontFamily="Consolas"
+                                     Margin="0,6,0,0" Foreground="{DynamicResource AccentBrush}"
+                                     Visibility="{Binding DataContext.IsExpertMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <!-- 6.3 Список обнаруженных угроз, маскировок, Stratum-пулов и скрытых задач без SD -->
+            <Border Style="{StaticResource CardBorderStyle}"
+                    Visibility="{Binding HasThreats, Converter={StaticResource BoolToVis}}">
+              <StackPanel>
+                <TextBlock Text="🚨 Обнаруженные подозрительные процессы, пулы майнинга и скрытое закрепление"
+                           FontSize="15" FontWeight="SemiBold" Margin="0,0,0,12" />
+                <ItemsControl ItemsSource="{Binding Threats}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{DynamicResource SidebarBackgroundBrush}"
+                              BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                              BorderThickness="1" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+                        <Grid>
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                          </Grid.ColumnDefinitions>
+                          <StackPanel Grid.Column="0" Margin="0,0,14,0">
+                            <StackPanel Orientation="Horizontal">
+                              <TextBlock Text="{Binding SimpleTitle}" FontSize="14" FontWeight="SemiBold" />
+                              <Border Background="{DynamicResource AccentSubtleBrush}"
+                                      CornerRadius="6" Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding ConfidenceBadge}" FontSize="11.5" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource AccentBrush}" />
+                              </Border>
+                            </StackPanel>
+                            <TextBlock Text="{Binding SimpleExplanation}" FontSize="12.5" TextWrapping="Wrap"
+                                       Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <TextBlock Text="{Binding ExpertTechnicalEvidence}" FontSize="11.5" FontFamily="Consolas"
+                                       TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{DynamicResource AccentBrush}"
+                                       Visibility="{Binding DataContext.IsExpertMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}" />
+                          </StackPanel>
+                          <Button Grid.Column="1" VerticalAlignment="Center"
+                                  Style="{StaticResource SecondaryButtonStyle}"
+                                  Visibility="{Binding CanQuarantineFileSafely, Converter={StaticResource BoolToVis}}"
+                                  Command="{Binding QuarantineCommand}"
+                                  Content="🔒 В карантин (.uwq)" />
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
           <!-- =============== ЭКРАН 4: ПРЕВЬЮ ОСТАЛЬНЫХ МОДУЛЕЙ ПО ДОРОЖНОЙ КАРТЕ =============== -->
           <Border Style="{StaticResource CardBorderStyle}"
                   Visibility="{Binding IsModulePreviewVisible, Converter={StaticResource BoolToVis}}">
