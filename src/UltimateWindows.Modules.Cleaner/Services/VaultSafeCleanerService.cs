@@ -277,10 +277,10 @@ public sealed class VaultSafeCleanerService
 
     public Task<DiskSpaceAnalysisReport> AnalyzeDiskSpaceAsync(
         string rootPath,
-        int topDirs = 12,
-        int largestFiles = 15,
+        int topDirectoryLimit = 12,
+        int largestFilesLimit = 15,
         CancellationToken ct = default)
-        => _diskAnalyzer.AnalyzeDirectoryOrDriveAsync(rootPath, topDirs, largestFiles, ct);
+        => _diskAnalyzer.AnalyzeDirectoryOrDriveAsync(rootPath, topDirectoryLimit, largestFilesLimit, ct);
 
     private static IReadOnlyList<CleanupCategorySummary> BuildCategorySummaries(
         List<CleanupCandidateFile> files,
