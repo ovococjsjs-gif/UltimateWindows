@@ -48,15 +48,15 @@
 
 ---
 
-## Быстрый старт и сборка (Фазы 0, 1 и 2 — Реализовано)
+## Быстрый старт и сборка (Фазы 0, 1, 2 и 3 — Реализовано)
 
 Требования: **.NET 8.0 SDK** на Windows 10 / Windows 11.
 
 ```powershell
-# Восстановление зависимостей и сборка всего решения (7 проектов)
+# Восстановление зависимостей и сборка всего решения (9 проектов)
 dotnet build UltimateWindows.sln -c Release
 
-# Запуск всех модульных тестов (Zero-Bloat Vault, Hardware Parsers & Advisor, Vault-Safe Cleaner)
+# Запуск всех модульных тестов (Vault, Hardware, Cleaner, PE Doctor & BSOD Analyzer)
 dotnet test UltimateWindows.sln -c Release
 
 # Запуск графического интерфейса (User-Friendly Fluent GUI)
@@ -66,4 +66,7 @@ dotnet run --project src/UltimateWindows.App/UltimateWindows.App.csproj
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- hardware-audit
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- clean-scan
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- disk-map "C:\Users"
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- pe-doctor "C:\Games\App\game.exe"
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- bsod-scan
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- repair-list
 ```

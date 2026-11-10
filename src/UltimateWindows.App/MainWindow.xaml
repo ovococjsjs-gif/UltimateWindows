@@ -1162,6 +1162,388 @@
             </Border>
           </StackPanel>
 
+          <!-- =============== ЭКРАН 3.8: ДОКТОР DLL (0xC000007B), АНАЛИЗАТОР BSOD И РЕМОНТ ОС =============== -->
+          <StackPanel Visibility="{Binding IsRepairVisible, Converter={StaticResource BoolToVis}}"
+                      DataContext="{Binding RepairStudio}">
+
+            <!-- Баннер результата последней операции ремонта -->
+            <Border Visibility="{Binding HasRepairActionBanner, Converter={StaticResource BoolToVis}}"
+                    Style="{StaticResource CardBorderStyle}"
+                    BorderBrush="{DynamicResource SafeEmeraldBrush}"
+                    Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock Text="{Binding LastRepairActionBanner}"
+                           FontSize="13.5"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource SafeEmeraldBrush}" />
+                <Border Visibility="{Binding DataContext.IsExpertMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
+                        Background="{DynamicResource ExpertPanelBackgroundBrush}"
+                        BorderBrush="{DynamicResource ExpertPanelBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="10,7"
+                        Margin="0,8,0,0">
+                  <TextBlock Text="{Binding LastRepairTechnicalLog}"
+                             FontSize="11.5"
+                             TextWrapping="Wrap"
+                             Foreground="{DynamicResource TextPrimaryBrush}" />
+                </Border>
+              </StackPanel>
+            </Border>
+
+            <!-- 1. Доктор запуска игр и программ (ошибка 0xC000007B и PE-зависимости) -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,16">
+              <StackPanel>
+                <DockPanel Margin="0,0,0,6">
+                  <Border DockPanel.Dock="Right"
+                          Background="{DynamicResource SurfaceElevatedBrush}"
+                          BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                          BorderThickness="1"
+                          CornerRadius="6"
+                          Padding="10,3">
+                    <TextBlock Text="{Binding TargetArchitectureBadge}"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource AccentPrimaryBrush}" />
+                  </Border>
+                  <TextBlock Text="🧩 Доктор ошибок запуска программ и 0xC000007B (без «левых» DLL с сайтов)"
+                             FontSize="16"
+                             FontWeight="SemiBold"
+                             VerticalAlignment="Center" />
+                </DockPanel>
+
+                <TextBlock Text="Укажите .exe файл не запускающейся игры или программы: анализатор проверит бинарные заголовки всех импортируемых библиотек, найдет подмененные 32/64-битные DLL и подберет официальный пакет Microsoft."
+                           FontSize="13"
+                           TextWrapping="Wrap"
+                           Margin="0,2,0,12"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                <Grid Margin="0,0,0,12">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <TextBox Grid.Column="0"
+                           Text="{Binding TargetExecutablePath, UpdateSourceTrigger=PropertyChanged}"
+                           Background="{DynamicResource SurfaceElevatedBrush}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                           Padding="10,8"
+                           FontSize="13"
+                           Margin="0,0,8,0" />
+                  <Button Grid.Column="1"
+                          Style="{StaticResource SecondaryButtonStyle}"
+                          Command="{Binding BrowseExecutableCommand}"
+                          Content="📂 Выбрать .exe..."
+                          Margin="0,0,8,0" />
+                  <Button Grid.Column="2"
+                          Style="{StaticResource PrimaryButtonStyle}"
+                          Command="{Binding DiagnoseExecutableCommand}"
+                          Content="🔍 Проверить зависимости" />
+                </Grid>
+
+                <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                        BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="14,10">
+                  <TextBlock Text="{Binding PeDiagnosisHeadline}"
+                             FontSize="13.5"
+                             FontWeight="SemiBold"
+                             TextWrapping="Wrap" />
+                </Border>
+
+                <ItemsControl Visibility="{Binding HasDependencyIssues, Converter={StaticResource BoolToVis}}"
+                              ItemsSource="{Binding DependencyIssues}"
+                              Margin="0,12,0,0">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                              BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="8"
+                              Padding="12,10"
+                              Margin="0,0,0,8">
+                        <StackPanel>
+                          <TextBlock Text="{Binding ImportedDllName}"
+                                     FontSize="14"
+                                     FontWeight="Bold"
+                                     Foreground="{DynamicResource AccentPrimaryBrush}" />
+                          <TextBlock Text="{Binding SimpleExplanation}"
+                                     FontSize="13"
+                                     TextWrapping="Wrap"
+                                     Margin="0,4,0,8" />
+
+                          <StackPanel Orientation="Horizontal">
+                            <Button Visibility="{Binding CanQuarantineConflictingLocalDll, Converter={StaticResource BoolToVis}}"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Command="{Binding QuarantineCommand}"
+                                    Content="🛡️ Изолировать конфликтную DLL в карантин (с откатом)"
+                                    Margin="0,0,8,0" />
+                            <Button Visibility="{Binding CanInstallOfficialRuntime, Converter={StaticResource BoolToVis}}"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    Command="{Binding InstallPackageCommand}"
+                                    Content="{Binding InstallButtonLabel}" />
+                          </StackPanel>
+
+                          <Border Visibility="{Binding DataContext.IsExpertMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
+                                  Background="{DynamicResource ExpertPanelBackgroundBrush}"
+                                  BorderBrush="{DynamicResource ExpertPanelBorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="8,6"
+                                  Margin="0,8,0,0">
+                            <TextBlock Text="{Binding ExpertTechnicalDetails}"
+                                       FontSize="11.5"
+                                       TextWrapping="Wrap" />
+                          </Border>
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <!-- 2. Расшифровка синих экранов смерти (BSOD Minidump) и сбоев в журнале Windows -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,16">
+              <StackPanel>
+                <DockPanel Margin="0,0,0,6">
+                  <Button DockPanel.Dock="Right"
+                          Style="{StaticResource PrimaryButtonStyle}"
+                          Command="{Binding ScanBsodAndCrashesCommand}"
+                          Content="🩺 Проверить синие экраны и сбои" />
+                  <TextBlock Text="💥 Расшифровка синих экранов (BSOD) и аварийных вылетов"
+                             FontSize="16"
+                             FontWeight="SemiBold"
+                             VerticalAlignment="Center" />
+                </DockPanel>
+
+                <TextBlock Text="{Binding BsodScanHeadline}"
+                           FontSize="13"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,10"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                <ItemsControl Visibility="{Binding HasMinidumps, Converter={StaticResource BoolToVis}}"
+                              ItemsSource="{Binding Minidumps}"
+                              Margin="0,0,0,8">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                              BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="8"
+                              Padding="12,10"
+                              Margin="0,0,0,8">
+                        <StackPanel>
+                          <DockPanel>
+                            <TextBlock DockPanel.Dock="Right"
+                                       Text="{Binding CulpritBadge}"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource SafeEmeraldBrush}" />
+                            <StackPanel Orientation="Horizontal">
+                              <TextBlock Text="{Binding BugCheckName}"
+                                         FontSize="14"
+                                         FontWeight="Bold"
+                                         Margin="0,0,8,0" />
+                              <TextBlock Text="{Binding BugCheckHex}"
+                                         FontSize="12.5"
+                                         VerticalAlignment="Center"
+                                         Foreground="{DynamicResource AccentPrimaryBrush}"
+                                         Margin="0,0,10,0" />
+                              <TextBlock Text="{Binding CrashLocalDisplay}"
+                                         FontSize="12"
+                                         VerticalAlignment="Center"
+                                         Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </StackPanel>
+                          </DockPanel>
+
+                          <TextBlock Text="{Binding SimpleHumanExplanation}"
+                                     FontSize="13"
+                                     TextWrapping="Wrap"
+                                     Margin="0,6,0,4" />
+                          <TextBlock Text="{Binding RecommendedUserAction}"
+                                     FontSize="12.5"
+                                     FontWeight="SemiBold"
+                                     TextWrapping="Wrap"
+                                     Foreground="{DynamicResource AccentPrimaryBrush}" />
+
+                          <TextBlock Visibility="{Binding DataContext.IsExpertMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
+                                     Text="{Binding ExpertModulesJoined}"
+                                     FontSize="11"
+                                     TextWrapping="Wrap"
+                                     Margin="0,6,0,0"
+                                     Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <ItemsControl Visibility="{Binding HasCrashEvents, Converter={StaticResource BoolToVis}}"
+                              ItemsSource="{Binding CrashEvents}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                              BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="8"
+                              Padding="10,8"
+                              Margin="0,0,0,6">
+                        <StackPanel>
+                          <DockPanel>
+                            <TextBlock DockPanel.Dock="Right"
+                                       Text="{Binding TimeLocalDisplay}"
+                                       FontSize="11.5"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <TextBlock Text="{Binding EventBadge}"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource AccentPrimaryBrush}" />
+                          </DockPanel>
+                          <TextBlock Text="{Binding SimpleSummary}"
+                                     FontSize="12.5"
+                                     TextWrapping="Wrap"
+                                     Margin="0,3,0,0" />
+                          <TextBlock Visibility="{Binding DataContext.IsExpertMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
+                                     Text="{Binding TechnicalRawDetails}"
+                                     FontSize="11"
+                                     TextWrapping="Wrap"
+                                     Margin="0,3,0,0"
+                                     Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <!-- 3. Одно-кликовые рецепты ремонта подсистем Windows -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock Text="🛠️ Безопасные одно-кликовые рецепты ремонта Windows"
+                           FontSize="16"
+                           FontWeight="SemiBold" />
+                <TextBlock Text="Автоматическое лечение частых сбоев ОС штатными средствами Microsoft с записью в журнал Машины времени."
+                           FontSize="13"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,12"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                <ItemsControl ItemsSource="{Binding Playbooks}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                              BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="8"
+                              Padding="12,10"
+                              Margin="0,0,0,10">
+                        <StackPanel>
+                          <DockPanel Margin="0,0,0,4">
+                            <Button DockPanel.Dock="Right"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Command="{Binding RunPlaybookCommand}"
+                                    Content="✨ Выполнить рецепт"
+                                    Margin="12,0,0,0" />
+                            <StackPanel>
+                              <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding IconGlyph}" FontSize="17" Margin="0,0,8,0" />
+                                <TextBlock Text="{Binding FriendlyTitle}"
+                                           FontSize="14.5"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center" />
+                              </StackPanel>
+                              <TextBlock Text="{Binding AccessBadge}"
+                                         FontSize="11.5"
+                                         Margin="0,2,0,0"
+                                         Foreground="{DynamicResource SafeEmeraldBrush}" />
+                            </StackPanel>
+                          </DockPanel>
+
+                          <TextBlock Text="{Binding FriendlyDescription}"
+                                     FontSize="12.5"
+                                     TextWrapping="Wrap"
+                                     Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                          <Border Visibility="{Binding DataContext.IsExpertMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
+                                  Background="{DynamicResource ExpertPanelBackgroundBrush}"
+                                  BorderBrush="{DynamicResource ExpertPanelBorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="8,5"
+                                  Margin="0,6,0,0">
+                            <TextBlock Text="{Binding ExpertCommandsPreview}"
+                                       FontSize="11"
+                                       TextWrapping="Wrap" />
+                          </Border>
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <!-- 4. Белый каталог официальных пакетов сред выполнения -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock Text="📦 Официальные пакеты библиотек Microsoft / OpenAL (подписаны издателями)"
+                           FontSize="16"
+                           FontWeight="SemiBold" />
+                <TextBlock Text="Быстрая установка недостающих пакетов Visual C++, DirectX June 2010, .NET и OpenAL из проверенных репозиториев."
+                           FontSize="13"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,12"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                <ItemsControl ItemsSource="{Binding OfficialRuntimes}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <UniformGrid Columns="2" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                              BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="8"
+                              Padding="12,10"
+                              Margin="0,0,10,10">
+                        <StackPanel>
+                          <TextBlock Text="{Binding FriendlyName}"
+                                     FontSize="13.5"
+                                     FontWeight="SemiBold"
+                                     TextWrapping="Wrap" />
+                          <TextBlock Text="{Binding ArchitectureBadge}"
+                                     FontSize="11.5"
+                                     Margin="0,3,0,2"
+                                     Foreground="{DynamicResource AccentPrimaryBrush}" />
+                          <TextBlock Visibility="{Binding DataContext.IsExpertMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
+                                     Text="{Binding WingetPackageId}"
+                                     FontSize="11"
+                                     Margin="0,0,0,6"
+                                     Foreground="{DynamicResource TextSecondaryBrush}" />
+                          <Button Style="{StaticResource SecondaryButtonStyle}"
+                                  HorizontalAlignment="Left"
+                                  Margin="0,6,0,0"
+                                  Command="{Binding InstallCommand}"
+                                  Content="📥 Установить официально" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
           <!-- =============== ЭКРАН 4: ПРЕВЬЮ ОСТАЛЬНЫХ МОДУЛЕЙ ПО ДОРОЖНОЙ КАРТЕ =============== -->
           <Border Style="{StaticResource CardBorderStyle}"
                   Visibility="{Binding IsModulePreviewVisible, Converter={StaticResource BoolToVis}}">

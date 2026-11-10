@@ -3,9 +3,12 @@ using UltimateWindows.Core.Guards;
 using UltimateWindows.Modules.Cleaner.Models;
 using UltimateWindows.Modules.Cleaner.Services;
 using UltimateWindows.Modules.Hardware.Services;
+using UltimateWindows.Modules.Repair.Models;
+using UltimateWindows.Modules.Repair.Services;
 using UltimateWindows.Modules.Safety.Services;
 using UltimateWindows.NativeInterop.Cleaner;
 using UltimateWindows.NativeInterop.Hardware;
+using UltimateWindows.NativeInterop.Repair;
 using UltimateWindows.NativeInterop.Restore;
 using UltimateWindows.NativeInterop.Security;
 
@@ -14,6 +17,7 @@ Console.OutputEncoding = Encoding.UTF8;
 var vault = new ZeroBloatVaultService(stateApplier: new WindowsSystemStateApplier());
 var hardware = new HardwareStudioService(vault, new WindowsHardwarePlatformProvider());
 var cleaner = new VaultSafeCleanerService(vault, new WindowsCleanerPlatformBridge());
+var repair = new SystemRepairService(vault, new WindowsRepairPlatformBridge());
 var command = args.Length > 0 ? args[0].ToLowerInvariant() : "status";
 
 switch (command)
@@ -122,6 +126,71 @@ switch (command)
         break;
     }
 
+    case "pe-doctor":
+    {
+        if (args.Length < 2)
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli pe-doctor \"<путь к .exe файлу>\"");
+            return 1;
+        }
+
+        var diag = repair.DiagnoseExecutable(args[1]);
+        Console.WriteLine("=== UltimateWindows Phase 3 — Доктор зависимостей PE и ошибки 0xC000007B ===");
+        Console.WriteLine($"Файл         : {diag.TargetExecutablePath}");
+        Console.WriteLine($"Архитектура  : {diag.BinaryHeader.ArchitectureDisplay} (прямых импортов: {diag.TotalDirectImportsCount})");
+        Console.WriteLine($"Вердикт      : {diag.HeadlineVerdict}");
+        foreach (var iss in diag.Issues)
+        {
+            Console.WriteLine($"  - [{iss.Kind}] {iss.ImportedDllName}: {iss.SimpleExplanation}");
+        }
+        break;
+    }
+
+    case "bsod-scan":
+    {
+        var (dumps, events) = await repair.ScanBsodAndCrashHistoryAsync(15);
+        Console.WriteLine("=== UltimateWindows Phase 3 — Анализатор синих экранов (BSOD) и сбоев ===");
+        Console.WriteLine($"Найдено минидампов: {dumps.Count} | Событий в журнале: {events.Count}");
+        foreach (var d in dumps)
+        {
+            Console.WriteLine($"  [BSOD {d.CrashLocalDisplay}] {d.BugCheckName} ({d.BugCheckHex}) | {d.CulpritBadge}");
+            Console.WriteLine($"    Причина : {d.SimpleHumanExplanation}");
+            Console.WriteLine($"    Решение : {d.RecommendedUserAction}");
+        }
+        foreach (var ev in events)
+        {
+            Console.WriteLine($"  [{ev.TimeLocalDisplay}] {ev.EventBadge}: {ev.SimpleSummary}");
+        }
+        break;
+    }
+
+    case "repair-list":
+    {
+        Console.WriteLine("=== Доступные рецепты безопасного ремонта Windows ===");
+        foreach (var pb in repair.GetAvailablePlaybooks())
+        {
+            Console.WriteLine($"  - {pb.Id,-32} | {pb.IconGlyph} {pb.FriendlyTitle} ({pb.AccessBadge})");
+        }
+        break;
+    }
+
+    case "repair-run":
+    {
+        if (args.Length < 2 || !Enum.TryParse<RepairPlaybookId>(args[1], ignoreCase: true, out var pbId))
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli repair-run <PlaybookId> (список: repair-list)");
+            return 1;
+        }
+
+        var res = await repair.ExecutePlaybookAsync(pbId);
+        Console.WriteLine(res.UserFriendlySummary);
+        if (!string.IsNullOrWhiteSpace(res.TechnicalLogOutput))
+        {
+            Console.WriteLine(res.TechnicalLogOutput);
+        }
+        break;
+    }
+
     case "history":
     {
         var history = await vault.GetHistoryAsync(25);
@@ -176,7 +245,7 @@ switch (command)
 
     default:
     {
-        Console.WriteLine("Доступные команды: status | hardware-audit | stress-test [сек] | clean-scan | clean-run | disk-map [путь] | history | cleanup-blobs | rollback <id> | check-path <path>");
+        Console.WriteLine("Доступные команды: status | hardware-audit | stress-test [сек] | clean-scan | clean-run | disk-map [путь] | pe-doctor <exe> | bsod-scan | repair-list | repair-run <id> | history | cleanup-blobs | rollback <id> | check-path <path>");
         break;
     }
 }

@@ -20,5 +20,6 @@
     <ProjectReference Include="..\..\src\UltimateWindows.Modules.Safety\UltimateWindows.Modules.Safety.csproj" />
     <ProjectReference Include="..\..\src\UltimateWindows.Modules.Hardware\UltimateWindows.Modules.Hardware.csproj" />
     <ProjectReference Include="..\..\src\UltimateWindows.Modules.Cleaner\UltimateWindows.Modules.Cleaner.csproj" />
+    <ProjectReference Include="..\..\src\UltimateWindows.Modules.Repair\UltimateWindows.Modules.Repair.csproj" />
   </ItemGroup>
 </Project>
