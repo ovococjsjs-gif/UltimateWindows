@@ -24,13 +24,17 @@ public enum UserExperienceMode
 }
 
 /// <summary>
-/// Уровень безопасности системной операции.
+/// Уровень безопасности / критичности системной операции или диагностической находки.
 /// </summary>
 public enum RiskLevel
 {
     Safe = 0,
-    Moderate = 1,
-    Advanced = 2
+    Low = 1,
+    Moderate = 2,
+    Attention = 3,
+    Advanced = 4,
+    High = 5,
+    Critical = 6
 }
 
 /// <summary>

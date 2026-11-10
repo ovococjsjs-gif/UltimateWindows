@@ -6,6 +6,8 @@
     <RootNamespace>UltimateWindows.App</RootNamespace>
     <AssemblyName>UltimateWindows</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <Description>Дружелюбный графический интерфейс UltimateWindows (Fluent Design).</Description>
   </PropertyGroup>
 

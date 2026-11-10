@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32;
@@ -138,27 +139,40 @@ public sealed class WindowsDriverPlatformBridge : DefaultDriverPlatformBridge
                     return candidates;
                 }
 
-                dynamic? session = Activator.CreateInstance(sessionType);
+                var session = Activator.CreateInstance(sessionType);
                 if (session is null)
                 {
                     return candidates;
                 }
 
-                dynamic searcher = session.CreateUpdateSearcher();
-                dynamic searchResult = searcher.Search("IsInstalled=0 and Type='Driver' and IsHidden=0");
-                int count = (int)searchResult.Updates.Count;
+                var searcher = ComCall(session, "CreateUpdateSearcher");
+                if (searcher is null)
+                {
+                    return candidates;
+                }
 
+                var searchResult = ComCall(searcher, "Search", "IsInstalled=0 and Type='Driver' and IsHidden=0");
+                var updates = searchResult is not null ? ComGet(searchResult, "Updates") : null;
+                if (updates is null)
+                {
+                    return candidates;
+                }
+
+                var count = Convert.ToInt32(ComGet(updates, "Count") ?? 0);
                 for (var i = 0; i < count; i++)
                 {
                     ct.ThrowIfCancellationRequested();
-                    dynamic upd = searchResult.Updates.Item(i);
+                    var upd = ComGetIndexed(updates, "Item", i);
+                    if (upd is null) continue;
 
-                    string updateId = Convert.ToString(upd.Identity.UpdateID) ?? "";
-                    string title = Convert.ToString(upd.Title) ?? "Windows Update WHQL Driver";
-                    string model = TryReadDynamicString(() => upd.DriverModel, title);
-                    string provider = TryReadDynamicString(() => upd.DriverManufacturer, "Microsoft WHQL");
-                    string hwId = TryReadDynamicString(() => upd.DriverHardwareID, "");
-                    string verDate = TryReadDynamicString(() => Convert.ToDateTime(upd.DriverVerDate).ToString("yyyy-MM-dd"), "");
+                    var identity = ComGet(upd, "Identity");
+                    var updateId = identity is not null ? Convert.ToString(ComGet(identity, "UpdateID")) ?? "" : "";
+                    var title = Convert.ToString(ComGet(upd, "Title")) ?? "Windows Update WHQL Driver";
+                    var model = TryReadComString(upd, "DriverModel", title);
+                    var provider = TryReadComString(upd, "DriverManufacturer", "Microsoft WHQL");
+                    var hwId = TryReadComString(upd, "DriverHardwareID", "");
+                    var verDateObj = ComGet(upd, "DriverVerDate");
+                    var verDate = verDateObj is DateTime dt ? dt.ToString("yyyy-MM-dd") : "";
 
                     if (string.IsNullOrWhiteSpace(hwId))
                     {
@@ -270,50 +284,65 @@ public sealed class WindowsDriverPlatformBridge : DefaultDriverPlatformBridge
                     return (false, false, "Служба Windows Update недоступна.");
                 }
 
-                dynamic? session = Activator.CreateInstance(sessionType);
-                dynamic? toInstall = Activator.CreateInstance(collType);
+                var session = Activator.CreateInstance(sessionType);
+                var toInstall = Activator.CreateInstance(collType);
                 if (session is null || toInstall is null)
                 {
                     return (false, false, "Не удалось инициализировать клиент Windows Update.");
                 }
 
-                dynamic searcher = session.CreateUpdateSearcher();
-                dynamic searchResult = searcher.Search("IsInstalled=0 and Type='Driver'");
-                int count = (int)searchResult.Updates.Count;
+                var searcher = ComCall(session, "CreateUpdateSearcher");
+                var searchResult = searcher is not null ? ComCall(searcher, "Search", "IsInstalled=0 and Type='Driver'") : null;
+                var updates = searchResult is not null ? ComGet(searchResult, "Updates") : null;
+                var count = updates is not null ? Convert.ToInt32(ComGet(updates, "Count") ?? 0) : 0;
 
                 for (var i = 0; i < count; i++)
                 {
-                    dynamic upd = searchResult.Updates.Item(i);
-                    string id = Convert.ToString(upd.Identity.UpdateID) ?? "";
+                    var upd = ComGetIndexed(updates!, "Item", i);
+                    if (upd is null) continue;
+                    var identity = ComGet(upd, "Identity");
+                    var id = identity is not null ? Convert.ToString(ComGet(identity, "UpdateID")) ?? "" : "";
                     if (string.Equals(id, updateIdentityId, StringComparison.OrdinalIgnoreCase))
                     {
-                        toInstall.Add(upd);
+                        _ = ComCall(toInstall, "Add", upd);
                         break;
                     }
                 }
 
-                if ((int)toInstall.Count == 0)
+                if (Convert.ToInt32(ComGet(toInstall, "Count") ?? 0) == 0)
                 {
                     return (false, false, "Указанный пакет WHQL-драйвера уже установлен или более не актуален.");
                 }
 
-                dynamic downloader = session.CreateUpdateDownloader();
-                downloader.Updates = toInstall;
-                dynamic dlRes = downloader.Download();
-                if ((int)dlRes.ResultCode != 2) // orcSucceeded = 2
+                var downloader = ComCall(session, "CreateUpdateDownloader");
+                if (downloader is null)
                 {
-                    return (false, false, $"Не удалось скачать пакет драйвера (код {dlRes.ResultCode}).");
+                    return (false, false, "Не удалось создать загрузчик Windows Update.");
                 }
 
-                dynamic installer = session.CreateUpdateInstaller();
-                installer.Updates = toInstall;
-                dynamic instRes = installer.Install();
-                bool ok = (int)instRes.ResultCode == 2;
-                bool reboot = Convert.ToBoolean(instRes.RebootRequired);
+                ComSet(downloader, "Updates", toInstall);
+                var dlRes = ComCall(downloader, "Download");
+                var dlCode = dlRes is not null ? Convert.ToInt32(ComGet(dlRes, "ResultCode") ?? 0) : 0;
+                if (dlCode != 2) // orcSucceeded = 2
+                {
+                    return (false, false, $"Не удалось скачать пакет драйвера (код {dlCode}).");
+                }
+
+                var installer = ComCall(session, "CreateUpdateInstaller");
+                if (installer is null)
+                {
+                    return (false, false, "Не удалось создать установщик Windows Update.");
+                }
+
+                ComSet(installer, "Updates", toInstall);
+                var instRes = ComCall(installer, "Install");
+                var instCode = instRes is not null ? Convert.ToInt32(ComGet(instRes, "ResultCode") ?? 0) : 0;
+                var ok = instCode == 2;
+                var reboot = instRes is not null && Convert.ToBoolean(ComGet(instRes, "RebootRequired") ?? false);
 
                 return ok
                     ? (true, reboot, "")
-                    : (false, reboot, $"Установщик драйверов вернул код {instRes.ResultCode}.");
+                    : (false, reboot, $"Установщик драйверов вернул код {instCode}.");
             }
             catch (Exception ex)
             {
@@ -322,16 +351,41 @@ public sealed class WindowsDriverPlatformBridge : DefaultDriverPlatformBridge
         }, ct);
     }
 
-    private static string TryReadDynamicString(Func<object?> getter, string fallback)
+    private static object? ComGet(object comObj, string propertyName)
     {
         try
         {
-            return Convert.ToString(getter()) ?? fallback;
+            return comObj.GetType().InvokeMember(propertyName, BindingFlags.GetProperty, null, comObj, null);
         }
         catch
         {
-            return fallback;
+            return null;
         }
+    }
+
+    private static object? ComGetIndexed(object comObj, string propertyName, params object[] indexArgs)
+    {
+        try
+        {
+            return comObj.GetType().InvokeMember(propertyName, BindingFlags.GetProperty, null, comObj, indexArgs);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void ComSet(object comObj, string propertyName, object? value) =>
+        comObj.GetType().InvokeMember(propertyName, BindingFlags.SetProperty, null, comObj, [value]);
+
+    private static object? ComCall(object comObj, string methodName, params object?[] args) =>
+        comObj.GetType().InvokeMember(methodName, BindingFlags.InvokeMethod, null, comObj, args);
+
+    private static string TryReadComString(object comObj, string propertyName, string fallback)
+    {
+        var val = ComGet(comObj, propertyName);
+        var str = Convert.ToString(val);
+        return string.IsNullOrWhiteSpace(str) ? fallback : str;
     }
 
     private static (string DriverVersion, string DriverDate, string InfName) ReadDriverClassRegistryMetadata(string driverSubKey)

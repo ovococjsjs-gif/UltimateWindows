@@ -1,7 +1,8 @@
 using UltimateWindows.Core.Enums;
+using UltimateWindows.Modules.Cleaner.Models;
 using UltimateWindows.Modules.Cleaner.Services;
-using UltimateWindows.Modules.Drivers.Models;
 using UltimateWindows.Modules.Drivers.Services;
+using UltimateWindows.Modules.Hardware.Models;
 using UltimateWindows.Modules.Hardware.Services;
 using UltimateWindows.Modules.Optimizer.Services;
 using UltimateWindows.Modules.Repair.Services;
@@ -72,19 +73,19 @@ public sealed class SmartSystemAuditOrchestrator
     {
         var hwTask = _hardwareService.CaptureAndAnalyzeAsync(ct);
         var drvTask = _driverService.AuditDevicesAndDriversAsync(queryOnlineDriverCatalog, ct);
-        var cleanTask = _cleanerService.ScanSafeCleanupAsync(includeRegistryHygiene: true, ct);
-        var bsodTask = _repairService.ScanCrashAndBsodHistoryAsync(ct);
-        var tweakTask = _optimizerService.EvaluateAllTweaksAsync(ct);
+        var cleanTask = _cleanerService.ScanAsync(new CleanupOptions { CleanRegistryOrphans = true }, ct);
+        var bsodTask = _repairService.ScanBsodAndCrashHistoryAsync(15, ct);
         var startupTask = _optimizerService.GetStartupEntriesAsync(ct);
         var secTask = _securityService.RunFullSecurityScanAsync(includeStealthMinerDecoyProbe, ct);
 
-        await Task.WhenAll(hwTask, drvTask, cleanTask, bsodTask, tweakTask, startupTask, secTask).ConfigureAwait(false);
+        var tweaks = _optimizerService.EvaluateAllTweaks();
+
+        await Task.WhenAll(hwTask, drvTask, cleanTask, bsodTask, startupTask, secTask).ConfigureAwait(false);
 
         var (_, hwAudit) = hwTask.Result;
         var drvReport = drvTask.Result;
         var cleanReport = cleanTask.Result;
-        var bsodReport = bsodTask.Result;
-        var tweaks = tweakTask.Result;
+        var (minidumps, crashEvents) = bsodTask.Result;
         var startups = startupTask.Result;
         var secReport = secTask.Result;
 
@@ -118,11 +119,18 @@ public sealed class SmartSystemAuditOrchestrator
 
         foreach (var hf in hwAudit.Findings.Take(2))
         {
+            var mappedRisk = hf.Severity switch
+            {
+                AdvisorySeverity.Critical => RiskLevel.Critical,
+                AdvisorySeverity.Warning => RiskLevel.Attention,
+                _ => RiskLevel.Low
+            };
+
             actions.Add(new SmartAuditActionItem(
                 SystemDomain.HardwareAndDrivers,
-                hf.Severity,
+                mappedRisk,
                 hf.SimpleTitle,
-                hf.SimpleRecommendation,
+                hf.SimpleExplanation,
                 "🖥️ Железо"));
         }
 
@@ -137,14 +145,18 @@ public sealed class SmartSystemAuditOrchestrator
         }
 
         // 3. Оценка стабильности ОС и BSOD (вес 20%)
-        var stabilityScore = bsodReport.StabilityScore;
-        if (bsodReport.Minidumps.Count > 0 || bsodReport.CriticalEvents.Count > 0)
+        var stabilityScore = Math.Clamp(100 - (minidumps.Count * 15) - (crashEvents.Count * 4), 25, 100);
+        if (minidumps.Count > 0 || crashEvents.Count > 0)
         {
+            var crashHint = minidumps.Count > 0
+                ? minidumps[0].SimpleHumanExplanation
+                : crashEvents[0].SimpleSummary;
+
             actions.Add(new SmartAuditActionItem(
                 SystemDomain.DllAndRepair,
-                RiskLevel.Attention,
-                $"Зафиксированы следы сбоев или синих экранов ({bsodReport.Minidumps.Count} дампов)",
-                bsodReport.PrimaryPlainVerdict,
+                minidumps.Count > 0 ? RiskLevel.High : RiskLevel.Attention,
+                $"Зафиксированы следы сбоев или синих экранов (дампов: {minidumps.Count}, событий: {crashEvents.Count})",
+                crashHint,
                 "🧩 Стабильность и BSOD"));
         }
 
@@ -163,13 +175,13 @@ public sealed class SmartSystemAuditOrchestrator
             actions.Add(new SmartAuditActionItem(
                 SystemDomain.SmartCleaner,
                 RiskLevel.Safe,
-                $"Можно безопасно освободить {cleanReport.FormattedTotalBytes} мусора и кэша",
+                $"Можно безопасно освободить {cleanReport.FormattedTotalReclaimable} мусора и кэша",
                 "Пароли, открытые вкладки и автозаполнение форм надежно защищены фильтром BrowserVaultGuard.",
                 "🧹 Бережная очистка"));
         }
 
         // 5. Оценка автозагрузки и фоновой тишины (вес 10%)
-        var activeUnsignedStartups = startups.Count(s => s.IsEnabled && !s.IsAuthenticodeSigned);
+        var activeUnsignedStartups = startups.Count(s => s.IsEnabled && !s.IsSignedTrusted);
         var unappliedSafeTweaks = tweaks.Count(t => !t.IsCurrentlyApplied && t.Rule.Risk == RiskLevel.Safe);
         var optimizerPenalty = (activeUnsignedStartups * 6) + Math.Min(16, unappliedSafeTweaks * 2);
         var optimizerScore = Math.Clamp(100 - optimizerPenalty, 60, 100);
@@ -213,7 +225,7 @@ public sealed class SmartSystemAuditOrchestrator
             CleanerScore: cleanerScore,
             OptimizerScore: optimizerScore,
             SafeReclaimableBytes: cleanReport.TotalReclaimableBytes,
-            FormattedReclaimableSpace: cleanReport.FormattedTotalBytes,
+            FormattedReclaimableSpace: cleanReport.FormattedTotalReclaimable,
             ExecutiveHeadline: headline,
             TopActionItems: orderedActions);
     }

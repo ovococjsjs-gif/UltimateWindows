@@ -933,8 +933,8 @@
             </ItemsControl>
           </StackPanel>
 
-          <!-- =============== ЭКРАН 3.5: АППАРАТНАЯ СТУДИЯ (ФАЗА 1 — AIDA-КЛАСС & СОВЕТНИК) =============== -->
-          <StackPanel Visibility="{Binding IsHardwareVisible, Converter={StaticResource BoolToVis}}"
+          <!-- =============== ЭКРАН 3.5: АППАРАТНАЯ СТУДИЯ (ФАЗА 1 — AIDA-КЛАСС &amp; СОВЕТНИК) =============== -->
+          <StackPanel Visibility="{Binding DataContext.IsHardwareVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
                       DataContext="{Binding HardwareStudio}">
 
             <!-- Верхняя плашка оценки конфигурации железа -->
@@ -1293,7 +1293,7 @@
           </StackPanel>
 
           <!-- =============== ЭКРАН 3.8: ДОКТОР DLL (0xC000007B), АНАЛИЗАТОР BSOD И РЕМОНТ ОС =============== -->
-          <StackPanel Visibility="{Binding IsRepairVisible, Converter={StaticResource BoolToVis}}"
+          <StackPanel Visibility="{Binding DataContext.IsRepairVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
                       DataContext="{Binding RepairStudio}">
 
             <!-- Баннер результата последней операции ремонта -->
@@ -1675,7 +1675,7 @@
           </StackPanel>
 
           <!-- =============== ЭКРАН 3.9: УМНЫЙ ОПТИМИЗАТОР, АВТОЗАГРУЗКА, SHELLEX, РАЗБЛОКИРОВКА И DNS =============== -->
-          <StackPanel Visibility="{Binding IsOptimizerVisible, Converter={StaticResource BoolToVis}}"
+          <StackPanel Visibility="{Binding DataContext.IsOptimizerVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
                       DataContext="{Binding OptimizerStudio}">
 
             <!-- Баннер результата последнего действия -->
@@ -2051,7 +2051,7 @@
           </StackPanel>
 
           <!-- =============== ЭКРАН 6 (ФАЗА 5): ЗАЩИТА ОТ СКРЫТЫХ МАЙНЕРОВ, РЕВИЗОР ЗАКРЕПЛЕНИЯ И РЕАБИЛИТАЦИЯ ОС =============== -->
-          <StackPanel Visibility="{Binding IsAntiMinerVisible, Converter={StaticResource BoolToVis}}"
+          <StackPanel Visibility="{Binding DataContext.IsAntiMinerVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
                       DataContext="{Binding AntiMinerStudio}">
 
             <!-- 6.1 Hero-карточка: Стелс-охотник Drop-on-Inspect и Stratum -->

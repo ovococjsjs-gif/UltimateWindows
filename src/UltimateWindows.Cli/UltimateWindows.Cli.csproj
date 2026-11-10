@@ -3,6 +3,9 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <RootNamespace>UltimateWindows.Cli</RootNamespace>
+    <AssemblyName>UltimateWindows.Cli</AssemblyName>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <Description>Консольный интерфейс и инструмент автоматизации UltimateWindows.</Description>
   </PropertyGroup>
 

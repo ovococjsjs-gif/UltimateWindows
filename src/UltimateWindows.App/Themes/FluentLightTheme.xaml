@@ -15,6 +15,8 @@
 
   <SolidColorBrush x:Key="AccentPrimaryBrush" Color="#0284C7" />
   <SolidColorBrush x:Key="AccentPrimaryHoverBrush" Color="#0369A1" />
+  <SolidColorBrush x:Key="AccentBrush" Color="#0284C7" />
+  <SolidColorBrush x:Key="AccentSubtleBrush" Color="#E0F2FE" />
   <SolidColorBrush x:Key="SafeEmeraldBrush" Color="#059669" />
   <SolidColorBrush x:Key="SafeEmeraldSubtleBrush" Color="#DCFCE7" />
   <SolidColorBrush x:Key="AmberHighlightBrush" Color="#D97706" />

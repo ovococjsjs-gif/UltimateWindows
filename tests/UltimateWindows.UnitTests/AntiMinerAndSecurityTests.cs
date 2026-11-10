@@ -18,9 +18,7 @@ public sealed class AntiMinerAndSecurityTests : IDisposable
     {
         _tempDir = Path.Combine(Path.GetTempPath(), "uw-phase5-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempDir);
-        _vault = new ZeroBloatVaultService(
-            Path.Combine(_tempDir, "vault"),
-            new VaultQuotaPolicy { MaxVaultBytes = 64 * VaultQuotaPolicy.Megabyte });
+        _vault = new ZeroBloatVaultService(explicitVaultDirectory: Path.Combine(_tempDir, "vault"));
     }
 
     public void Dispose()

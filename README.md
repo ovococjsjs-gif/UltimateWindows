@@ -76,3 +76,16 @@ dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- unloc
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- miner-scan
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- miner-heal-os
 ```
+
+### Сборка автономной портативной версии (`Single-File Portable .exe`)
+
+В репозитории настроен одно-кликовый сборщик `scripts/build-portable-release.ps1` (и ярлык двойного клика `scripts/build-portable-release.cmd`), который прогоняет модульные тесты, компилирует самодостаточные однофайловые `UltimateWindows.exe` + `UltimateWindows.Cli.exe` (не требующие установленного `.NET 8`), кладет рядом маркер `.portable` (чтобы хранилище `Zero-Bloat Vault` работало строго внутри папки `.\Data\Vault\` на флешке без следов на диске `C:\`), считает `SHA-256` и упаковывает релиз в `.zip`:
+
+```powershell
+# Локальная сборка портативного архива artifacts\UltimateWindows-v1.0.0-win-x64-portable.zip
+.\scripts\build-portable-release.ps1
+
+# Сборка и автоматическая привязка бинарного архива к релизу v1.0.0 в GitHub Releases
+.\scripts\build-portable-release.ps1 -UploadToGitHubRelease -ReleaseTag "v1.0.0"
+```
+
