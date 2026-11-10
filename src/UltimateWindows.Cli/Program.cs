@@ -2,6 +2,8 @@ using System.Text;
 using UltimateWindows.Core.Guards;
 using UltimateWindows.Modules.Cleaner.Models;
 using UltimateWindows.Modules.Cleaner.Services;
+using UltimateWindows.Modules.Drivers.Orchestration;
+using UltimateWindows.Modules.Drivers.Services;
 using UltimateWindows.Modules.Hardware.Services;
 using UltimateWindows.Modules.Optimizer.Services;
 using UltimateWindows.Modules.Repair.Models;
@@ -9,6 +11,7 @@ using UltimateWindows.Modules.Repair.Services;
 using UltimateWindows.Modules.Safety.Services;
 using UltimateWindows.Modules.Security.Services;
 using UltimateWindows.NativeInterop.Cleaner;
+using UltimateWindows.NativeInterop.Drivers;
 using UltimateWindows.NativeInterop.Hardware;
 using UltimateWindows.NativeInterop.Optimizer;
 using UltimateWindows.NativeInterop.Repair;
@@ -24,6 +27,8 @@ var cleaner = new VaultSafeCleanerService(vault, new WindowsCleanerPlatformBridg
 var repair = new SystemRepairService(vault, new WindowsRepairPlatformBridge());
 var optimizer = new SmartOptimizerService(vault, new WindowsOptimizerPlatformBridge());
 var security = new AntiMinerSecurityService(vault, new WindowsSecurityPlatformBridge());
+var drivers = new OfficialDriverService(vault, new WindowsDriverPlatformBridge());
+var smartAudit = new SmartSystemAuditOrchestrator(hardware, drivers, cleaner, repair, optimizer, security);
 var command = args.Length > 0 ? args[0].ToLowerInvariant() : "status";
 
 switch (command)
@@ -317,6 +322,68 @@ switch (command)
         return res.Succeeded ? 0 : 1;
     }
 
+    case "drivers-audit":
+    {
+        var online = args.Length >= 2 && string.Equals(args[1], "--online", StringComparison.OrdinalIgnoreCase);
+        var report = await drivers.AuditDevicesAndDriversAsync(online);
+        Console.WriteLine($"=== UltimateWindows Phase 6 — Аудит устройств и WHQL-драйверов ({report.DriverHealthScore}/100) ===");
+        Console.WriteLine(report.SummaryHeadline);
+        foreach (var f in report.Findings)
+        {
+            Console.WriteLine($"  - [{f.Severity}] {f.SimpleTitle}");
+            Console.WriteLine($"      {f.SimpleExplanation}");
+            Console.WriteLine($"      {f.ExpertTechnicalDetails}");
+        }
+        break;
+    }
+
+    case "driver-backup":
+    {
+        if (args.Length < 2)
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli driver-backup <oemXX.inf>");
+            return 1;
+        }
+
+        var targetInf = args[1];
+        var report = await drivers.AuditDevicesAndDriversAsync(queryWindowsUpdateCatalog: false);
+        var match = report.AllDevices.FirstOrDefault(d => string.Equals(d.InfName, targetInf, StringComparison.OrdinalIgnoreCase));
+        if (match is null)
+        {
+            Console.WriteLine($"Устройство с пакетом {targetInf} не найдено.");
+            return 1;
+        }
+
+        var res = await drivers.BackupDeviceDriverToVaultAsync(match);
+        Console.WriteLine(res.UserFriendlyMessage);
+        return res.Succeeded ? 0 : 1;
+    }
+
+    case "smart-audit":
+    {
+        var summary = await smartAudit.RunOneClickAuditAsync(
+            includeStealthMinerDecoyProbe: false,
+            queryOnlineDriverCatalog: false);
+        Console.WriteLine($"=== UltimateWindows v1.0 — Комплексный Умный Аудит ПК ({summary.CompositeHealthScore}/100) ===");
+        Console.WriteLine(summary.ExecutiveHeadline);
+        Console.WriteLine($"  Безопасность / Анти-майнер : {summary.SecurityScore}/100");
+        Console.WriteLine($"  Железо                     : {summary.HardwareScore}/100");
+        Console.WriteLine($"  Драйверы WHQL              : {summary.DriversScore}/100");
+        Console.WriteLine($"  Стабильность / BSOD        : {summary.StabilityRepairScore}/100");
+        Console.WriteLine($"  Бережная очистка           : {summary.CleanerScore}/100 (доступно: {summary.FormattedReclaimableSpace})");
+        Console.WriteLine($"  Оптимизация и автозапуск   : {summary.OptimizerScore}/100");
+
+        if (summary.TopActionItems.Count > 0)
+        {
+            Console.WriteLine("\nТочки быстрого улучшения:");
+            foreach (var item in summary.TopActionItems)
+            {
+                Console.WriteLine($"  - [{item.DomainBadge}] {item.SimpleTitle} — {item.SimpleRecommendation}");
+            }
+        }
+        break;
+    }
+
     case "history":
     {
         var history = await vault.GetHistoryAsync(25);
@@ -371,7 +438,7 @@ switch (command)
 
     default:
     {
-        Console.WriteLine("Доступные команды: status | hardware-audit | stress-test [сек] | clean-scan | clean-run | disk-map [путь] | pe-doctor <exe> | bsod-scan | repair-list | repair-run <id> | tweak-list | tweak-enable <id> | tweak-disable <id> | tweak-export [yaml] | tweak-import <yaml> | startup-list | unlock-check <path> | miner-scan [--fast] | miner-heal-os | history | cleanup-blobs | rollback <id> | check-path <path>");
+        Console.WriteLine("Доступные команды: status | smart-audit | hardware-audit | stress-test [сек] | drivers-audit [--online] | driver-backup <oemXX.inf> | clean-scan | clean-run | disk-map [путь] | pe-doctor <exe> | bsod-scan | repair-list | repair-run <id> | tweak-list | tweak-enable <id> | tweak-disable <id> | tweak-export [yaml] | tweak-import <yaml> | startup-list | unlock-check <path> | miner-scan [--fast] | miner-heal-os | history | cleanup-blobs | rollback <id> | check-path <path>");
         break;
     }
 }

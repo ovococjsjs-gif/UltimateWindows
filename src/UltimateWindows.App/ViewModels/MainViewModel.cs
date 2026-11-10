@@ -6,12 +6,15 @@ using UltimateWindows.Core.Enums;
 using UltimateWindows.Core.Guards;
 using UltimateWindows.Core.Models;
 using UltimateWindows.Modules.Cleaner.Services;
+using UltimateWindows.Modules.Drivers.Orchestration;
+using UltimateWindows.Modules.Drivers.Services;
 using UltimateWindows.Modules.Hardware.Services;
 using UltimateWindows.Modules.Optimizer.Services;
 using UltimateWindows.Modules.Repair.Services;
 using UltimateWindows.Modules.Safety.Services;
 using UltimateWindows.Modules.Security.Services;
 using UltimateWindows.NativeInterop.Cleaner;
+using UltimateWindows.NativeInterop.Drivers;
 using UltimateWindows.NativeInterop.Hardware;
 using UltimateWindows.NativeInterop.Optimizer;
 using UltimateWindows.NativeInterop.Repair;
@@ -49,12 +52,32 @@ public sealed class TransactionItemViewModel : ObservableObject
     public ICommand TogglePinCommand { get; }
 }
 
+public sealed class SmartAuditActionItemViewModel : ObservableObject
+{
+    public SmartAuditActionItemViewModel(SmartAuditActionItem item, ICommand jumpCommand)
+    {
+        Item = item;
+        JumpCommand = jumpCommand;
+    }
+
+    public SmartAuditActionItem Item { get; }
+    public string SimpleTitle => Item.SimpleTitle;
+    public string SimpleRecommendation => Item.SimpleRecommendation;
+    public string DomainBadge => Item.DomainBadge;
+    public ICommand JumpCommand { get; }
+}
+
 public sealed class MainViewModel : ObservableObject
 {
     private readonly IVaultService _vaultService;
+    private readonly SmartSystemAuditOrchestrator _smartAuditOrchestrator;
 
     private SystemDomain _selectedDomain = SystemDomain.HealthOverview;
     private bool _isExpertMode;
+    private bool _isRunningSmartAudit;
+    private int _compositeHealthScore = 96;
+    private string _smartAuditTitle = "Комплексный Умный Аудит ПК в 1 клик (v1.0)";
+    private string _smartAuditSubheadline = "Проверяет скрытые майнеры, узкие места железа, коды ошибок драйверов WHQL, синие экраны BSOD, мусор кэша (без удаления паролей) и автозагрузку — всё обратимо в 1 клик.";
     private string _statusNotification = "Готово к работе • Пароли браузеров и личные данные под защитой";
     private string _vaultUsageText = "0 КБ из 250 МБ";
     private double _vaultUsagePercent;
@@ -79,6 +102,7 @@ public sealed class MainViewModel : ObservableObject
 
         OverviewCards = new ObservableCollection<HealthSummaryCard>(BuildDefaultCards());
         Transactions = new ObservableCollection<TransactionItemViewModel>();
+        SmartAuditActions = new ObservableCollection<SmartAuditActionItemViewModel>();
 
         NavigateCommand = new RelayCommand(param =>
         {
@@ -87,6 +111,8 @@ public sealed class MainViewModel : ObservableObject
                 SelectedDomain = parsed;
             }
         });
+
+        RunOneClickSmartAuditCommand = new AsyncRelayCommand(_ => RunOneClickSmartAuditAsync());
 
         CreateSampleCheckpointCommand = new AsyncRelayCommand(_ => CreateSampleSafeCheckpointAsync());
         SaveQuotaPolicyCommand = new AsyncRelayCommand(_ => SaveQuotaPolicyAsync());
@@ -161,6 +187,26 @@ public sealed class MainViewModel : ObservableObject
                 await RefreshVaultStateAsync();
             });
 
+        var driverService = new OfficialDriverService(
+            _vaultService,
+            new WindowsDriverPlatformBridge());
+
+        DriverStudio = new DriverStudioViewModel(
+            driverService,
+            async msg =>
+            {
+                StatusNotification = msg;
+                await RefreshVaultStateAsync();
+            });
+
+        _smartAuditOrchestrator = new SmartSystemAuditOrchestrator(
+            hardwareService,
+            driverService,
+            cleanerService,
+            repairService,
+            optimizerService,
+            securityService);
+
         _ = InitializeAsync();
     }
 
@@ -181,6 +227,32 @@ public sealed class MainViewModel : ObservableObject
     public OptimizerStudioViewModel OptimizerStudio { get; }
 
     public AntiMinerStudioViewModel AntiMinerStudio { get; }
+
+    public DriverStudioViewModel DriverStudio { get; }
+
+    public ObservableCollection<SmartAuditActionItemViewModel> SmartAuditActions { get; }
+
+    public int CompositeHealthScore
+    {
+        get => _compositeHealthScore;
+        private set => SetProperty(ref _compositeHealthScore, value);
+    }
+
+    public string SmartAuditTitle
+    {
+        get => _smartAuditTitle;
+        private set => SetProperty(ref _smartAuditTitle, value);
+    }
+
+    public string SmartAuditSubheadline
+    {
+        get => _smartAuditSubheadline;
+        private set => SetProperty(ref _smartAuditSubheadline, value);
+    }
+
+    public bool HasSmartAuditActions => SmartAuditActions.Count > 0;
+
+    public ICommand RunOneClickSmartAuditCommand { get; }
 
     public string PrivilegeBadgeText =>
         IsAdmin ? "Права Администратора активны" : "Обычный режим (безопасный просмотр)";
@@ -335,6 +407,48 @@ public sealed class MainViewModel : ObservableObject
                 rec,
                 new AsyncRelayCommand(_ => RollbackAsync(rec.SessionId)),
                 new AsyncRelayCommand(_ => TogglePinAsync(rec.SessionId, !rec.IsPinned))));
+        }
+    }
+
+    private async Task RunOneClickSmartAuditAsync()
+    {
+        if (_isRunningSmartAudit) return;
+
+        _isRunningSmartAudit = true;
+        SmartAuditTitle = "Выполняется Комплексный Умный Аудит всех 6 подсистем ПК...";
+        SmartAuditSubheadline = "Параллельно проверяются процессы и порты Stratum, дерево устройств CfgMgr32, паспорт железа, минидампы BSOD, безопасный кэш и автозагрузка.";
+
+        try
+        {
+            var summary = await _smartAuditOrchestrator.RunOneClickAuditAsync(
+                includeStealthMinerDecoyProbe: false,
+                queryOnlineDriverCatalog: false);
+
+            CompositeHealthScore = summary.CompositeHealthScore;
+            SmartAuditTitle = summary.ExecutiveHeadline;
+            SmartAuditSubheadline =
+                $"Анти-майнер: {summary.SecurityScore}/100 • Железо: {summary.HardwareScore}/100 • Драйверы WHQL: {summary.DriversScore}/100 • Стабильность: {summary.StabilityRepairScore}/100 • Доступно к бережной очистке: {summary.FormattedReclaimableSpace}";
+
+            SmartAuditActions.Clear();
+            foreach (var act in summary.TopActionItems)
+            {
+                var capturedDomain = act.TargetDomain;
+                SmartAuditActions.Add(new SmartAuditActionItemViewModel(
+                    act,
+                    new RelayCommand(_ => SelectedDomain = capturedDomain)));
+            }
+
+            OnPropertyChanged(nameof(HasSmartAuditActions));
+            StatusNotification = summary.ExecutiveHeadline;
+        }
+        catch (Exception ex)
+        {
+            SmartAuditTitle = "Ошибка при выполнении Комплексного Аудита";
+            SmartAuditSubheadline = ex.Message;
+        }
+        finally
+        {
+            _isRunningSmartAudit = false;
         }
     }
 

@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Globalization;
+using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Win32;
@@ -201,6 +203,44 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
                 if (!string.IsNullOrWhiteSpace(p) && c is not null)
                 {
                     await File.WriteAllTextAsync(p, c, ct).ConfigureAwait(false);
+                }
+
+                return;
+            }
+
+            if (delta.TargetPath.StartsWith("DriverInfBackup:", StringComparison.OrdinalIgnoreCase))
+            {
+                using var doc = JsonDocument.Parse(delta.PreviousStateJson);
+                var zipPath = doc.RootElement.TryGetProperty("RestoredArchivePath", out var zEl) ? zEl.GetString() : null;
+                if (!string.IsNullOrWhiteSpace(zipPath) && File.Exists(zipPath))
+                {
+                    var unpackDir = Path.Combine(Path.GetTempPath(), "uw-drv-restore-" + Guid.NewGuid().ToString("N"));
+                    try
+                    {
+                        ZipFile.ExtractToDirectory(zipPath, unpackDir, overwriteFiles: true);
+                        foreach (var infPath in Directory.GetFiles(unpackDir, "*.inf", SearchOption.AllDirectories))
+                        {
+                            var psi = new ProcessStartInfo
+                            {
+                                FileName = Path.Combine(Environment.SystemDirectory, "pnputil.exe"),
+                                CreateNoWindow = true,
+                                UseShellExecute = false
+                            };
+                            psi.ArgumentList.Add("/add-driver");
+                            psi.ArgumentList.Add(infPath);
+                            psi.ArgumentList.Add("/install");
+                            using var proc = Process.Start(psi);
+                            if (proc is not null)
+                            {
+                                await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        try { if (Directory.Exists(unpackDir)) Directory.Delete(unpackDir, true); } catch { }
+                        try { File.Delete(zipPath); } catch { }
+                    }
                 }
 
                 return;

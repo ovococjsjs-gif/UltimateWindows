@@ -193,61 +193,104 @@
                      Margin="0,6,0,20"
                      Foreground="{DynamicResource TextSecondaryBrush}" />
 
-          <!-- =============== ЭКРАН 1: ГЛАВНЫЙ ОБЗОР (ЗДОРОВЬЕ ПК) =============== -->
+          <!-- =============== ЭКРАН 1: ГЛАВНЫЙ ОБЗОР (ЗДОРОВЬЕ ПК + 1-CLICK SMART AUDIT v1.0) =============== -->
           <StackPanel Visibility="{Binding IsOverviewVisible, Converter={StaticResource BoolToVis}}">
-            <!-- Главный баннер быстрой проверки -->
-            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,20">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="Auto" />
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+            <!-- Главный баннер Комплексного Умного Аудита в 1 клик -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,18">
+              <StackPanel>
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
 
-                <!-- Кольцо индекса порядка -->
-                <Border Grid.Column="0"
-                        Width="84"
-                        Height="84"
-                        CornerRadius="42"
-                        BorderBrush="{DynamicResource SafeEmeraldBrush}"
-                        BorderThickness="5"
-                        Margin="0,0,20,0">
-                  <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                    <TextBlock Text="95"
-                               FontSize="24"
-                               FontWeight="Bold"
-                               HorizontalAlignment="Center"
-                               Foreground="{DynamicResource SafeEmeraldBrush}" />
-                    <TextBlock Text="из 100"
-                               FontSize="10.5"
-                               HorizontalAlignment="Center"
+                  <!-- Живое кольцо Индекса здоровья ПК (0–100) -->
+                  <Border Grid.Column="0"
+                          Width="84"
+                          Height="84"
+                          CornerRadius="42"
+                          BorderBrush="{DynamicResource SafeEmeraldBrush}"
+                          BorderThickness="5"
+                          Margin="0,0,20,0">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                      <TextBlock Text="{Binding CompositeHealthScore}"
+                                 FontSize="24"
+                                 FontWeight="Bold"
+                                 HorizontalAlignment="Center"
+                                 Foreground="{DynamicResource SafeEmeraldBrush}" />
+                      <TextBlock Text="из 100"
+                                 FontSize="10.5"
+                                 HorizontalAlignment="Center"
+                                 Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </StackPanel>
+                  </Border>
+
+                  <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                    <TextBlock Text="{Binding SmartAuditTitle}"
+                               FontSize="16.5"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock Text="{Binding SmartAuditSubheadline}"
+                               FontSize="13"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,0"
                                Foreground="{DynamicResource TextSecondaryBrush}" />
                   </StackPanel>
-                </Border>
 
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                  <TextBlock Text="Ядро безопасности Phase 0 активно и готово к работе"
-                             FontSize="17"
-                             FontWeight="SemiBold"
-                             Foreground="{DynamicResource TextPrimaryBrush}" />
-                  <TextBlock Text="Каждое изменение системы записывается в компактный журнал отката (несколько килобайт вместо гигабайтов мусора) и отменяется в 1 клик."
-                             FontSize="13"
-                             TextWrapping="Wrap"
-                             Margin="0,6,0,0"
-                             Foreground="{DynamicResource TextSecondaryBrush}" />
-                </StackPanel>
+                  <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                    <Button Style="{StaticResource PrimaryButtonStyle}"
+                            Command="{Binding RunOneClickSmartAuditCommand}"
+                            Content="🚀 Умный аудит всего ПК в 1 клик"
+                            Margin="0,0,0,8" />
+                    <Button Style="{StaticResource SecondaryButtonStyle}"
+                            Command="{Binding NavigateCommand}"
+                            CommandParameter="TimeMachineVault"
+                            Content="⏱️ Открыть Машину времени и квоту" />
+                  </StackPanel>
+                </Grid>
 
-                <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                  <Button Style="{StaticResource PrimaryButtonStyle}"
-                          Command="{Binding CreateSampleCheckpointCommand}"
-                          Content="✨ Проверить Машину времени (тест)"
-                          Margin="0,0,0,8" />
-                  <Button Style="{StaticResource SecondaryButtonStyle}"
-                          Command="{Binding NavigateCommand}"
-                          CommandParameter="TimeMachineVault"
-                          Content="Открыть историю и квоту бэкапов" />
-                </StackPanel>
-              </Grid>
+                <!-- Приоритетные рекомендации по итогам 1-Click Smart Audit -->
+                <ItemsControl ItemsSource="{Binding SmartAuditActions}"
+                              Margin="0,14,0,0"
+                              Visibility="{Binding HasSmartAuditActions, Converter={StaticResource BoolToVis}}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{DynamicResource SidebarBackgroundBrush}"
+                              BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="8"
+                              Padding="12,9"
+                              Margin="0,0,0,8">
+                        <Grid>
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                          </Grid.ColumnDefinitions>
+                          <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                            <StackPanel Orientation="Horizontal">
+                              <Border Background="{DynamicResource AccentSubtleBrush}"
+                                      CornerRadius="5" Padding="7,2" Margin="0,0,8,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding DomainBadge}" FontSize="11.5" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource AccentBrush}" />
+                              </Border>
+                              <TextBlock Text="{Binding SimpleTitle}" FontSize="13.5" FontWeight="SemiBold"
+                                         VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding SimpleRecommendation}" FontSize="12.5" TextWrapping="Wrap"
+                                       Margin="0,4,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                          </StackPanel>
+                          <Button Grid.Column="1" VerticalAlignment="Center"
+                                  Style="{StaticResource SecondaryButtonStyle}"
+                                  Command="{Binding JumpCommand}"
+                                  Content="Открыть раздел →" />
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
             </Border>
 
             <!-- Сетка дружелюбных карточек модулей -->
@@ -1158,6 +1201,93 @@
                           Visibility="{Binding IsStressRunning, Converter={StaticResource BoolToVis}}"
                           Content="⏹ Остановить" />
                 </StackPanel>
+              </StackPanel>
+            </Border>
+
+            <!-- =============== СЕКЦИЯ ФАЗЫ 6: ОФИЦИАЛЬНЫЙ МЕНЕДЖЕР WHQL-ДРАЙВЕРОВ (CfgMgr32 + WUApiLib) =============== -->
+            <Border Style="{StaticResource CardBorderStyle}"
+                    Margin="0,16,0,0"
+                    DataContext="{Binding DataContext.DriverStudio, RelativeSource={RelativeSource AncestorType=Window}}">
+              <StackPanel>
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                    <TextBlock Text="🔌 Официальный менеджер драйверов (CfgMgr32 + 4-компонентный Hardware ID)"
+                               FontSize="15.5" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding DriverSummaryHeadline}"
+                               FontSize="12.5" TextWrapping="Wrap" Margin="0,5,0,0"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                    <Border Background="{DynamicResource AccentSubtleBrush}"
+                            CornerRadius="8" Padding="10,4" Margin="0,0,0,8" HorizontalAlignment="Right">
+                      <TextBlock Text="{Binding DriverScoreBadge}" FontSize="12.5" FontWeight="SemiBold"
+                                 Foreground="{DynamicResource AccentBrush}" />
+                    </Border>
+                    <Button Style="{StaticResource PrimaryButtonStyle}"
+                            Command="{Binding AuditDriversCommand}"
+                            Content="🔍 Проверить устройства и драйверы" />
+                  </StackPanel>
+                </Grid>
+
+                <CheckBox IsChecked="{Binding QueryWindowsUpdateOnline}"
+                          Margin="0,12,0,0"
+                          Content="☁️ Проверить наличие подписанных WHQL-обновлений в официальном каталоге Microsoft Windows Update"
+                          Foreground="{DynamicResource TextPrimaryBrush}" />
+
+                <Border Background="{DynamicResource AccentSubtleBrush}"
+                        CornerRadius="8" Padding="12,8" Margin="0,12,0,0"
+                        Visibility="{Binding HasDriverOperationBanner, Converter={StaticResource BoolToVis}}">
+                  <TextBlock Text="{Binding LastDriverOperationBanner}"
+                             FontSize="12.5" TextWrapping="Wrap"
+                             Foreground="{DynamicResource TextPrimaryBrush}" />
+                </Border>
+
+                <ItemsControl ItemsSource="{Binding DriverFindings}"
+                              Margin="0,14,0,0"
+                              Visibility="{Binding HasDriverFindings, Converter={StaticResource BoolToVis}}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{DynamicResource SidebarBackgroundBrush}"
+                              BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                              BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,8">
+                        <Grid>
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                          </Grid.ColumnDefinitions>
+                          <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                            <TextBlock Text="{Binding SimpleTitle}" FontSize="13.5" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding SimpleExplanation}" FontSize="12.5" TextWrapping="Wrap"
+                                       Margin="0,4,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <TextBlock Text="{Binding ExpertTechnicalDetails}" FontSize="11.5" FontFamily="Consolas"
+                                       TextWrapping="Wrap" Margin="0,6,0,0" Foreground="{DynamicResource AccentBrush}"
+                                       Visibility="{Binding DataContext.IsExpertMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}" />
+                          </StackPanel>
+                          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <Button Style="{StaticResource PrimaryButtonStyle}"
+                                    Visibility="{Binding CanInstallViaWindowsUpdate, Converter={StaticResource BoolToVis}}"
+                                    Command="{Binding InstallWhqlCommand}"
+                                    Content="⬇️ Установить WHQL"
+                                    Margin="0,0,0,6" />
+                            <Button Style="{StaticResource SecondaryButtonStyle}"
+                                    Visibility="{Binding CanBackupOemInf, Converter={StaticResource BoolToVis}}"
+                                    Command="{Binding BackupInfCommand}"
+                                    Content="📦 Бэкап oem.inf (.uwq)"
+                                    Margin="0,0,0,6" />
+                            <Button Style="{StaticResource SecondaryButtonStyle}"
+                                    Visibility="{Binding HasOfficialVendorUrl, Converter={StaticResource BoolToVis}}"
+                                    Command="{Binding OpenVendorPortalCommand}"
+                                    Content="🌐 Сайт вендора" />
+                          </StackPanel>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
               </StackPanel>
             </Border>
           </StackPanel>

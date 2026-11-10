@@ -48,22 +48,25 @@
 
 ---
 
-## Быстрый старт и сборка (Фазы 0, 1, 2, 3, 4 и 5 — Реализовано)
+## Быстрый старт и сборка (Релиз v1.0 — Все Фазы 0–6 Реализованы ✅)
 
 Требования: **.NET 8.0 SDK** на Windows 10 / Windows 11.
 
 ```powershell
-# Восстановление зависимостей и сборка всего решения (11 проектов)
+# Восстановление зависимостей и сборка всего решения (12 проектов)
 dotnet build UltimateWindows.sln -c Release
 
-# Запуск всех модульных тестов (Vault, Hardware, Cleaner, PE/BSOD Repair, Smart Optimizer & Anti-Miner)
+# Запуск всех модульных тестов (Vault, Hardware, Cleaner, PE/BSOD Repair, Optimizer, Anti-Miner & WHQL Drivers / Smart Audit)
 dotnet test UltimateWindows.sln -c Release
 
-# Запуск графического интерфейса (User-Friendly Fluent GUI)
+# Запуск графического интерфейса (User-Friendly Fluent GUI с переключателем Простой ↔ Эксперт)
 dotnet run --project src/UltimateWindows.App/UltimateWindows.App.csproj
 
 # Примеры использования консольного интерфейса (CLI)
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- smart-audit
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- hardware-audit
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- drivers-audit --online
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- driver-backup oem42.inf
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- clean-scan
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- pe-doctor "C:\Games\App\game.exe"
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- bsod-scan
