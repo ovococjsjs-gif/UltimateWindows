@@ -119,28 +119,33 @@ public static class SmbiosBinaryParser
             return false;
         }
 
-        // Проверяем метки каналов в DeviceLocator / BankLocator (например, ChannelA/ChannelB, DIMM_A2/DIMM_B2, Controller0/Controller1)
+        // Проверяем метки каналов в DeviceLocator / BankLocator (например, ChannelA/ChannelB, DIMM_A2/DIMM_B2).
+        // Важно: не используем голую подстроку "CHA", так как слово "CHANNEL B" начинается с "CHA"!
         var distinctChannels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var mod in populated)
         {
             var combined = $"{mod.BankLocator} {mod.DeviceLocator}".ToUpperInvariant();
-            if (combined.Contains("CHA") || combined.Contains("CHANNEL A") || combined.Contains("CHANNEL-A") ||
-                combined.Contains("DIMM_A") || combined.Contains("DIMMA") || combined.Contains("A1") || combined.Contains("A2"))
+            if (combined.Contains("CHANNEL D") || combined.Contains("CHANNEL-D") || combined.Contains("CHANNEL_D") ||
+                combined.Contains("DIMM_D") || combined.Contains("DIMMD") || combined.Contains("CHD"))
             {
-                distinctChannels.Add("A");
+                distinctChannels.Add("D");
             }
-            else if (combined.Contains("CHB") || combined.Contains("CHANNEL B") || combined.Contains("CHANNEL-B") ||
-                     combined.Contains("DIMM_B") || combined.Contains("DIMMB") || combined.Contains("B1") || combined.Contains("B2"))
-            {
-                distinctChannels.Add("B");
-            }
-            else if (combined.Contains("CHC") || combined.Contains("CHANNEL C") || combined.Contains("C1") || combined.Contains("C2"))
+            else if (combined.Contains("CHANNEL C") || combined.Contains("CHANNEL-C") || combined.Contains("CHANNEL_C") ||
+                     combined.Contains("DIMM_C") || combined.Contains("DIMMC") || combined.Contains("CHC"))
             {
                 distinctChannels.Add("C");
             }
-            else if (combined.Contains("CHD") || combined.Contains("CHANNEL D") || combined.Contains("D1") || combined.Contains("D2"))
+            else if (combined.Contains("CHANNEL B") || combined.Contains("CHANNEL-B") || combined.Contains("CHANNEL_B") ||
+                     combined.Contains("CHANNELB") || combined.Contains("DIMM_B") || combined.Contains("DIMMB") ||
+                     combined.Contains("CHB") || combined.Contains(" B1") || combined.Contains(" B2"))
             {
-                distinctChannels.Add("D");
+                distinctChannels.Add("B");
+            }
+            else if (combined.Contains("CHANNEL A") || combined.Contains("CHANNEL-A") || combined.Contains("CHANNEL_A") ||
+                     combined.Contains("CHANNELA") || combined.Contains("DIMM_A") || combined.Contains("DIMMA") ||
+                     combined.Contains("CHA-") || combined.Contains("CHA_") || combined.Contains(" A1") || combined.Contains(" A2"))
+            {
+                distinctChannels.Add("A");
             }
         }
 
