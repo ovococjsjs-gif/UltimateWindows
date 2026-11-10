@@ -20,6 +20,38 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+function Invoke-LoggedDotnet {
+    param(
+        [string]$StepLabel,
+        [string[]]$DotnetArgs
+    )
+
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $outputLines = & dotnet @DotnetArgs 2>&1 | ForEach-Object { "$_" }
+    $code = $LASTEXITCODE
+    $ErrorActionPreference = $prevEap
+
+    foreach ($line in $outputLines) {
+        Write-Host $line
+    }
+
+    if ($code -ne 0) {
+        if ($env:GITHUB_ACTIONS -eq "true") {
+            $interesting = $outputLines | Where-Object {
+                $_ -match "error " -or $_ -match "Failed" -or $_ -match " Assert\." -or $_ -match "Exception" -or $_ -match "XAML" -or $_ -match "MC\d+" -or $_ -match "CS\d+" -or $_ -match "\[FAIL\]"
+            }
+            if (-not $interesting -or @($interesting).Count -eq 0) {
+                $interesting = $outputLines | Select-Object -Last 35
+            }
+            $joined = (@($interesting) | Select-Object -First 40) -join " || "
+            $safe = $joined.Replace("%", "%25").Replace("`r", "").Replace("`n", " ")
+            Write-Host "::error title=$StepLabel::$safe"
+        }
+        throw "$StepLabel завершился с ошибкой (код $code)."
+    }
+}
+
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $RepoRoot
 
@@ -44,41 +76,44 @@ try {
 
     if (-not $SkipTests) {
         Write-Host "`n[1/4] Прогон всех модульных тестов xUnit (Фазы 0–6)..." -ForegroundColor Yellow
-        dotnet test "$RepoRoot\UltimateWindows.sln" -c Release --nologo
-        if ($LASTEXITCODE -ne 0) { throw "Модульные тесты завершились с ошибкой (код $LASTEXITCODE)." }
+        Invoke-LoggedDotnet -StepLabel "DotnetTest" -DotnetArgs @("test", "$RepoRoot\UltimateWindows.sln", "-c", "Release", "--nologo", "--logger", "console;verbosity=normal")
     }
 
     Write-Host "`n[2/4] Сборка портативного GUI-приложения UltimateWindows.exe (Single-File Self-Contained)..." -ForegroundColor Yellow
     $GuiOut = Join-Path $ArtifactsDir "publish-gui-$Runtime"
     if (Test-Path $GuiOut) { Remove-Item $GuiOut -Recurse -Force }
 
-    dotnet publish "$RepoRoot\src\UltimateWindows.App\UltimateWindows.App.csproj" `
-        -c Release `
-        -r $Runtime `
-        --self-contained true `
-        -p:PublishSingleFile=true `
-        -p:IncludeNativeLibrariesForSelfExtract=true `
-        -p:EnableCompressionInSingleFile=true `
-        -p:DebugType=embedded `
-        -p:Version=$Version `
-        -o $GuiOut --nologo
-    if ($LASTEXITCODE -ne 0) { throw "Ошибка сборки UltimateWindows.App." }
+    Invoke-LoggedDotnet -StepLabel "PublishGUI" -DotnetArgs @(
+        "publish", "$RepoRoot\src\UltimateWindows.App\UltimateWindows.App.csproj",
+        "-c", "Release",
+        "-r", $Runtime,
+        "--self-contained", "true",
+        "-p:PublishSingleFile=true",
+        "-p:IncludeNativeLibrariesForSelfExtract=true",
+        "-p:EnableCompressionInSingleFile=true",
+        "-p:DebugType=embedded",
+        "-p:Version=$Version",
+        "-o", $GuiOut,
+        "--nologo"
+    )
 
     Write-Host "`n[3/4] Сборка портативной консольной утилиты UltimateWindows.Cli.exe..." -ForegroundColor Yellow
     $CliOut = Join-Path $ArtifactsDir "publish-cli-$Runtime"
     if (Test-Path $CliOut) { Remove-Item $CliOut -Recurse -Force }
 
-    dotnet publish "$RepoRoot\src\UltimateWindows.Cli\UltimateWindows.Cli.csproj" `
-        -c Release `
-        -r $Runtime `
-        --self-contained true `
-        -p:PublishSingleFile=true `
-        -p:IncludeNativeLibrariesForSelfExtract=true `
-        -p:EnableCompressionInSingleFile=true `
-        -p:DebugType=embedded `
-        -p:Version=$Version `
-        -o $CliOut --nologo
-    if ($LASTEXITCODE -ne 0) { throw "Ошибка сборки UltimateWindows.Cli." }
+    Invoke-LoggedDotnet -StepLabel "PublishCLI" -DotnetArgs @(
+        "publish", "$RepoRoot\src\UltimateWindows.Cli\UltimateWindows.Cli.csproj",
+        "-c", "Release",
+        "-r", $Runtime,
+        "--self-contained", "true",
+        "-p:PublishSingleFile=true",
+        "-p:IncludeNativeLibrariesForSelfExtract=true",
+        "-p:EnableCompressionInSingleFile=true",
+        "-p:DebugType=embedded",
+        "-p:Version=$Version",
+        "-o", $CliOut,
+        "--nologo"
+    )
 
     Copy-Item (Join-Path $GuiOut "UltimateWindows.exe") -Destination $StagingDir -Force
     Copy-Item (Join-Path $CliOut "UltimateWindows.Cli.exe") -Destination $StagingDir -Force
@@ -141,6 +176,13 @@ UltimateWindows v$Version — Портативная версия ($Runtime)
         if ($LASTEXITCODE -ne 0) { throw "Не удалось загрузить ассеты в релиз $ReleaseTag." }
         Write-Host "Ассеты успешно прикреплены к GitHub Release $ReleaseTag!" -ForegroundColor Green
     }
+}
+catch {
+    if ($env:GITHUB_ACTIONS -eq "true") {
+        $errMsg = "$($_.Exception.Message)".Replace("%", "%25").Replace("`r", "").Replace("`n", " ")
+        Write-Host "::error title=ScriptException::$errMsg"
+    }
+    throw
 }
 finally {
     Pop-Location
