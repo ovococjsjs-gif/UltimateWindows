@@ -315,8 +315,367 @@
             </ItemsControl>
           </StackPanel>
 
-          <!-- =============== ЭКРАН 2: БЕРЕЖНАЯ ОЧИСТКА И ИНСПЕКТОР ПАРОЛЕЙ =============== -->
+          <!-- =============== ЭКРАН 2: БЕРЕЖНАЯ ОЧИСТКА, ГИГИЕНА РЕЕСТРА И КАРТА ДИСКА =============== -->
           <StackPanel Visibility="{Binding IsCleanerVisible, Converter={StaticResource BoolToVis}}">
+
+            <!-- Главная панель бережной очистки с замком паролей -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,16">
+              <StackPanel>
+                <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                        BorderBrush="{DynamicResource SafeEmeraldBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12,9"
+                        Margin="0,0,0,14">
+                  <TextBlock Text="{Binding CleanerStudio.VaultShieldBadgeText}"
+                             FontSize="13"
+                             FontWeight="SemiBold"
+                             TextWrapping="Wrap"
+                             Foreground="{DynamicResource SafeEmeraldBrush}" />
+                </Border>
+
+                <TextBlock Text="Что проверить и бережно очистить:"
+                           FontSize="15.5"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,10" />
+
+                <UniformGrid Columns="2" Margin="0,0,0,14">
+                  <CheckBox IsChecked="{Binding CleanerStudio.PreservePasswordsAndAutofill}"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
+                            Margin="0,0,12,8"
+                            Content="🔒 Защищать пароли, логины и автозаполнение форм" />
+                  <CheckBox IsChecked="{Binding CleanerStudio.PreserveBrowserSessions}"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
+                            Margin="0,0,0,8"
+                            Content="🛡️ Сохранять активные вкладки и сессии входа" />
+                  <CheckBox IsChecked="{Binding CleanerStudio.CleanBrowserCaches}"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
+                            Margin="0,0,12,8"
+                            Content="🌐 Кэш всех браузеров (Chrome, Edge, Яндекс, Firefox и др.)" />
+                  <CheckBox IsChecked="{Binding CleanerStudio.CleanSystemTempAndShaders}"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
+                            Margin="0,0,0,8"
+                            Content="🧹 Папки Temp (старше 24ч), шейдеры GPU и архивы сбоев" />
+                  <CheckBox IsChecked="{Binding CleanerStudio.CleanRegistryOrphans}"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
+                            Margin="0,0,12,8"
+                            Content="🧬 Гигиена реестра (только удаленные программы + откат)" />
+                  <CheckBox IsChecked="{Binding CleanerStudio.EmptyRecycleBin}"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
+                            Margin="0,0,0,8"
+                            Content="🗑️ Очистить Корзину Windows" />
+                  <CheckBox IsChecked="{Binding CleanerStudio.IncludeDeveloperCaches}"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
+                            Margin="0,0,12,4"
+                            Content="📦 Кэш пакетов разработчика (npm / pip / NuGet)" />
+                </UniformGrid>
+
+                <StackPanel Orientation="Horizontal" Margin="0,2,0,12">
+                  <Button Style="{StaticResource PrimaryButtonStyle}"
+                          Command="{Binding CleanerStudio.ScanPreviewCommand}"
+                          Content="🔍 1. Проверить безопасный объем (без удаления)"
+                          Margin="0,0,12,0" />
+                  <Button Style="{StaticResource SecondaryButtonStyle}"
+                          Command="{Binding CleanerStudio.ExecuteSafeCleanCommand}"
+                          Content="✨ 2. Бережно очистить найденное" />
+                </StackPanel>
+
+                <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                        BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="14,10">
+                  <TextBlock Text="{Binding CleanerStudio.ScanSummaryHeadline}"
+                             FontSize="13.5"
+                             FontWeight="SemiBold"
+                             TextWrapping="Wrap" />
+                </Border>
+
+                <Border Visibility="{Binding CleanerStudio.HasBrowserWarnings, Converter={StaticResource BoolToVis}}"
+                        Background="{DynamicResource SurfaceElevatedBrush}"
+                        BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12,8"
+                        Margin="0,10,0,0">
+                  <TextBlock Text="{Binding CleanerStudio.BrowserWarningBanner}"
+                             FontSize="12.5"
+                             TextWrapping="Wrap"
+                             Foreground="{DynamicResource TextSecondaryBrush}" />
+                </Border>
+
+                <Border Visibility="{Binding CleanerStudio.HasCleanupOutcome, Converter={StaticResource BoolToVis}}"
+                        Background="{DynamicResource SurfaceElevatedBrush}"
+                        BorderBrush="{DynamicResource SafeEmeraldBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12,9"
+                        Margin="0,10,0,0">
+                  <TextBlock Text="{Binding CleanerStudio.LastCleanupOutcome}"
+                             FontSize="13"
+                             FontWeight="SemiBold"
+                             TextWrapping="Wrap"
+                             Foreground="{DynamicResource SafeEmeraldBrush}" />
+                </Border>
+              </StackPanel>
+            </Border>
+
+            <!-- Карточки найденных категорий мусора -->
+            <ItemsControl ItemsSource="{Binding CleanerStudio.Categories}" Margin="0,0,0,8">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
+                    <StackPanel>
+                      <DockPanel Margin="0,0,0,6">
+                        <Border DockPanel.Dock="Right"
+                                Background="{DynamicResource SurfaceElevatedBrush}"
+                                BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="10,3">
+                          <TextBlock Text="{Binding FormattedSize}"
+                                     FontSize="12.5"
+                                     FontWeight="Bold"
+                                     Foreground="{DynamicResource SafeEmeraldBrush}" />
+                        </Border>
+                        <StackPanel Orientation="Horizontal">
+                          <TextBlock Text="{Binding IconGlyph}" FontSize="18" Margin="0,0,10,0" />
+                          <TextBlock Text="{Binding FriendlyTitle}"
+                                     FontSize="15"
+                                     FontWeight="SemiBold"
+                                     VerticalAlignment="Center" />
+                        </StackPanel>
+                      </DockPanel>
+
+                      <TextBlock Text="{Binding FriendlyDescription}"
+                                 FontSize="12.5"
+                                 TextWrapping="Wrap"
+                                 Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                      <Border Visibility="{Binding DataContext.IsExpertMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
+                              Background="{DynamicResource ExpertPanelBackgroundBrush}"
+                              BorderBrush="{DynamicResource ExpertPanelBorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="8"
+                              Padding="10,7"
+                              Margin="0,8,0,0">
+                        <TextBlock Text="{Binding ExpertSamplesJoined}"
+                                   FontSize="11.5"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                      </Border>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Прозрачный список найденных сирот реестра (если обнаружены) -->
+            <Border Visibility="{Binding CleanerStudio.HasRegistryOrphans, Converter={StaticResource BoolToVis}}"
+                    Style="{StaticResource CardBorderStyle}"
+                    Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock Text="🧬 Проверенные устаревшие ссылки реестра (системные ветки COM/CLSID не затрагиваются)"
+                           FontSize="15"
+                           FontWeight="SemiBold" />
+                <TextBlock Text="Каждая запись ниже ссылается на реально удаленный .exe файл на локальном диске. Перед очисткой исходные значения сохраняются в компактный журнал Машины времени."
+                           FontSize="12.5"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,12"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                <ItemsControl ItemsSource="{Binding CleanerStudio.RegistryOrphans}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                              BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="8"
+                              Padding="12,8"
+                              Margin="0,0,0,8">
+                        <StackPanel>
+                          <TextBlock Text="{Binding FriendlyReason}"
+                                     FontSize="13"
+                                     FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding MissingReferencedFilePath}"
+                                     FontSize="12"
+                                     TextWrapping="Wrap"
+                                     Margin="0,2,0,0"
+                                     Foreground="{DynamicResource TextSecondaryBrush}" />
+                          <TextBlock Visibility="{Binding DataContext.IsExpertMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
+                                     Text="{Binding FullRegistryDisplayPath}"
+                                     FontSize="11.5"
+                                     TextWrapping="Wrap"
+                                     Margin="0,4,0,0"
+                                     Foreground="{DynamicResource AccentPrimaryBrush}" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <!-- Быстрая карта занятого места на диске -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock Text="⚡ Быстрая карта занятого места на диске (без зацикливания на ярлыках)"
+                           FontSize="16"
+                           FontWeight="SemiBold" />
+                <TextBlock Text="Многопоточный анализатор мгновенно показывает, какие папки и тяжелые файлы съедают гигабайты на SSD или HDD."
+                           FontSize="13"
+                           TextWrapping="Wrap"
+                           Margin="0,5,0,12"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                  <Button Style="{StaticResource SecondaryButtonStyle}"
+                          Command="{Binding CleanerStudio.SelectDiskPresetCommand}"
+                          CommandParameter="UserProfile"
+                          Content="👤 Профиль пользователя"
+                          Margin="0,0,8,0" />
+                  <Button Style="{StaticResource SecondaryButtonStyle}"
+                          Command="{Binding CleanerStudio.SelectDiskPresetCommand}"
+                          CommandParameter="Downloads"
+                          Content="📥 Загрузки"
+                          Margin="0,0,8,0" />
+                  <Button Style="{StaticResource SecondaryButtonStyle}"
+                          Command="{Binding CleanerStudio.SelectDiskPresetCommand}"
+                          CommandParameter="SystemDrive"
+                          Content="💽 Системный диск C:\" />
+                </StackPanel>
+
+                <Grid Margin="0,0,0,10">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <TextBox Grid.Column="0"
+                           Text="{Binding CleanerStudio.DiskMapTargetPath, UpdateSourceTrigger=PropertyChanged}"
+                           Background="{DynamicResource SurfaceElevatedBrush}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                           Padding="10,8"
+                           FontSize="13"
+                           Margin="0,0,10,0" />
+                  <Button Grid.Column="1"
+                          Style="{StaticResource PrimaryButtonStyle}"
+                          Command="{Binding CleanerStudio.AnalyzeDiskSpaceCommand}"
+                          Content="📊 Построить карту места" />
+                </Grid>
+
+                <TextBlock Text="{Binding CleanerStudio.DiskMapStatusText}"
+                           FontSize="12.5"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,12"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                <Grid Visibility="{Binding CleanerStudio.HasDiskMapResults, Converter={StaticResource BoolToVis}}">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+
+                  <!-- Левая колонка: Топ папок -->
+                  <StackPanel Grid.Column="0">
+                    <TextBlock Text="📁 Самые объемные папки:"
+                               FontSize="13.5"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8" />
+                    <ItemsControl ItemsSource="{Binding CleanerStudio.TopDirectories}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                                  BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="8"
+                                  Padding="10,8"
+                                  Margin="0,0,0,8">
+                            <StackPanel>
+                              <DockPanel>
+                                <TextBlock DockPanel.Dock="Right"
+                                           Text="{Binding FormattedSize}"
+                                           FontSize="12.5"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource AccentPrimaryBrush}" />
+                                <TextBlock Text="{Binding Name}"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis" />
+                              </DockPanel>
+                              <ProgressBar Value="{Binding ShareOfScannedPercent, Mode=OneWay}"
+                                           Minimum="0"
+                                           Maximum="100"
+                                           Height="6"
+                                           Foreground="{DynamicResource AccentPrimaryBrush}"
+                                           Background="{DynamicResource SurfaceBorderBrush}"
+                                           Margin="0,6,0,4" />
+                              <DockPanel>
+                                <TextBlock DockPanel.Dock="Right"
+                                           Text="{Binding ShareLabel}"
+                                           FontSize="11.5"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="{Binding FilesCountLabel}"
+                                           FontSize="11.5"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                              </DockPanel>
+                              <TextBlock Visibility="{Binding DataContext.IsExpertMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
+                                         Text="{Binding FullPath}"
+                                         FontSize="11"
+                                         TextWrapping="Wrap"
+                                         Margin="0,3,0,0"
+                                         Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+
+                  <!-- Правая колонка: Крупнейшие файлы -->
+                  <StackPanel Grid.Column="2">
+                    <TextBlock Text="📦 Самые тяжелые отдельные файлы:"
+                               FontSize="13.5"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8" />
+                    <ItemsControl ItemsSource="{Binding CleanerStudio.LargestFiles}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                                  BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="8"
+                                  Padding="10,8"
+                                  Margin="0,0,0,8">
+                            <StackPanel>
+                              <DockPanel>
+                                <TextBlock DockPanel.Dock="Right"
+                                           Text="{Binding FormattedSize}"
+                                           FontSize="12.5"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource SafeEmeraldBrush}" />
+                                <TextBlock Text="{Binding Name}"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis" />
+                              </DockPanel>
+                              <TextBlock Text="{Binding FullPath}"
+                                         FontSize="11"
+                                         TextWrapping="Wrap"
+                                         Margin="0,4,0,0"
+                                         Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+            </Border>
+
+            <!-- Интерактивная лаборатория проверки любого пути (BrowserVaultGuard) -->
             <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,16">
               <StackPanel>
                 <TextBlock Text="Интерактивная проверка фильтра защиты паролей и форм (BrowserVaultGuard)"

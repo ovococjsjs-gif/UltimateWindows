@@ -50,20 +50,24 @@ public sealed class RelayCommand : ICommand
 public sealed class AsyncRelayCommand : ICommand
 {
     private readonly Func<object?, Task> _executeAsync;
+    private readonly Predicate<object?>? _canExecute;
     private bool _isRunning;
 
-    public AsyncRelayCommand(Func<object?, Task> executeAsync)
+    public AsyncRelayCommand(Func<object?, Task> executeAsync, Predicate<object?>? canExecute = null)
     {
         _executeAsync = executeAsync ?? throw new ArgumentNullException(nameof(executeAsync));
+        _canExecute = canExecute;
     }
 
     public event EventHandler? CanExecuteChanged;
 
-    public bool CanExecute(object? parameter) => !_isRunning;
+    public bool CanExecute(object? parameter) => !_isRunning && (_canExecute?.Invoke(parameter) ?? true);
+
+    public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 
     public async void Execute(object? parameter)
     {
-        if (_isRunning)
+        if (!CanExecute(parameter))
         {
             return;
         }

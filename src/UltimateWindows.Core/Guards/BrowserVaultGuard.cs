@@ -15,6 +15,10 @@ public static class BrowserVaultGuard
         "login data-journal",
         "web data",
         "web data-journal",
+        "ya passman data",
+        "ya passman data-journal",
+        "ya autofill data",
+        "ya autofill data-journal",
         "local state",
         "logins.json",
         "logins-backup.json",
@@ -62,6 +66,7 @@ public static class BrowserVaultGuard
         "/cache2/entries/",
         "/cache2/doomed/",
         "/startupcache/",
+        "/thumbnails/",
         "/dxcache/",
         "/glcache/"
     ];

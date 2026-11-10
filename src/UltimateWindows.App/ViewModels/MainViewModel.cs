@@ -5,8 +5,10 @@ using UltimateWindows.Core.Contracts;
 using UltimateWindows.Core.Enums;
 using UltimateWindows.Core.Guards;
 using UltimateWindows.Core.Models;
+using UltimateWindows.Modules.Cleaner.Services;
 using UltimateWindows.Modules.Hardware.Services;
 using UltimateWindows.Modules.Safety.Services;
+using UltimateWindows.NativeInterop.Cleaner;
 using UltimateWindows.NativeInterop.Hardware;
 using UltimateWindows.NativeInterop.Restore;
 using UltimateWindows.NativeInterop.Security;
@@ -105,6 +107,18 @@ public sealed class MainViewModel : ObservableObject
                 await RefreshVaultStateAsync();
             });
 
+        var cleanerService = new VaultSafeCleanerService(
+            _vaultService,
+            new WindowsCleanerPlatformBridge());
+
+        CleanerStudio = new CleanerStudioViewModel(
+            cleanerService,
+            async msg =>
+            {
+                StatusNotification = msg;
+                await RefreshVaultStateAsync();
+            });
+
         _ = InitializeAsync();
     }
 
@@ -117,6 +131,8 @@ public sealed class MainViewModel : ObservableObject
     public bool IsAdmin { get; }
 
     public HardwareStudioViewModel HardwareStudio { get; }
+
+    public CleanerStudioViewModel CleanerStudio { get; }
 
     public string PrivilegeBadgeText =>
         IsAdmin ? "Права Администратора активны" : "Обычный режим (безопасный просмотр)";

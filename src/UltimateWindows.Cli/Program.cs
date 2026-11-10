@@ -1,7 +1,10 @@
 using System.Text;
 using UltimateWindows.Core.Guards;
+using UltimateWindows.Modules.Cleaner.Models;
+using UltimateWindows.Modules.Cleaner.Services;
 using UltimateWindows.Modules.Hardware.Services;
 using UltimateWindows.Modules.Safety.Services;
+using UltimateWindows.NativeInterop.Cleaner;
 using UltimateWindows.NativeInterop.Hardware;
 using UltimateWindows.NativeInterop.Restore;
 using UltimateWindows.NativeInterop.Security;
@@ -10,6 +13,7 @@ Console.OutputEncoding = Encoding.UTF8;
 
 var vault = new ZeroBloatVaultService(stateApplier: new WindowsSystemStateApplier());
 var hardware = new HardwareStudioService(vault, new WindowsHardwarePlatformProvider());
+var cleaner = new VaultSafeCleanerService(vault, new WindowsCleanerPlatformBridge());
 var command = args.Length > 0 ? args[0].ToLowerInvariant() : "status";
 
 switch (command)
@@ -72,6 +76,52 @@ switch (command)
         break;
     }
 
+    case "clean-scan":
+    {
+        var options = new CleanupOptions { PreservePasswordsAndAutofill = true };
+        var report = await cleaner.ScanAsync(options);
+        Console.WriteLine("=== UltimateWindows Phase 2 — Бережный анализ мусора (без удаления) ===");
+        Console.WriteLine($"Защита паролей и форм : {(report.PasswordsAndAutofillProtected ? "ВКЛЮЧЕНА 🔒" : "Отключена")}");
+        Console.WriteLine($"Доступно к очистке    : {report.FormattedTotalReclaimable} ({report.TotalFilesCount:N0} файлов)");
+        Console.WriteLine($"Сирот реестра найдено : {report.TotalRegistryOrphansCount}");
+        foreach (var cat in report.Categories)
+        {
+            Console.WriteLine($"  - {cat.IconGlyph} {cat.FriendlyTitle}: {cat.FormattedSize} ({cat.ItemCount} эл.)");
+        }
+        break;
+    }
+
+    case "clean-run":
+    {
+        var options = new CleanupOptions { PreservePasswordsAndAutofill = true };
+        var report = await cleaner.ScanAsync(options);
+        var exec = await cleaner.ExecuteCleanupAsync(report, options);
+        Console.WriteLine("=== UltimateWindows Phase 2 — Результат бережной очистки ===");
+        Console.WriteLine(exec.UserSummaryMessage);
+        break;
+    }
+
+    case "disk-map":
+    {
+        var targetPath = args.Length > 1
+            ? args[1]
+            : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var diskReport = await cleaner.AnalyzeDiskSpaceAsync(targetPath, topDirectoryLimit: 10, largestFilesLimit: 10);
+        Console.WriteLine($"=== Карта диска: {diskReport.RootPath} ===");
+        Console.WriteLine($"Просканировано : {diskReport.FormattedTotalScanned} ({diskReport.TotalFilesCount:N0} файлов) за {diskReport.Elapsed.TotalSeconds:F2} сек");
+        Console.WriteLine("\nТоп объемных папок:");
+        foreach (var dir in diskReport.TopDirectories)
+        {
+            Console.WriteLine($"  [{dir.ShareLabel,6}] {dir.FormattedSize,10} | {dir.Name} ({dir.FilesCountLabel})");
+        }
+        Console.WriteLine("\nСамые крупные файлы:");
+        foreach (var file in diskReport.LargestFiles)
+        {
+            Console.WriteLine($"  [{file.ShareLabel,6}] {file.FormattedSize,10} | {file.FullPath}");
+        }
+        break;
+    }
+
     case "history":
     {
         var history = await vault.GetHistoryAsync(25);
@@ -126,7 +176,7 @@ switch (command)
 
     default:
     {
-        Console.WriteLine("Доступные команды: status | hardware-audit | stress-test [сек] | history | cleanup-blobs | rollback <id> | check-path <path>");
+        Console.WriteLine("Доступные команды: status | hardware-audit | stress-test [сек] | clean-scan | clean-run | disk-map [путь] | history | cleanup-blobs | rollback <id> | check-path <path>");
         break;
     }
 }

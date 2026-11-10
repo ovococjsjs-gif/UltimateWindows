@@ -48,17 +48,22 @@
 
 ---
 
-## Быстрый старт и сборка (Фаза 0 — Реализовано)
+## Быстрый старт и сборка (Фазы 0, 1 и 2 — Реализовано)
 
 Требования: **.NET 8.0 SDK** на Windows 10 / Windows 11.
 
 ```powershell
-# Восстановление зависимостей и сборка всего решения
+# Восстановление зависимостей и сборка всего решения (7 проектов)
 dotnet build UltimateWindows.sln -c Release
 
-# Запуск модульных тестов защитного ядра и квот бэкапов
+# Запуск всех модульных тестов (Zero-Bloat Vault, Hardware Parsers & Advisor, Vault-Safe Cleaner)
 dotnet test UltimateWindows.sln -c Release
 
 # Запуск графического интерфейса (User-Friendly Fluent GUI)
 dotnet run --project src/UltimateWindows.App/UltimateWindows.App.csproj
+
+# Примеры использования консольного интерфейса (CLI)
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- hardware-audit
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- clean-scan
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- disk-map "C:\Users"
 ```
