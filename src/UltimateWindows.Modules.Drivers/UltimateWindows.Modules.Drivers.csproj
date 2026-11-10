@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>UltimateWindows.Modules.Drivers</RootNamespace>
+    <Description>Фаза 6 (v1.0): Официальный менеджер WHQL-драйверов (CfgMgr32 + 4-part Hardware ID + селективный бэкап oemXX.inf) и единый оркестратор «Комплексный Умный Аудит ПК в 1 клик».</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UltimateWindows.Core\UltimateWindows.Core.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Safety\UltimateWindows.Modules.Safety.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Hardware\UltimateWindows.Modules.Hardware.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Cleaner\UltimateWindows.Modules.Cleaner.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Repair\UltimateWindows.Modules.Repair.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Optimizer\UltimateWindows.Modules.Optimizer.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Security\UltimateWindows.Modules.Security.csproj" />
+  </ItemGroup>
+</Project>

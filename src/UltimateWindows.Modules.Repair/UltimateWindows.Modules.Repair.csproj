@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>UltimateWindows.Modules.Repair</RootNamespace>
+    <Description>Модуль Фазы 3: бинарный PE-анализатор зависимостей .exe/.dll (лечение 0xc000007b), каталог официальных сред выполнения Microsoft, анализатор минидампов BSOD (MDMP) и плейбуки ремонта ОС.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UltimateWindows.Core\UltimateWindows.Core.csproj" />
+  </ItemGroup>
+</Project>

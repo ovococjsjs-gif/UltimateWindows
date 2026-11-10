@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>UltimateWindows.Modules.Cleaner</RootNamespace>
+    <Description>Бережная очистка кэша ОС, шейдеров GPU и браузеров с защитой паролей/форм, верифицированная гигиена реестра и быстрый анализ места на диске.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UltimateWindows.Core\UltimateWindows.Core.csproj" />
+  </ItemGroup>
+</Project>

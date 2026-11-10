@@ -1,0 +1,17 @@
+<Application x:Class="UltimateWindows.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:infra="clr-namespace:UltimateWindows.App.Infrastructure"
+             StartupUri="MainWindow.xaml">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Themes/FluentDarkTheme.xaml" />
+        <ResourceDictionary Source="Styles/Controls.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+
+      <infra:BoolToVisibilityConverterEx x:Key="BoolToVis" Invert="False" />
+      <infra:BoolToVisibilityConverterEx x:Key="InverseBoolToVis" Invert="True" />
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>

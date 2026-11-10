@@ -1,0 +1,39 @@
+name: Windows Build & Tests
+
+on:
+  push:
+    branches: [ main, "arena/**" ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    name: Build WPF App & Run Safety Core Tests
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore UltimateWindows.sln
+
+      - name: Build solution (Release)
+        run: dotnet build UltimateWindows.sln --configuration Release --no-restore
+
+      - name: Run Unit Tests (Zero-Bloat Vault & BrowserVaultGuard)
+        run: dotnet test tests/UltimateWindows.UnitTests/UltimateWindows.UnitTests.csproj --configuration Release --no-build --verbosity normal
+
+      - name: Publish Portable Windows GUI (win-x64)
+        run: dotnet publish src/UltimateWindows.App/UltimateWindows.App.csproj -c Release -r win-x64 --self-contained false -o publish/UltimateWindows-win-x64
+
+      - name: Upload GUI Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: UltimateWindows-win-x64
+          path: publish/UltimateWindows-win-x64

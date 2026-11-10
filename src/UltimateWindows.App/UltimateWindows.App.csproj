@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>UltimateWindows.App</RootNamespace>
+    <AssemblyName>UltimateWindows</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <Description>Дружелюбный графический интерфейс UltimateWindows (Fluent Design).</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UltimateWindows.Core\UltimateWindows.Core.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Safety\UltimateWindows.Modules.Safety.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Hardware\UltimateWindows.Modules.Hardware.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Cleaner\UltimateWindows.Modules.Cleaner.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Repair\UltimateWindows.Modules.Repair.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Optimizer\UltimateWindows.Modules.Optimizer.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Security\UltimateWindows.Modules.Security.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Drivers\UltimateWindows.Modules.Drivers.csproj" />
+    <ProjectReference Include="..\UltimateWindows.NativeInterop\UltimateWindows.NativeInterop.csproj" />
+  </ItemGroup>
+</Project>

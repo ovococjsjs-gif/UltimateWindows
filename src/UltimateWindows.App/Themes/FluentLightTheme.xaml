@@ -1,0 +1,23 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Windows 11 Fluent Daylight Palette -->
+  <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F4F7FB" />
+  <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#EAF0F7" />
+  <SolidColorBrush x:Key="SurfaceCardBrush" Color="#FFFFFF" />
+  <SolidColorBrush x:Key="SurfaceElevatedBrush" Color="#F8FAFC" />
+  <SolidColorBrush x:Key="SurfaceBorderBrush" Color="#D8E2EE" />
+  <SolidColorBrush x:Key="ExpertPanelBackgroundBrush" Color="#EFF6FF" />
+  <SolidColorBrush x:Key="ExpertPanelBorderBrush" Color="#BFDBFE" />
+
+  <SolidColorBrush x:Key="TextPrimaryBrush" Color="#0F172A" />
+  <SolidColorBrush x:Key="TextSecondaryBrush" Color="#475569" />
+  <SolidColorBrush x:Key="TextMutedBrush" Color="#64748B" />
+
+  <SolidColorBrush x:Key="AccentPrimaryBrush" Color="#0284C7" />
+  <SolidColorBrush x:Key="AccentPrimaryHoverBrush" Color="#0369A1" />
+  <SolidColorBrush x:Key="AccentBrush" Color="#0284C7" />
+  <SolidColorBrush x:Key="AccentSubtleBrush" Color="#E0F2FE" />
+  <SolidColorBrush x:Key="SafeEmeraldBrush" Color="#059669" />
+  <SolidColorBrush x:Key="SafeEmeraldSubtleBrush" Color="#DCFCE7" />
+  <SolidColorBrush x:Key="AmberHighlightBrush" Color="#D97706" />
+</ResourceDictionary>
