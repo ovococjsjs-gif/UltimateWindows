@@ -108,7 +108,12 @@ UltimateWindows v$Version — Портативная версия ($Runtime)
     Set-Content -Path (Join-Path $StagingDir "PORTABLE-README.txt") -Value $PortableReadme -Encoding UTF8
 
     Write-Host "`n[4/4] Упаковка портативного архива и расчет контрольных сумм SHA-256..." -ForegroundColor Yellow
-    Compress-Archive -Path "$StagingDir\*" -DestinationPath $ZipPath -CompressionLevel Optimal -Force
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::CreateFromDirectory(
+        $StagingDir,
+        $ZipPath,
+        [System.IO.Compression.CompressionLevel]::Optimal,
+        $false)
 
     Remove-Item $GuiOut -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item $CliOut -Recurse -Force -ErrorAction SilentlyContinue

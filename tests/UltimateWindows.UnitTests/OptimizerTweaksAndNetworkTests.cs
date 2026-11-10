@@ -22,9 +22,16 @@ public sealed class OptimizerTweaksAndNetworkTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_sandboxDir))
+        try
         {
-            Directory.Delete(_sandboxDir, recursive: true);
+            if (Directory.Exists(_sandboxDir))
+            {
+                Directory.Delete(_sandboxDir, recursive: true);
+            }
+        }
+        catch
+        {
+            // Ignore transient AV/OS file lock during teardown
         }
     }
 
