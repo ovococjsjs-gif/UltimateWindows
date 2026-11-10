@@ -132,10 +132,12 @@ public sealed record RegistryValueSnapshot(
     string? SerializedData);
 
 /// <summary>
-/// Полноценный исполнитель откатов для Windows: восстанавливает значения реестра и файлы из карантина.
+/// Полноценный исполнитель откатов для Windows: восстанавливает значения реестра, видеорежимы монитора, схемы питания и файлы из карантина.
 /// </summary>
 public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
 {
+    private readonly UltimateWindows.NativeInterop.Hardware.WindowsHardwarePlatformProvider _hardwareProvider = new();
+
     public override async Task ApplyRollbackDeltaAsync(
         StateDeltaRecord delta,
         Func<string, CancellationToken, Task<byte[]>> restoreBlobBytesAsync,
@@ -152,6 +154,36 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
             }
 
             return;
+        }
+
+        if (delta.TargetKind == StateTargetKind.SystemSetting &&
+            OperatingSystem.IsWindows() &&
+            !string.IsNullOrWhiteSpace(delta.PreviousStateJson))
+        {
+            if (delta.TargetPath.StartsWith("DisplayRefreshRate:", StringComparison.OrdinalIgnoreCase))
+            {
+                using var doc = JsonDocument.Parse(delta.PreviousStateJson);
+                var dev = doc.RootElement.TryGetProperty("Device", out var dEl) ? dEl.GetString() : null;
+                var hz = doc.RootElement.TryGetProperty("RefreshHz", out var hEl) ? hEl.GetInt32() : 0;
+                if (!string.IsNullOrWhiteSpace(dev) && hz > 0)
+                {
+                    _ = await _hardwareProvider.TrySetDisplayRefreshRateAsync(dev, hz, ct).ConfigureAwait(false);
+                }
+
+                return;
+            }
+
+            if (string.Equals(delta.TargetPath, "PowerActiveScheme", StringComparison.OrdinalIgnoreCase))
+            {
+                using var doc = JsonDocument.Parse(delta.PreviousStateJson);
+                if (doc.RootElement.TryGetProperty("SchemeGuid", out var gEl) &&
+                    Guid.TryParse(gEl.GetString(), out var prevScheme))
+                {
+                    _ = await _hardwareProvider.TrySetActivePowerSchemeAsync(prevScheme, ct).ConfigureAwait(false);
+                }
+
+                return;
+            }
         }
 
         await base.ApplyRollbackDeltaAsync(delta, restoreBlobBytesAsync, ct).ConfigureAwait(false);

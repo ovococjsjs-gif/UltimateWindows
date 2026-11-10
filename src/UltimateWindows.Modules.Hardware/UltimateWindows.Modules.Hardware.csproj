@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>UltimateWindows.Modules.Hardware</RootNamespace>
+    <Description>Аппаратная студия AIDA64-класса: парсеры SMBIOS/EDID/CPUID/NVMe S.M.A.R.T., датчики без WinRing0, стресс-тест с тепловой защитой и Умный советник узких мест.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UltimateWindows.Core\UltimateWindows.Core.csproj" />
+  </ItemGroup>
+</Project>

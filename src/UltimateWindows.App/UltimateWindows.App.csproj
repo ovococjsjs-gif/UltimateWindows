@@ -12,6 +12,7 @@
   <ItemGroup>
     <ProjectReference Include="..\UltimateWindows.Core\UltimateWindows.Core.csproj" />
     <ProjectReference Include="..\UltimateWindows.Modules.Safety\UltimateWindows.Modules.Safety.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Hardware\UltimateWindows.Modules.Hardware.csproj" />
     <ProjectReference Include="..\UltimateWindows.NativeInterop\UltimateWindows.NativeInterop.csproj" />
   </ItemGroup>
 </Project>
