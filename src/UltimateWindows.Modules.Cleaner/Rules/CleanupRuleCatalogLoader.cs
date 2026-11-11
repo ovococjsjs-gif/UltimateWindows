@@ -311,7 +311,8 @@ public static class CleanupRuleCatalogLoader
             throw Error(context, $"поле «group»: в пути звёздочек {pattern.WildcardCount}, а название программы просят собрать из {group}.");
         }
 
-        if (pattern.Segments.Count == 0 && (recurse || match.Contains("*")))
+        var isTempRoot = string.Equals(pattern.Variable, "Temp", StringComparison.OrdinalIgnoreCase);
+        if (pattern.Segments.Count == 0 && (!isTempRoot || removeSelf) && (recurse || match.Contains("*")))
         {
             throw Error(context, "папку, на которую указывает переменная, нельзя чистить целиком: добавьте вложенную папку или точные маски файлов.");
         }
