@@ -136,7 +136,7 @@ public sealed class VaultSafeCleanerService
         _ruleEngine = new CleanupRuleEngine(
             _platformBridge,
             ruleEnvironment ?? CleanupEnvironment.FromSystem(),
-            extraProtectedDirectories: string.IsNullOrWhiteSpace(_vaultService.VaultDirectory) ? null : [_vaultService.VaultDirectory],
+            extraProtectedDirectories: [Path.Combine(AppContext.BaseDirectory, "Data", "Vault")],
             timeProvider: timeProvider);
         _diskAnalyzer = diskAnalyzer ?? new FastDiskSpaceAnalyzer(_platformBridge);
         _duplicateFinder = new DuplicateFileFinder();
