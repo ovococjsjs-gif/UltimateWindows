@@ -22,25 +22,32 @@ internal static class TestEnvironment
     public static string? ShotDirectory => Environment.GetEnvironmentVariable("UW_UI_SHOT_DIR");
 
     /// <summary>
-    /// Нужен ли снимок с таким именем. Имена перечислены в переменной UW_UI_SHOTS через «;»;
-    /// если она пуста или равна «*», делаются все снимки.
+    /// Нужен ли снимок с таким именем и в каком качестве. Имена перечислены в переменной UW_UI_SHOTS через «;».
+    /// Имя со знаком «+» в конце — снимок со сглаженным текстом и большей палитрой (он в несколько раз крупнее).
+    /// Если переменная пуста или равна «*», делаются все снимки в компактном виде.
     /// </summary>
-    public static bool IsShotRequested(string name)
+    public static SnapshotQuality? GetShotRequest(string name)
     {
         if (string.IsNullOrWhiteSpace(ShotDirectory))
         {
-            return false;
+            return null;
         }
 
         var requested = Environment.GetEnvironmentVariable("UW_UI_SHOTS");
         if (string.IsNullOrWhiteSpace(requested) || requested.Trim() == "*")
         {
-            return true;
+            return SnapshotQuality.Compact;
         }
 
-        return requested
-            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Contains(name, StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in requested.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (string.Equals(entry.TrimEnd('+'), name, StringComparison.OrdinalIgnoreCase))
+            {
+                return entry.EndsWith('+') ? SnapshotQuality.Fine : SnapshotQuality.Compact;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -65,4 +72,14 @@ internal static class TestEnvironment
             // Отчёт — вспомогательные сведения; его отсутствие не должно ронять проверку
         }
     }
+}
+
+/// <summary>Качество снимка интерфейса.</summary>
+internal enum SnapshotQuality
+{
+    /// <summary>Текст без сглаживания, 32 цвета: по снимку видно раскладку, цвета и надписи.</summary>
+    Compact,
+
+    /// <summary>Сглаженный текст, 64 цвета: снимок близок к тому, что видит пользователь.</summary>
+    Fine
 }

@@ -46,11 +46,22 @@ public sealed class ThermalSafeStressRunner
         var workerCount = Math.Max(1, Environment.ProcessorCount);
         var sw = Stopwatch.StartNew();
 
+        // Нагрузочные потоки — отдельные и с пониженным приоритетом. Они не занимают общий пул потоков
+        // и не отнимают процессор у опроса датчиков, поэтому предохранитель срабатывает без задержки,
+        // даже когда все ядра загружены полностью, а окно программы продолжает отвечать.
         var workers = new Task[workerCount];
         for (var w = 0; w < workerCount; w++)
         {
             var seed = w + 1;
-            workers[w] = Task.Run(() => ExecuteVectorKernel(seed, ref totalOps, workerToken), CancellationToken.None);
+            workers[w] = Task.Factory.StartNew(
+                () =>
+                {
+                    Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
+                    ExecuteVectorKernel(seed, ref totalOps, workerToken);
+                },
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
         }
 
         try

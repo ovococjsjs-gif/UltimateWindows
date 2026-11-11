@@ -307,7 +307,9 @@ function New-UiShotQueue {
     $queue = New-Object 'System.Collections.Generic.List[string]'
     $report = New-Object 'System.Collections.Generic.List[string]'
 
-    foreach ($name in @($Names)) {
+    foreach ($entry in @($Names)) {
+        # Знак «+» после имени — снимок в лучшем качестве; файл называется без него
+        $name = ([string]$entry).TrimEnd('+')
         $path = Join-Path $UiShotsDir "$name.txt"
         if (-not (Test-Path -LiteralPath $path)) {
             $report.Add("${name}: снимок не сделан")
