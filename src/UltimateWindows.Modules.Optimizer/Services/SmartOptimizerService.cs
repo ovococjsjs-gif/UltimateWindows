@@ -450,7 +450,7 @@ public sealed class SmartOptimizerService
 
                 return new TweakBatchResult(
                     false,
-                    $"«{batchTitle}»: не удалось сохранить точку отката ({ex.Message}). Все изменения отменены.",
+                    $"{batchTitle}: не удалось сохранить точку отката ({ex.Message}). Все изменения отменены.",
                     items.Select(i => i.Outcome == TweakBatchItemOutcome.Applied
                         ? i with { Outcome = TweakBatchItemOutcome.Failed, Note = "Изменение отменено: не сохранилась точка отката." }
                         : i).ToArray());
@@ -469,7 +469,7 @@ public sealed class SmartOptimizerService
         if (result.FailedCount > 0) parts.Add($"не удалось — {result.FailedCount}");
 
         var succeeded = result.FailedCount == 0 && result.AppliedCount + result.AlreadyInStateCount > 0;
-        var message = $"«{batchTitle}»: {string.Join(", ", parts)}." +
+        var message = $"{batchTitle}: {string.Join(", ", parts)}." +
                       (sessionId is not null ? " Все изменения отменяются одной записью в «Машине времени»." : "") +
                       DescribeRestart(restart);
 

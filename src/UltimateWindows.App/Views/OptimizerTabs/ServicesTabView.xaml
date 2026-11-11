@@ -60,18 +60,18 @@
               IsReadOnly="True"
               RowHeaderWidth="0">
       <DataGrid.Columns>
-        <DataGridTemplateColumn Header="Служба" Width="2*" MinWidth="190" SortMemberPath="DisplayName">
+        <DataGridTemplateColumn Header="Служба" Width="5*" MinWidth="220" SortMemberPath="DisplayName">
           <DataGridTemplateColumn.CellTemplate>
             <DataTemplate>
               <StackPanel Margin="0,1" ToolTip="{Binding NoteToolTip}">
-                <TextBlock Text="{Binding DisplayName}" FontSize="12.5" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding DisplayName}" FontSize="12.5" FontWeight="Medium" TextWrapping="Wrap" MaxHeight="34" TextTrimming="CharacterEllipsis" />
                 <TextBlock Text="{Binding ServiceName}" FontSize="10.5" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" />
               </StackPanel>
             </DataTemplate>
           </DataGridTemplateColumn.CellTemplate>
         </DataGridTemplateColumn>
 
-        <DataGridTemplateColumn Header="Состояние" Width="112" SortMemberPath="StateText">
+        <DataGridTemplateColumn Header="Состояние" Width="106" SortMemberPath="StateText">
           <DataGridTemplateColumn.CellTemplate>
             <DataTemplate>
               <ContentControl Content="{Binding StateChip}"
@@ -95,9 +95,9 @@
           </DataGridTemplateColumn.CellTemplate>
         </DataGridTemplateColumn>
 
-        <DataGridTextColumn Header="Издатель" Binding="{Binding Publisher}" Width="150" />
+        <DataGridTextColumn Header="Издатель" Binding="{Binding Publisher}" Width="140" />
 
-        <DataGridTemplateColumn Header="Пояснение" Width="3*" MinWidth="200" SortMemberPath="Note">
+        <DataGridTemplateColumn Header="Пояснение" Width="4*" MinWidth="170" SortMemberPath="Note">
           <DataGridTemplateColumn.CellTemplate>
             <DataTemplate>
               <TextBlock Text="{Binding Note}"
@@ -110,7 +110,7 @@
           </DataGridTemplateColumn.CellTemplate>
         </DataGridTemplateColumn>
 
-        <DataGridTemplateColumn Header="" Width="112">
+        <DataGridTemplateColumn Header="" Width="106">
           <DataGridTemplateColumn.CellTemplate>
             <DataTemplate>
               <Button Style="{StaticResource CompactButtonStyle}"

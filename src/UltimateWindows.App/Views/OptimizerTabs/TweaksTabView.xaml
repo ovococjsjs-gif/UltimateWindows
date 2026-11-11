@@ -121,7 +121,7 @@
 
   <Grid>
     <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="238" />
+      <ColumnDefinition Width="262" />
       <ColumnDefinition Width="*" />
     </Grid.ColumnDefinitions>
 
@@ -357,13 +357,23 @@
                                    FontSize="12.5"
                                    FontWeight="Medium"
                                    TextWrapping="Wrap" />
-                        <Border Style="{StaticResource ToneChipStyle}"
-                                Margin="0,3,0,0"
-                                CornerRadius="5"
-                                Padding="7,3">
+                        <Border Margin="0,3,0,0">
+                          <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource ToneChipStyle}">
+                              <Setter Property="CornerRadius" Value="5" />
+                              <Setter Property="Padding" Value="7,3" />
+                              <Style.Triggers>
+                                <!-- Обычное пояснение настройки: текст без цветной подложки -->
+                                <DataTrigger Binding="{Binding Tone}" Value="Plain">
+                                  <Setter Property="Background" Value="Transparent" />
+                                  <Setter Property="Padding" Value="0" />
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </Border.Style>
                           <TextBlock Text="{Binding StatusText}"
                                      FontWeight="Normal"
-                                     FontSize="11"
+                                     FontSize="11.5"
                                      TextWrapping="Wrap" />
                         </Border>
                       </StackPanel>

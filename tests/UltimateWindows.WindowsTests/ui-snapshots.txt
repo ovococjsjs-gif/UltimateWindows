@@ -3,13 +3,14 @@
 # Имена задаются в проверках вызовом surface.Save("имя"). В PNG их превращает scripts/read-ui-shots.py.
 # Знак «+» после имени — снимок со сглаженным текстом (в несколько раз крупнее обычного).
 # Пустой список — снимки не делаются и не передаются.
-optimizer-tweaks
-optimizer-preset-preview
 optimizer-services
+optimizer-preset-preview
 optimizer-tasks
 optimizer-apps-windows
-optimizer-tweaks-details
+optimizer-startup
 optimizer-network
 optimizer-tools
-optimizer-startup
+optimizer-tweaks-details
+main-Optimizer
+optimizer-tweaks
 optimizer-apps-programs

@@ -52,14 +52,19 @@
           <DataGridTemplateColumn Header="" Width="190">
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate>
-                <StackPanel Orientation="Horizontal">
-                  <Button Style="{StaticResource CompactButtonStyle}" Padding="8,3" FontSize="11"
+                <Grid HorizontalAlignment="Left">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="58" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <Button Grid.Column="0" Style="{StaticResource CompactButtonStyle}" Padding="8,3" FontSize="11"
+                          HorizontalAlignment="Left"
                           Visibility="{Binding HasInstallFolder, Converter={StaticResource BoolToVis}}"
-                          Command="{Binding OpenFolderCommand}" Content="Папка" Margin="0,0,5,0" />
-                  <Button Style="{StaticResource DangerButtonStyle}" Padding="8,3" FontSize="11"
+                          Command="{Binding OpenFolderCommand}" Content="Папка" />
+                  <Button Grid.Column="1" Style="{StaticResource DangerButtonStyle}" Padding="8,3" FontSize="11"
                           Visibility="{Binding HasUninstaller, Converter={StaticResource BoolToVis}}"
                           Command="{Binding UninstallCommand}" Content="Удалить" />
-                </StackPanel>
+                </Grid>
               </DataTemplate>
             </DataGridTemplateColumn.CellTemplate>
           </DataGridTemplateColumn>

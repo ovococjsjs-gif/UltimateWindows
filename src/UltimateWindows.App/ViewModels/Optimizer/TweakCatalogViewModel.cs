@@ -86,6 +86,9 @@ public sealed class TweakItemViewModel : ObservableObject
     /// <summary>Включена полностью или частично — такую настройку нельзя прятать фильтрами.</summary>
     public bool IsActive => State is TweakStateKind.Applied or TweakStateKind.Partial;
 
+    /// <summary>Включена полностью: именно это показывает переключатель и считают все счётчики «включено».</summary>
+    public bool IsFullyApplied => State == TweakStateKind.Applied;
+
     public bool IsApplied
     {
         get => _isApplied;
@@ -177,6 +180,7 @@ public sealed class TweakItemViewModel : ObservableObject
         OnPropertyChanged(nameof(Applicability));
         OnPropertyChanged(nameof(IsNotApplicable));
         OnPropertyChanged(nameof(IsActive));
+        OnPropertyChanged(nameof(IsFullyApplied));
         OnPropertyChanged(nameof(CanToggle));
         OnPropertyChanged(nameof(AdvisoryNote));
         OnPropertyChanged(nameof(HasAdvisoryNote));
@@ -599,7 +603,7 @@ public sealed class TweakCatalogViewModel : ObservableObject
 
     public bool IsPreviewOpen => Preview is not null;
 
-    public int ActiveTweaksCount => AllTweaks.Count(t => t.IsActive);
+    public int ActiveTweaksCount => AllTweaks.Count(t => t.IsFullyApplied);
 
     public ICommand RefreshCommand { get; }
     public ICommand ClearSearchCommand { get; }
@@ -692,7 +696,7 @@ public sealed class TweakCatalogViewModel : ObservableObject
         foreach (var category in Categories)
         {
             var inCategory = category.Category is { } c ? listed.Where(t => t.Category == c).ToList() : listed;
-            category.SetCounts(inCategory.Count(t => t.IsActive), inCategory.Count);
+            category.SetCounts(inCategory.Count(t => t.IsFullyApplied), inCategory.Count);
         }
 
         foreach (var preset in Presets)
@@ -701,10 +705,10 @@ public sealed class TweakCatalogViewModel : ObservableObject
                 .Select(id => _byId.TryGetValue(id, out var item) ? item : null)
                 .Where(item => item is not null && !item.IsNotApplicable)
                 .ToList();
-            preset.SetProgress(items.Count(item => item!.IsActive), items.Count);
+            preset.SetProgress(items.Count(item => item!.IsFullyApplied), items.Count);
         }
 
-        SummaryText = $"Включено {listed.Count(t => t.IsActive)} из {listed.Count}";
+        SummaryText = $"Включено {listed.Count(t => t.IsFullyApplied)} из {listed.Count}";
         OnPropertyChanged(nameof(ActiveTweaksCount));
     }
 
@@ -824,9 +828,14 @@ public sealed class TweakCatalogViewModel : ObservableObject
             {
                 (status, tone, selected, notRecommended) = ($"Не рекомендуется: {applicability.Reason}", "Caution", false, true);
             }
+            else if (item.State == TweakStateKind.Partial)
+            {
+                (status, tone) = ("Сейчас включено частично — набор включит настройку полностью.", "Accent");
+            }
             else
             {
-                (status, tone) = (item.Explanation, "Accent");
+                // «Plain» — обычное пояснение без цветной подложки
+                (status, tone) = (item.Explanation, "Plain");
             }
 
             preview.Items.Add(new BatchPreviewItemViewModel(
