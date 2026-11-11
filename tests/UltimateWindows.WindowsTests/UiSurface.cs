@@ -158,7 +158,7 @@ internal sealed class UiSurface : IDisposable
     /// <summary>
     /// Сохраняет снимок поверхности, если он запрошен (см. <see cref="TestEnvironment.GetShotRequest"/>).
     /// Сборочная машина не выгружает файлы, поэтому снимок записывается текстом, который помещается
-    /// в аннотации запуска: палитра из самых частых цветов, сжатые индексы пикселей, 15 бит на знак.
+    /// в аннотации запуска: палитра из самых частых цветов и сжатые индексы пикселей в Base64.
     /// Обратно в PNG его превращает scripts/read-ui-shots.py.
     /// </summary>
     public void Save(string name)
@@ -248,7 +248,7 @@ internal sealed class UiSurface : IDisposable
             Directory.CreateDirectory(directory);
             File.WriteAllText(
                 Path.Combine(directory, name + ".txt"),
-                CompactText.Encode(payload.ToArray()),
+                Convert.ToBase64String(payload.ToArray()),
                 new UTF8Encoding(false));
         }
         catch (Exception ex)
@@ -289,46 +289,4 @@ internal sealed class UiSurface : IDisposable
             // Окно уже закрыто
         }
     }
-}
-
-/// <summary>
-/// Запись байтов текстом по 15 бит на знак. Знаки — иероглифы и слоги хангыля из основной плоскости Юникода:
-/// они проходят через аннотации без искажений и вмещают в 2,5 раза больше, чем Base64.
-/// </summary>
-internal static class CompactText
-{
-    public static string Encode(byte[] data)
-    {
-        var text = new StringBuilder(data.Length * 8 / 15 + 16);
-        text.Append(data.Length).Append(':');
-
-        var buffer = 0;
-        var bits = 0;
-        foreach (var value in data)
-        {
-            buffer = (buffer << 8) | value;
-            bits += 8;
-            while (bits >= 15)
-            {
-                bits -= 15;
-                text.Append(ToChar((buffer >> bits) & 0x7FFF));
-            }
-
-            buffer &= (1 << bits) - 1;
-        }
-
-        if (bits > 0)
-        {
-            text.Append(ToChar((buffer << (15 - bits)) & 0x7FFF));
-        }
-
-        return text.ToString();
-    }
-
-    private static char ToChar(int value) => value switch
-    {
-        < 6592 => (char)(0x3400 + value),
-        < 27584 => (char)(0x4E00 + (value - 6592)),
-        _ => (char)(0xAC00 + (value - 27584))
-    };
 }

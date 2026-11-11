@@ -39,8 +39,9 @@ $UiShotsDir = Join-Path $ResultsDir "ui-shots"
 $UiShotRequestFile = Join-Path $RepoRoot "tests/UltimateWindows.WindowsTests/ui-snapshots.txt"
 $InActions = ($env:GITHUB_ACTIONS -eq "true")
 
-# Аннотация вмещает 4096 знаков, а шаг — десять аннотаций одного вида.
-# Снимки идут в шаге тестов и в шаге пробной сборки, где свободны 8 и 9 аннотаций.
+# Аннотация вмещает 4096 байт текста, а шаг — десять аннотаций одного вида.
+# Снимки идут в шаге тестов и в шаге пробной сборки, где свободны 8 и 9 аннотаций:
+# за один запуск проходит около 50 КБ, то есть несколько снимков.
 $UiShotChunkChars = 4000
 $UiShotNoticesInTestStep = 8
 $UiShotNoticesInPublishStep = 9

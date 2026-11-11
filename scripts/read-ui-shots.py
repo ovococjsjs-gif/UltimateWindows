@@ -10,8 +10,9 @@
     python scripts/read-ui-shots.py <владелец/репозиторий> <номер запуска> [каталог для PNG]
 
 Формат снимка: «UWS1», ширина и высота (по 2 байта), число цветов, палитра RGB,
-затем индексы пикселей, сжатые Brotli. Текст — по 15 бит на знак, перед ним длина в байтах и «:».
+затем индексы пикселей, сжатые Brotli. Всё вместе записано в Base64.
 """
+import base64
 import json
 import struct
 import subprocess
@@ -34,28 +35,6 @@ def gh_json(path):
         value, pos = decoder.raw_decode(out, pos)
         items.extend(value if isinstance(value, list) else [value])
     return items
-
-
-def decode_text(text):
-    length, _, payload = text.partition(":")
-    out, buffer, bits = bytearray(), 0, 0
-    for ch in payload:
-        code = ord(ch)
-        if 0x3400 <= code <= 0x4DBF:
-            value = code - 0x3400
-        elif 0x4E00 <= code <= 0x9FFF:
-            value = code - 0x4E00 + 6592
-        elif 0xAC00 <= code <= 0xC03F:
-            value = code - 0xAC00 + 27584
-        else:
-            continue
-        buffer = (buffer << 15) | value
-        bits += 15
-        while bits >= 8:
-            bits -= 8
-            out.append((buffer >> bits) & 0xFF)
-        buffer &= (1 << bits) - 1
-    return bytes(out[: int(length)])
 
 
 def to_png(data):
@@ -108,7 +87,7 @@ def main():
             print(f"{name}: получено {len(chunks)} частей из {total} — пропущен")
             continue
         try:
-            png = to_png(decode_text("".join(chunks[i][1] for i in range(1, total + 1))))
+            png = to_png(base64.b64decode("".join(chunks[i][1] for i in range(1, total + 1))))
         except Exception as error:  # noqa: BLE001 — показываем причину и идём к следующему снимку
             print(f"{name}: {error}")
             continue
