@@ -81,7 +81,7 @@
           </DataGridTemplateColumn.CellTemplate>
         </DataGridTemplateColumn>
 
-        <DataGridTemplateColumn Header="Состояние" Width="106" SortMemberPath="StateText">
+        <DataGridTemplateColumn Header="Состояние" Width="118" SortMemberPath="StateText">
           <DataGridTemplateColumn.CellTemplate>
             <DataTemplate>
               <ContentControl Content="{Binding StateChip}"

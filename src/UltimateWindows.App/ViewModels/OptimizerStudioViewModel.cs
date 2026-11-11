@@ -165,7 +165,8 @@ public sealed class HostsEntryItemViewModel : ObservableObject
     public int LineNumber => Entry.LineNumber;
     public string RedirectIp => Entry.RedirectIp;
     public string DomainHost => Entry.DomainHost;
-    public string SecurityWarning => Entry.IsSuspiciousSecurityBlock ? "ПОДОЗРИТЕЛЬНАЯ БЛОКИРОВКА ЗАЩИТЫ!" : "Пользовательское правило";
+    public bool IsSuspicious => Entry.IsSuspiciousSecurityBlock;
+    public string SecurityWarning => IsSuspicious ? "Подозрительно: закрывает доступ к сайту защиты или обновлений" : "Ваше правило";
     public ICommand RemoveCommand { get; }
 }
 
@@ -204,7 +205,7 @@ public sealed class OptimizerStudioViewModel : ObservableObject
     private string _pingTargetHost = "1.1.1.1";
     private int _pingPacketCount = 6;
     private bool _isPinging;
-    private string _latencyHeadline = "Введите домен или IP (например, 1.1.1.1, ya.ru, store.steampowered.com) и нажмите «Пинговать».";
+    private string _latencyHeadline = "Введите домен или IP (например, 1.1.1.1, ya.ru, store.steampowered.com) и нажмите «Проверить».";
     private string _latencyBadge = "Готов";
     private string _pingStatsSummary = "Мин: —  |  Сред: —  |  Макс: —  |  Джиттер: —  |  Потери: 0%";
 

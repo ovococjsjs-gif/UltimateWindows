@@ -66,9 +66,25 @@
 
           <DataGrid ItemsSource="{Binding DnsPresets}" IsReadOnly="True" RowHeaderWidth="0">
             <DataGrid.Columns>
-              <DataGridTextColumn Header="Набор серверов" Binding="{Binding FriendlyName}" Width="150" />
-              <DataGridTextColumn Header="Адреса" Binding="{Binding ServersDisplay}" Width="130" />
-              <DataGridTextColumn Header="Для чего" Binding="{Binding FriendlyBenefit}" Width="*" />
+              <!-- Карточка узкая, поэтому название, адреса и назначение идут друг под другом -->
+              <DataGridTemplateColumn Header="Набор серверов" Width="*" SortMemberPath="FriendlyName">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <StackPanel Margin="0,2">
+                      <TextBlock Text="{Binding FriendlyName}" FontSize="12.5" FontWeight="Medium" TextWrapping="Wrap" />
+                      <TextBlock Text="{Binding ServersDisplay}"
+                                 FontSize="11"
+                                 Foreground="{DynamicResource TextMutedBrush}"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding FriendlyBenefit}"
+                                 FontSize="11.5"
+                                 Foreground="{DynamicResource TextSecondaryBrush}"
+                                 TextWrapping="Wrap"
+                                 Margin="0,1,0,0" />
+                    </StackPanel>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
               <DataGridTemplateColumn Header="" Width="96">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate>
@@ -114,9 +130,32 @@
 
         <DataGrid Grid.Row="3" ItemsSource="{Binding HostsEntries}" IsReadOnly="True" RowHeaderWidth="0">
           <DataGrid.Columns>
-            <DataGridTextColumn Header="IP-адрес" Binding="{Binding RedirectIp}" Width="115" />
-            <DataGridTextColumn Header="Имя сайта" Binding="{Binding DomainHost}" Width="*" />
-            <DataGridTextColumn Header="Оценка" Binding="{Binding SecurityWarning}" Width="190" />
+            <DataGridTextColumn Header="IP-адрес" Binding="{Binding RedirectIp}" Width="100" />
+            <DataGridTemplateColumn Header="Имя сайта" Width="*" MinWidth="150" SortMemberPath="DomainHost">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding DomainHost}" ToolTip="{Binding DomainHost}" TextWrapping="Wrap" />
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Header="Оценка" Width="150" SortMemberPath="SecurityWarning">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding SecurityWarning}" FontSize="11.5" TextWrapping="Wrap">
+                    <TextBlock.Style>
+                      <Style TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsSuspicious}" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource DangerTextBrush}" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </TextBlock.Style>
+                  </TextBlock>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
             <DataGridTemplateColumn Header="" Width="90">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate>
