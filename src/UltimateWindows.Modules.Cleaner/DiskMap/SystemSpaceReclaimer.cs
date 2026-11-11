@@ -97,7 +97,7 @@ public sealed class SystemSpaceReclaimer
                 + (Directory.Exists(pantherDir) ? TrySumDirectoryQuick(pantherDir, maxSeconds: 1, ct) : 0);
             items.Add(new SystemSpaceReserveItem(
                 Kind: SystemReserveKind.WindowsSetupAndCbsLogs,
-                Title: "Журналы установки и обслуживания Windows (Logs\CBS, DISM, Panther)",
+                Title: "Журналы установки и обслуживания Windows (Logs\\CBS, DISM, Panther)",
                 Description: "Накопленные текстовые журналы прошлых обновлений и проверок целостности старше суток.",
                 PathDisplay: logsDir,
                 SizeBytes: logsBytes,
