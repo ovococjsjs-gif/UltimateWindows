@@ -2,7 +2,7 @@
 
 **UltimateWindows** — модульный центр комплексного обслуживания, диагностики, восстановления, очистки, защиты и тонкой настройки Windows 10 / Windows 11 (x64 / ARM64).
 
-> **Статус (ноябрь 2026):** базовый каркас и первые версии всех модулей готовы, но до уровня топовых программ проект пока не доведён. Честный разбор того, что работает, а что пока только заявлено, — в [`docs/05-AUDIT-AND-GAP-ANALYSIS.md`](./docs/05-AUDIT-AND-GAP-ANALYSIS.md); работа идёт поэтапно по плану из его раздела 6.
+> **Статус (ноябрь 2026):** базовый каркас и первые версии всех модулей готовы, но до уровня топовых программ проект пока не доведён. Честный разбор того, что работает, а что пока только заявлено, — в [`docs/05-AUDIT-AND-GAP-ANALYSIS.md`](./docs/05-AUDIT-AND-GAP-ANALYSIS.md); работа идёт поэтапно по плану из его раздела 6. Выполнены этапы 0 (фундамент) и 1 (Оптимизатор 2.0).
 
 Цель проекта — объединить лучшие инженерные решения разрозненных системных утилит (оптимизаторов, детекторов скрытых майнеров, очистителей диска и реестра, менеджеров драйверов и системных библиотек, аппаратных анализаторов уровня AIDA64/HWiNFO) в едином быстром нативном приложении с **гарантией безопасности и 100% обратимости каждого действия**.
 
@@ -31,7 +31,7 @@
 | № | Модуль | Референсы | Ключевые улучшения в UltimateWindows |
 |---|---|---|---|
 | **1** | **Rollback & Safety Core** | Системное восстановление Windows | Автоматический журнал транзакций (JSON + `.reg` diff + VSS), режим предпросмотра (`Dry-Run`) перед применением любых правок |
-| **2** | **Smart Optimizer & Privacy** | `hellzerg/optimizer`, `optimizerNXT`, `WinUtil` | Обратимые профили приватности и производительности, индикатор реального эффекта каждого твика, YAML-шаблоны настройки без поломки Windows Update/Xbox/Store |
+| **2** | **Smart Optimizer & Privacy** | `hellzerg/optimizer`, `optimizerNXT`, `WinUtil` | 191 обратимая настройка Windows в 13 разделах: реестр, службы и задания планировщика. У каждой — пояснение, уровень риска и условия применимости. Готовые наборы с предпросмотром, менеджер служб и планировщика, профили в YAML |
 | **3** | **Anti-Miner & Persistence Hunter** | `BlendLog/MinerSearch`, `Sysinternals Autoruns` | Детект майнеров, прячущихся при открытии диспетчера задач (анализ падения загрузки GPU/CPU через ETW), поиск Stratum-соединений, IFEO-перехватов, WMI-подписок, скрытых задач без `SD` и обратимый карантин |
 | **4** | **Vault-Safe Cleaner & Registry Hygiene** | `CCleaner`, `BleachBit`, `WizTree` | Очистка кэша ОС, шейдеров GPU и браузеров с гарантированным сохранением паролей и автозаполнения форм; безопасная чистка сирот реестра без поломки COM/WinRT; карта диска обходом папок (чтение `$MFT` напрямую — в плане этапа 2) |
 | **5** | **Official Driver Engine** | `WUApiLib`, `SDIO`, OEM-каталоги | Поиск по полному 4-компонентному Hardware ID (`VEN/DEV/SUBSYS/REV`), проверка цифровой подписи `WinVerifyTrust`, авто-бэкап текущих драйверов через `pnputil /export-driver` |
@@ -50,7 +50,7 @@
 - [**`docs/02-ARCHITECTURE.md`**](./docs/02-ARCHITECTURE.md) — Техническая архитектура `UltimateWindows`, выбор технологического стека (`.NET 10`, `C#`, `WPF Fluent`), структура модулей, схемы баз знаний и механизмов безопасности.
 - [**`docs/03-ROADMAP.md`**](./docs/03-ROADMAP.md) — Поэтапный план разработки (от ядра транзакций и MVP до релиза `v1.0` и `v2.0`), стратегия тестирования на виртуальных стендах, CI/CD и цифровая подпись.
 - [**`docs/04-UX-AND-VAULT-DESIGN.md`**](./docs/04-UX-AND-VAULT-DESIGN.md) — Дизайн дружелюбного двухуровневого интерфейса (`Простой ↔ Эксперт`) и система не засоряющих ОС бэкапов (`Zero-Bloat Vault`).
-- [**`docs/06-TWEAK-CATALOG.md`**](./docs/06-TWEAK-CATALOG.md) — Формат файла данных с твиками Оптимизатора: как добавить или поправить твик без правки кода.
+- [**`docs/06-TWEAK-CATALOG.md`**](./docs/06-TWEAK-CATALOG.md) — Формат файлов данных каталога настроек Оптимизатора: как добавить или поправить настройку без правки кода.
 - [**`docs/05-AUDIT-AND-GAP-ANALYSIS.md`**](./docs/05-AUDIT-AND-GAP-ANALYSIS.md) — Аудит текущего кода (ноябрь 2026), измеренное сравнение с эталонами, матрица разрывов и поэтапный план доведения до их уровня.
 
 ---
@@ -86,6 +86,10 @@ dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- pe-do
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- bsod-scan
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- tweak-list
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- tweak-export "my-profile.yaml"
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- tweak-info privacy.limit-diagnostic-data
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- preset-apply recommended --dry-run
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- service-list --third-party
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- task-list --third-party
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- unlock-check "D:\LockedFolder"
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- miner-scan
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- miner-heal-os
@@ -114,7 +118,9 @@ dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- miner
 
 ## Проверка изменений (CI)
 
-`.github/workflows/ci.yml` на каждый push и pull request запускает на `windows-latest` скрипт `scripts/ci.ps1`: сборка всего решения, модульные тесты и пробная сборка портативной версии. Итог каждого шага попадает в сводку запуска, а ошибки компиляции и упавшие тесты — в аннотации с файлом и строкой.
+`.github/workflows/ci.yml` на каждый push и pull request запускает на `windows-latest` скрипт `scripts/ci.ps1`: сборка всего решения, тесты и пробная сборка портативной версии. Итог каждого шага попадает в сводку запуска, а ошибки компиляции и упавшие тесты — в аннотации с файлом и строкой.
+
+Часть тестов (`tests/UltimateWindows.WindowsTests`) работает с настоящей Windows сборочной машины: открывает окна программы, включает и откатывает набор настроек, меняет и возвращает тип запуска пробной службы и состояние пробного задания. На обычном компьютере эти тесты в системе ничего не меняют. Снимки окон сборочная машина передаёт в аннотациях запуска; в файлы PNG их превращает `scripts/read-ui-shots.py`.
 
 Копия рабочего процесса лежит в [`docs/ci-workflow-template.yml`](./docs/ci-workflow-template.yml). Тот же скрипт можно запустить локально: `.\scripts\ci.ps1`.
 
