@@ -1,12 +1,16 @@
-<#
+﻿<#
 .SYNOPSIS
-    Сборка полностью автономной портативной версии UltimateWindows v1.0.0 (Single-File Self-Contained win-x64)
-    с автоматическим прогоном всех модульных тестов, активацией флеш-режима (.portable), расчетом SHA-256
-    и опциональной загрузкой готового .zip-архива в GitHub Releases (v1.0.0).
+    Сборка полностью автономной портативной версии UltimateWindows (Single-File Self-Contained win-x64)
+    с прогоном всех модульных тестов, включением портативного режима (.portable), расчётом SHA-256
+    и необязательной загрузкой готового .zip-архива в GitHub Releases.
+
+.DESCRIPTION
+    Нужен .NET 10 SDK. Если указан тег релиза старше версии исходников (Directory.Build.props),
+    сборка останавливается: иначе файлы старого релиза были бы перезаписаны сборкой из новых исходников.
 
 .EXAMPLE
     .\scripts\build-portable-release.ps1
-    .\scripts\build-portable-release.ps1 -UploadToGitHubRelease -ReleaseTag "v1.0.0"
+    .\scripts\build-portable-release.ps1 -Version 2.0.0 -ReleaseTag "v2.0.0" -UploadToGitHubRelease
 #>
 [CmdletBinding()]
 param(
@@ -14,7 +18,8 @@ param(
     [string]$Runtime = "win-x64",
     [string]$ReleaseTag = "v2.0.0",
     [switch]$SkipTests,
-    [switch]$UploadToGitHubRelease
+    [switch]$UploadToGitHubRelease,
+    [switch]$AllowOlderReleaseTag
 )
 
 $ErrorActionPreference = "Stop"
@@ -52,7 +57,42 @@ function Invoke-LoggedDotnet {
     }
 }
 
+function Get-SourceVersionText {
+    param([string]$Root)
+
+    $propsPath = Join-Path $Root "Directory.Build.props"
+    if (-not (Test-Path -LiteralPath $propsPath)) {
+        return $null
+    }
+
+    $text = Get-Content -LiteralPath $propsPath -Raw
+    $match = [regex]::Match($text, '<Version>\s*([^<\s]+)\s*</Version>')
+    if ($match.Success) {
+        return $match.Groups[1].Value
+    }
+
+    return $null
+}
+
+function ConvertTo-ComparableVersion {
+    param([string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return $null
+    }
+
+    # "v2.1.0-beta" -> "2.1.0"
+    $core = ($Text.Trim().TrimStart('v', 'V') -split '[-+]')[0]
+    $parsed = $null
+    if ([version]::TryParse($core, [ref]$parsed)) {
+        return $parsed
+    }
+
+    return $null
+}
+
 $RepoRoot = Split-Path -Parent $PSScriptRoot
+$ReleaseTagWasGiven = $PSBoundParameters.ContainsKey("ReleaseTag")
 Push-Location $RepoRoot
 
 try {
@@ -61,7 +101,17 @@ try {
     Write-Host "=================================================================" -ForegroundColor Cyan
 
     if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-        throw "Не найден .NET 8.0 SDK (dotnet). Установите с https://dotnet.microsoft.com/download/dotnet/8.0"
+        throw "Не найден .NET 10 SDK (dotnet). Установите с https://dotnet.microsoft.com/download/dotnet/10.0"
+    }
+
+    # Защита от случайной перезаписи старого релиза (например, ручной запуск сборки с тегом по умолчанию):
+    # сборка из новых исходников не должна ложиться в релиз с более старым тегом.
+    if ($ReleaseTagWasGiven -and -not $AllowOlderReleaseTag) {
+        $sourceVersion = ConvertTo-ComparableVersion (Get-SourceVersionText -Root $RepoRoot)
+        $tagVersion = ConvertTo-ComparableVersion $ReleaseTag
+        if ($null -ne $sourceVersion -and $null -ne $tagVersion -and $tagVersion -lt $sourceVersion) {
+            throw "Тег релиза $ReleaseTag старше версии исходников ($sourceVersion в Directory.Build.props). Сборка остановлена, чтобы не перезаписать файлы старого релиза. Укажите тег текущей версии или добавьте ключ -AllowOlderReleaseTag."
+        }
     }
 
     $ArtifactsDir = Join-Path $RepoRoot "artifacts"
@@ -75,7 +125,7 @@ try {
     New-Item -ItemType Directory -Path $StagingDir -Force | Out-Null
 
     if (-not $SkipTests) {
-        Write-Host "`n[1/4] Прогон всех модульных тестов xUnit (Фазы 0–6)..." -ForegroundColor Yellow
+        Write-Host "`n[1/4] Прогон всех модульных тестов xUnit..." -ForegroundColor Yellow
         Invoke-LoggedDotnet -StepLabel "DotnetTest" -DotnetArgs @("test", "$RepoRoot\UltimateWindows.sln", "-c", "Release", "--nologo", "--logger", "console;verbosity=normal")
     }
 
@@ -125,7 +175,7 @@ try {
     $PortableReadme = @"
 UltimateWindows v$Version PRO — Портативная версия ($Runtime)
 ============================================================
-Автономная сборка (не требует установки .NET 8 или сторонних библиотек).
+Автономная сборка (не требует установки .NET или сторонних библиотек).
 
 Что нового в версии 2.0 PRO:
   • Анализатор пространства диска уровня WizTree: дерево папок с полосами %, таблица типов файлов с цветами

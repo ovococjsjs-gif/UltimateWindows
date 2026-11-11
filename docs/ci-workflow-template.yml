@@ -1,39 +1,42 @@
-name: Windows Build & Tests
+name: CI
 
 on:
   push:
-    branches: [ main, "arena/**" ]
-  pull_request:
-    branches: [ main ]
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-and-test:
-    name: Build WPF App & Run Safety Core Tests
+    name: Build and test (.NET 10, Windows)
     runs-on: windows-latest
-
+    timeout-minutes: 30
+    env:
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup .NET 8 SDK
-        uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: "8.0.x"
-
-      - name: Restore dependencies
-        run: dotnet restore UltimateWindows.sln
-
-      - name: Build solution (Release)
-        run: dotnet build UltimateWindows.sln --configuration Release --no-restore
-
-      - name: Run Unit Tests (Zero-Bloat Vault & BrowserVaultGuard)
-        run: dotnet test tests/UltimateWindows.UnitTests/UltimateWindows.UnitTests.csproj --configuration Release --no-build --verbosity normal
-
-      - name: Publish Portable Windows GUI (win-x64)
-        run: dotnet publish src/UltimateWindows.App/UltimateWindows.App.csproj -c Release -r win-x64 --self-contained false -o publish/UltimateWindows-win-x64
-
-      - name: Upload GUI Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: UltimateWindows-win-x64
-          path: publish/UltimateWindows-win-x64
+          dotnet-version: 10.0.x
+      - name: Build
+        shell: pwsh
+        run: |
+          try { if (Test-Path ./scripts/ci.ps1) { ./scripts/ci.ps1 -Step Build } else { dotnet build UltimateWindows.sln -c Release } }
+          catch { Write-Host ("::error title=ci.ps1::" + ("$_" -replace "\r?\n", "%0A")); exit 1 }
+      - name: Test
+        shell: pwsh
+        run: |
+          try { if (Test-Path ./scripts/ci.ps1) { ./scripts/ci.ps1 -Step Test } else { dotnet test UltimateWindows.sln -c Release --no-build } }
+          catch { Write-Host ("::error title=ci.ps1::" + ("$_" -replace "\r?\n", "%0A")); exit 1 }
+      - name: Portable build check (no upload)
+        shell: pwsh
+        run: |
+          try { if (Test-Path ./scripts/ci.ps1) { ./scripts/ci.ps1 -Step Publish } else { Write-Host "skipped" } }
+          catch { Write-Host ("::error title=ci.ps1::" + ("$_" -replace "\r?\n", "%0A")); exit 1 }

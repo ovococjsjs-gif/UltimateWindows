@@ -1,9 +1,15 @@
 @echo off
 chcp 65001 >nul
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0build-portable-release.ps1" %*
+rem Предпочитаем PowerShell 7 (pwsh), если он установлен; иначе встроенный Windows PowerShell 5.1.
+where pwsh >nul 2>nul
+if %errorlevel%==0 (
+    pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0build-portable-release.ps1" %*
+) else (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0build-portable-release.ps1" %*
+)
 if errorlevel 1 (
     echo.
-    echo [ОШИБКА] Сборка завершилась с ошибкой. Проверьте наличие .NET 8 SDK.
+    echo [ОШИБКА] Сборка завершилась с ошибкой. Проверьте наличие .NET 10 SDK.
     pause
     exit /b 1
 )
