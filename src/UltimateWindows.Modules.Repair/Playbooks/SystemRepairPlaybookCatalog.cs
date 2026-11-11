@@ -41,9 +41,9 @@ public static class SystemRepairPlaybookCatalog
         new(
             Id: RepairPlaybookId.WindowsUpdateReset,
             IconGlyph: "🔄",
-            FriendlyTitle: "Реанимация зависшего Центра обновления Windows",
-            FriendlyDescription: "Перезапускает службы доставки обновлений (wuauserv, bits, cryptSvc) и сбрасывает зависшие очереди загрузки пакетов.",
-            ExpertCommandsPreview: "net stop bits / wuauserv  ->  очистка застрявших задач BITS  ->  net start cryptSvc / bits / wuauserv",
+            FriendlyTitle: "Сброс компонентов Центра обновления Windows",
+            FriendlyDescription: "Помогает, когда обновления не скачиваются или не устанавливаются: останавливает службы обновления, откладывает в сторону кэш загрузок и каталог подписей, очищает очередь загрузок и запускает службы заново. Прежние папки сохраняются с суффиксом «.uw-old».",
+            ExpertCommandsPreview: @"net stop usosvc, wuauserv, bits, dosvc, cryptsvc  ->  ren %SystemRoot%\SoftwareDistribution и %SystemRoot%\System32\catroot2 в *.uw-old  ->  del qmgr*.dat  ->  net start",
             RequiresAdministrator: true,
             Risk: RiskLevel.Low),
 

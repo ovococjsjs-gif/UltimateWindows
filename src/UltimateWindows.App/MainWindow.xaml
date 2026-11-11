@@ -168,6 +168,14 @@
               Padding="16,0">
         <DockPanel VerticalAlignment="Center">
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+            <!-- Виден только без прав администратора: в этом режиме большинство исправлений недоступно -->
+            <Button Style="{StaticResource CompactButtonStyle}"
+                    Command="{Binding RestartAsAdminCommand}"
+                    Visibility="{Binding IsLimitedMode, Converter={StaticResource BoolToVis}}"
+                    Content="Ограниченный режим · получить права администратора"
+                    ToolTip="Без прав администратора доступна только диагностика. Нажмите, чтобы перезапустить программу с полными правами."
+                    Margin="0,0,12,0" />
+
             <Border Background="{DynamicResource SurfaceElevatedBrush}"
                     BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1"

@@ -1,0 +1,12 @@
+* text=auto
+
+# Командные файлы Windows должны иметь окончания строк CRLF, иначе cmd.exe может разбирать их неверно
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Двоичные файлы
+*.png binary
+*.jpg binary
+*.ico binary
+*.zip binary
+*.dmp binary

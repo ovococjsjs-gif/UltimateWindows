@@ -216,10 +216,10 @@
           Visibility="{Binding HardwareStudio.IsStressTab, Converter={StaticResource BoolToVis}}">
       <Border Style="{StaticResource CardBorderStyle}" VerticalAlignment="Top">
         <StackPanel>
-          <TextBlock Text="Стресс-тест стабильности процессора и памяти (с защитой от перегрева)"
+          <TextBlock Text="Нагрузочный тест процессора (с тепловой защитой по доступным датчикам)"
                      FontSize="15" FontWeight="SemiBold" Margin="0,0,0,6" />
-          <TextBlock Text="Нагружает все логические потоки вычислительными матрицами и мгновенно прерывает тест при приближении к температурному порогу."
-                     FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,16" />
+          <TextBlock Text="Нагружает все логические потоки вычислениями и прерывает тест, когда температура доходит до порога. Сейчас читается только температура видеокарт NVIDIA; температура процессора недоступна, поэтому за ней следите сами. Ошибки вычислений тест не проверяет."
+                     FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,16" />
 
           <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
             <TextBlock Text="Длительность (сек):" VerticalAlignment="Center" Margin="0,0,8,0" />

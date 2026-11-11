@@ -17,6 +17,8 @@ public class DefaultOptimizerPlatformBridge : IOptimizerPlatformBridge
 {
     public virtual bool IsRunningAsAdministrator() => false;
 
+    public virtual SystemFacts GetSystemFacts() => SystemFacts.Unknown;
+
     public virtual (bool Exists, int ValueKindCode, string? SerializedValue) ReadRegistryValue(
         string hive,
         string subKeyPath,
@@ -91,6 +93,7 @@ public sealed class SmartOptimizerService
 
     private readonly IVaultService _vaultService;
     private readonly IOptimizerPlatformBridge _platformBridge;
+    private SystemFacts? _cachedSystemFacts;
 
     public SmartOptimizerService(
         IVaultService vaultService,
@@ -102,25 +105,59 @@ public sealed class SmartOptimizerService
 
     public IReadOnlyList<DnsPresetDescriptor> GetDnsPresets() => NetworkAndHostsInspector.GetDnsPresets();
 
+    /// <summary>
+    /// Сведения о компьютере для проверки применимости твиков. Запрашиваются один раз за сеанс.
+    /// </summary>
+    public SystemFacts GetSystemFacts()
+    {
+        if (_cachedSystemFacts is not null)
+        {
+            return _cachedSystemFacts;
+        }
+
+        SystemFacts facts;
+        try
+        {
+            facts = _platformBridge.GetSystemFacts() ?? SystemFacts.Unknown;
+        }
+        catch (Exception)
+        {
+            // Сбой при сборе сведений не должен ломать список твиков: считаем факты неизвестными
+            facts = SystemFacts.Unknown;
+        }
+
+        _cachedSystemFacts = facts;
+        return facts;
+    }
+
     public IReadOnlyList<EvaluatedTweakState> EvaluateAllTweaks()
     {
         var rules = DeclarativeTweakCatalog.GetAllRules();
         var states = new List<EvaluatedTweakState>(rules.Count);
+        var facts = GetSystemFacts();
 
         foreach (var rule in rules)
         {
             TweakSafetyGuard.ThrowIfUnsafeRule(rule);
             var allMutationsActive = rule.Mutations.Count > 0 && rule.Mutations.All(IsMutationCurrentlyActive);
-            states.Add(new EvaluatedTweakState(rule, allMutationsActive));
+            states.Add(new EvaluatedTweakState(rule, allMutationsActive, rule.EffectiveRequirements.Evaluate(facts)));
         }
 
         return states;
     }
 
+    /// <summary>
+    /// Включает твик или возвращает стандартное значение Windows.
+    /// Твик, который не подходит этой версии Windows, включить нельзя. Не рекомендуемый для этого компьютера
+    /// или опасный твик включается только при явном согласии в <paramref name="options"/>;
+    /// без согласия возвращается результат с признаком нужного подтверждения.
+    /// Возврат к стандарту разрешён всегда.
+    /// </summary>
     public async Task<OptimizerOperationResult> SetTweakStateAsync(
         string tweakId,
         bool enableTweak,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        TweakApplyOptions? options = null)
     {
         var rule = DeclarativeTweakCatalog.FindById(tweakId);
         if (rule is null)
@@ -129,12 +166,40 @@ public sealed class SmartOptimizerService
         }
 
         TweakSafetyGuard.ThrowIfUnsafeRule(rule);
+        options ??= TweakApplyOptions.Default;
+
+        var applicability = enableTweak
+            ? rule.EffectiveRequirements.Evaluate(GetSystemFacts())
+            : TweakApplicability.Applicable;
+
+        if (applicability.Status == TweakApplicabilityStatus.NotApplicable)
+        {
+            return new OptimizerOperationResult(
+                false,
+                $"«{rule.FriendlyTitle}» не подходит этому компьютеру. {applicability.Reason}");
+        }
 
         if (rule.RequiresAdministrator && !_platformBridge.IsRunningAsAdministrator())
         {
             return new OptimizerOperationResult(
                 false,
                 $"Для настройки «{rule.FriendlyTitle}» запустите программу от имени Администратора.");
+        }
+
+        if (enableTweak && rule.IsDangerous && !options.AcceptDangerous)
+        {
+            return new OptimizerOperationResult(
+                false,
+                $"«{rule.FriendlyTitle}» — опасная настройка: она ослабляет защиту или устойчивость Windows. Включайте её, только если понимаете последствия.",
+                ConfirmationRequired: TweakConfirmationKind.DangerousTweak);
+        }
+
+        if (applicability.Status == TweakApplicabilityStatus.NotRecommended && !options.AcceptNotRecommended)
+        {
+            return new OptimizerOperationResult(
+                false,
+                $"«{rule.FriendlyTitle}» не рекомендуется для этого компьютера. {applicability.Reason}",
+                ConfirmationRequired: TweakConfirmationKind.NotRecommendedForThisPc);
         }
 
         var actionVerb = enableTweak ? "Включен твик" : "Возвращен стандарт";
@@ -212,12 +277,16 @@ public sealed class SmartOptimizerService
         foreach (var id in ids)
         {
             ct.ThrowIfCancellationRequested();
+
+            // Наборы применяют только то, что подходит этому компьютеру и не требует отдельного согласия
             var res = await SetTweakStateAsync(id, enableTweak: true, ct).ConfigureAwait(false);
             if (res.Succeeded) applied++;
             else skippedAdmin++;
         }
 
-        var note = skippedAdmin > 0 ? $" (пропущено требующих прав Админа: {skippedAdmin})" : "";
+        var note = skippedAdmin > 0
+            ? $" (пропущено: {skippedAdmin} — нет прав администратора либо настройка не подходит этому компьютеру)"
+            : "";
         return new OptimizerOperationResult(
             Succeeded: applied > 0,
             UserFriendlyMessage: $"Пресет «{presetDisplayTitle}»: применено твиков — {applied}{note}.");
@@ -254,7 +323,7 @@ public sealed class SmartOptimizerService
         return new OptimizerOperationResult(
             Succeeded: applied > 0,
             UserFriendlyMessage: $"Профиль «{profileName}»: применено твиков — {applied}" +
-                                 (skipped > 0 ? $" (пропущено без прав админа или неизвестных: {skipped})." : "."));
+                                 (skipped > 0 ? $" (пропущено: {skipped} — нет прав администратора, настройка неизвестна или не подходит этому компьютеру)." : "."));
     }
 
     public Task<IReadOnlyList<StartupEntryInfo>> GetStartupEntriesAsync(CancellationToken ct = default) =>

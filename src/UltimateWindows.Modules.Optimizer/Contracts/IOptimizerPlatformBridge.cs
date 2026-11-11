@@ -11,6 +11,12 @@ public interface IOptimizerPlatformBridge
 {
     bool IsRunningAsAdministrator();
 
+    /// <summary>
+    /// Сведения о компьютере для проверки применимости твиков: сборка Windows, тип системного диска, наличие батареи.
+    /// Факт, который не удалось выяснить, возвращается как null.
+    /// </summary>
+    SystemFacts GetSystemFacts();
+
     (bool Exists, int ValueKindCode, string? SerializedValue) ReadRegistryValue(
         string hive,
         string subKeyPath,

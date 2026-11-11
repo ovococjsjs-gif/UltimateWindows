@@ -181,19 +181,8 @@ public sealed class WindowsRepairPlatformBridge : DefaultRepairPlatformBridge
 
             case RepairPlaybookId.WindowsUpdateReset:
             {
-                foreach (var svc in new[] { "bits", "wuauserv" })
-                {
-                    var (_, sOut) = await RunProcessCaptureAsync("net.exe", ["stop", svc], TimeSpan.FromSeconds(45), ct).ConfigureAwait(false);
-                    log.AppendLine(sOut);
-                }
-
-                foreach (var svc in new[] { "cryptSvc", "bits", "wuauserv" })
-                {
-                    var (_, sOut) = await RunProcessCaptureAsync("net.exe", ["start", svc], TimeSpan.FromSeconds(45), ct).ConfigureAwait(false);
-                    log.AppendLine(sOut);
-                }
-
-                return (true, log.ToString());
+                var resetOk = await ResetWindowsUpdateComponentsAsync(log, ct).ConfigureAwait(false);
+                return (resetOk, log.ToString());
             }
 
             case RepairPlaybookId.MicrosoftStoreAndAppxRepair:
@@ -250,6 +239,250 @@ public sealed class WindowsRepairPlatformBridge : DefaultRepairPlatformBridge
             default:
                 return (false, $"Неизвестный идентификатор рецепта: {playbookId}");
         }
+    }
+
+    // ==================== СБРОС КОМПОНЕНТОВ ЦЕНТРА ОБНОВЛЕНИЯ ====================
+
+    private enum ServiceRunState
+    {
+        Unknown = 0,
+        NotInstalled = 1,
+        Stopped = 2,
+        Running = 3,
+        Pending = 4
+    }
+
+    /// <summary>
+    /// Полный сброс компонентов Центра обновления по общепринятой схеме Microsoft:
+    /// остановить службы, отложить в сторону кэш загрузок и каталог подписей, очистить очередь BITS,
+    /// запустить службы обратно и проверить результат.
+    /// Старые папки не удаляются сразу, а переименовываются с суффиксом «.uw-old» — их можно вернуть.
+    /// Возвращает true, только если обе папки удалось отложить и службы снова работают.
+    /// </summary>
+    private async Task<bool> ResetWindowsUpdateComponentsAsync(StringBuilder log, CancellationToken ct)
+    {
+        // Порядок важен: сначала оркестратор, иначе он сразу перезапустит службу обновлений
+        string[] servicesToStop = ["usosvc", "wuauserv", "bits", "dosvc", "cryptsvc"];
+        var statesBefore = new Dictionary<string, ServiceRunState>(StringComparer.OrdinalIgnoreCase);
+        var allStopped = true;
+        var foldersRotated = true;
+        var servicesRestored = true;
+
+        try
+        {
+            log.AppendLine("[1/4] Остановка служб обновления");
+            foreach (var service in servicesToStop)
+            {
+                var before = await QueryServiceStateAsync(service, ct).ConfigureAwait(false);
+                statesBefore[service] = before;
+
+                var stopped = await StopServiceAndWaitAsync(service, before, ct).ConfigureAwait(false);
+                log.AppendLine($"  {service}: до сброса {DescribeState(before)}; {(stopped ? "сейчас остановлена" : "НЕ остановилась за отведённое время")}");
+                allStopped &= stopped;
+            }
+
+            log.AppendLine("[2/4] Откладывание кэша загрузок и каталога подписей");
+            var windowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+            foreach (var folder in new[]
+                     {
+                         Path.Combine(windowsDir, "SoftwareDistribution"),
+                         Path.Combine(GetSystem64Directory(), "catroot2")
+                     })
+            {
+                var (rotated, message) = RotateFolderAside(folder);
+                log.AppendLine("  " + message);
+                foldersRotated &= rotated;
+            }
+
+            log.AppendLine("[3/4] Очистка очереди загрузок BITS");
+            log.AppendLine("  " + ClearBitsQueueFiles());
+        }
+        finally
+        {
+            // Службы возвращаем в любом случае, даже если шаги выше сорвались или операцию отменили
+            log.AppendLine("[4/4] Запуск служб");
+            foreach (var service in new[] { "cryptsvc", "bits", "wuauserv", "dosvc", "usosvc" })
+            {
+                statesBefore.TryGetValue(service, out var before);
+
+                // Служба криптографии нужна системе всегда; остальные запускаем, только если они работали до сброса
+                var mustRun = service == "cryptsvc" || before == ServiceRunState.Running;
+                if (!mustRun)
+                {
+                    log.AppendLine($"  {service}: до сброса не работала, оставлена как была");
+                    continue;
+                }
+
+                var started = await StartServiceAndWaitAsync(service, CancellationToken.None).ConfigureAwait(false);
+                log.AppendLine($"  {service}: {(started ? "работает" : "НЕ запустилась")}");
+                servicesRestored &= started;
+            }
+        }
+
+        // Успех определяется делом, а не кодами возврата: кэш действительно отложен и службы снова работают
+        log.AppendLine();
+        if (!foldersRotated)
+        {
+            log.AppendLine(allStopped
+                ? "Итог: кэш обновлений занят другим процессом. Перезагрузите компьютер и повторите сброс."
+                : "Итог: не все службы удалось остановить, поэтому кэш обновлений остался занят. Перезагрузите компьютер и повторите сброс.");
+        }
+        else if (!servicesRestored)
+        {
+            log.AppendLine("Итог: кэш сброшен, но не все службы запустились. Перезагрузите компьютер.");
+        }
+        else
+        {
+            log.AppendLine("Итог: компоненты Центра обновления сброшены. Откройте «Параметры → Центр обновления Windows» и нажмите «Проверить наличие обновлений».");
+            log.AppendLine("Прежние папки сохранены рядом с суффиксом «.uw-old»; после успешной установки обновлений их можно удалить.");
+        }
+
+        return foldersRotated && servicesRestored;
+    }
+
+    private static string DescribeState(ServiceRunState state) => state switch
+    {
+        ServiceRunState.Running => "работала",
+        ServiceRunState.Stopped => "остановлена",
+        ServiceRunState.Pending => "в переходном состоянии",
+        ServiceRunState.NotInstalled => "не установлена",
+        _ => "состояние неизвестно"
+    };
+
+    private static async Task<ServiceRunState> QueryServiceStateAsync(string serviceName, CancellationToken ct)
+    {
+        var (exitCode, output) = await RunProcessCaptureAsync("sc.exe", ["query", serviceName], TimeSpan.FromSeconds(20), ct).ConfigureAwait(false);
+
+        // Названия состояний в выводе sc.exe не переводятся, поэтому разбор не зависит от языка Windows
+        if (output.Contains("RUNNING", StringComparison.OrdinalIgnoreCase)) return ServiceRunState.Running;
+        if (output.Contains("STOPPED", StringComparison.OrdinalIgnoreCase)) return ServiceRunState.Stopped;
+        if (output.Contains("_PENDING", StringComparison.OrdinalIgnoreCase)) return ServiceRunState.Pending;
+        if (exitCode == 1060 || output.Contains("1060", StringComparison.Ordinal)) return ServiceRunState.NotInstalled;
+        return ServiceRunState.Unknown;
+    }
+
+    private static async Task<bool> StopServiceAndWaitAsync(string serviceName, ServiceRunState stateBefore, CancellationToken ct)
+    {
+        if (stateBefore is ServiceRunState.Stopped or ServiceRunState.NotInstalled)
+        {
+            return true;
+        }
+
+        // net stop /y останавливает и зависимые службы; итог проверяем сами, а не по коду возврата
+        _ = await RunProcessCaptureAsync("net.exe", ["stop", serviceName, "/y"], TimeSpan.FromSeconds(90), ct).ConfigureAwait(false);
+
+        for (var attempt = 0; attempt < 30; attempt++)
+        {
+            var state = await QueryServiceStateAsync(serviceName, ct).ConfigureAwait(false);
+            if (state is ServiceRunState.Stopped or ServiceRunState.NotInstalled)
+            {
+                return true;
+            }
+
+            await Task.Delay(1000, ct).ConfigureAwait(false);
+        }
+
+        return false;
+    }
+
+    private static async Task<bool> StartServiceAndWaitAsync(string serviceName, CancellationToken ct)
+    {
+        var state = await QueryServiceStateAsync(serviceName, ct).ConfigureAwait(false);
+        if (state == ServiceRunState.Running)
+        {
+            return true;
+        }
+
+        if (state == ServiceRunState.NotInstalled)
+        {
+            return false;
+        }
+
+        _ = await RunProcessCaptureAsync("net.exe", ["start", serviceName], TimeSpan.FromSeconds(90), ct).ConfigureAwait(false);
+
+        for (var attempt = 0; attempt < 30; attempt++)
+        {
+            state = await QueryServiceStateAsync(serviceName, ct).ConfigureAwait(false);
+            if (state == ServiceRunState.Running)
+            {
+                return true;
+            }
+
+            await Task.Delay(1000, ct).ConfigureAwait(false);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Переименовывает папку в «имя.uw-old». Копию от прошлого сброса удаляет, чтобы не копить гигабайты.
+    /// </summary>
+    private static (bool Ok, string Message) RotateFolderAside(string folderPath)
+    {
+        if (!Directory.Exists(folderPath))
+        {
+            return (true, $"{folderPath}: папки нет, Windows создаст её заново.");
+        }
+
+        var backupPath = folderPath + ".uw-old";
+        try
+        {
+            if (Directory.Exists(backupPath))
+            {
+                try
+                {
+                    Directory.Delete(backupPath, recursive: true);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // Старую копию удалить не вышло — берём уникальное имя, чтобы сброс всё равно прошёл
+                    backupPath = $"{folderPath}.uw-old-{DateTime.Now:yyyyMMdd-HHmmss}";
+                }
+            }
+
+            Directory.Move(folderPath, backupPath);
+            return (true, $"{folderPath}: переименована в «{Path.GetFileName(backupPath)}».");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return (false, $"{folderPath}: не удалось переименовать ({ex.Message}).");
+        }
+    }
+
+    private static string ClearBitsQueueFiles()
+    {
+        var downloaderDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "Microsoft", "Network", "Downloader");
+
+        if (!Directory.Exists(downloaderDir))
+        {
+            return "Папки очереди BITS нет, очищать нечего.";
+        }
+
+        var deleted = 0;
+        var locked = 0;
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(downloaderDir, "qmgr*.dat"))
+            {
+                try
+                {
+                    File.Delete(file);
+                    deleted++;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    locked++;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return $"Не удалось прочитать папку очереди BITS: {ex.Message}";
+        }
+
+        return $"Удалено файлов очереди: {deleted}, занято: {locked}.";
     }
 
     private static async Task<(int ExitCode, string Output)> RunProcessCaptureAsync(

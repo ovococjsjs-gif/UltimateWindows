@@ -5,6 +5,7 @@ using System.Windows.Input;
 using Microsoft.Win32;
 using UltimateWindows.App.Infrastructure;
 using UltimateWindows.Core.Contracts;
+using UltimateWindows.Core.Elevation;
 using UltimateWindows.Core.Enums;
 using UltimateWindows.Core.Guards;
 using UltimateWindows.Core.Models;
@@ -133,6 +134,7 @@ public sealed class MainViewModel : ObservableObject
         });
 
         RunOneClickSmartAuditCommand = new AsyncRelayCommand(_ => RunOneClickSmartAuditAsync());
+        RestartAsAdminCommand = new RelayCommand(_ => RestartWithAdministratorRights(), _ => !IsAdmin);
         SaveQuotaPolicyCommand = new AsyncRelayCommand(_ => SaveQuotaPolicyAsync());
         PurgeBlobsCommand = new AsyncRelayCommand(_ => PurgeUnpinnedBlobsAsync());
         EvaluatePathCommand = new RelayCommand(_ => EvaluateSamplePath());
@@ -197,8 +199,14 @@ public sealed class MainViewModel : ObservableObject
     }
 
     public bool IsAdmin { get; }
+
+    /// <summary>
+    /// Программа работает без прав администратора: диагностика доступна, большинство исправлений — нет.
+    /// </summary>
+    public bool IsLimitedMode => !IsAdmin;
+
     public string OsDisplayHeader { get; }
-    public string PrivilegeBadgeText => IsAdmin ? "Администратор (полный доступ)" : "Пользовательский режим (без UAC)";
+    public string PrivilegeBadgeText => IsAdmin ? "Администратор (полный доступ)" : "Ограниченный режим (без прав администратора)";
 
     public HardwareStudioViewModel HardwareStudio { get; }
     public CleanerStudioViewModel CleanerStudio { get; }
@@ -286,6 +294,7 @@ public sealed class MainViewModel : ObservableObject
     public ICommand JumpToDiskAnalyzerCommand { get; }
     public ICommand JumpToSpaceSaverCommand { get; }
     public ICommand RunOneClickSmartAuditCommand { get; }
+    public ICommand RestartAsAdminCommand { get; }
     public ICommand SaveQuotaPolicyCommand { get; }
     public ICommand PurgeBlobsCommand { get; }
     public ICommand EvaluatePathCommand { get; }
@@ -370,6 +379,32 @@ public sealed class MainViewModel : ObservableObject
         finally
         {
             _isRunningSmartAudit = false;
+        }
+    }
+
+    private void RestartWithAdministratorRights()
+    {
+        var currentArguments = Environment.GetCommandLineArgs().Skip(1);
+        var relaunchArguments = ElevationStartupPolicy.BuildRelaunchArguments(currentArguments);
+
+        var result = ProcessElevation.TryRelaunchElevated(relaunchArguments, out var error);
+        switch (result)
+        {
+            case ElevationRequestResult.RelaunchStarted:
+                System.Windows.Application.Current?.Shutdown();
+                break;
+
+            case ElevationRequestResult.DeclinedByUser:
+                StatusNotification = "Запрос прав администратора отклонён. Программа продолжает работать в ограниченном режиме.";
+                break;
+
+            case ElevationRequestResult.AlreadyElevated:
+                StatusNotification = "Программа уже работает с правами администратора.";
+                break;
+
+            default:
+                StatusNotification = $"Не удалось перезапустить программу с правами администратора: {error}";
+                break;
         }
     }
 

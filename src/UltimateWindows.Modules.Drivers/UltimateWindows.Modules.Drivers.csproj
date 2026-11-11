@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>UltimateWindows.Modules.Drivers</RootNamespace>
     <Description>Фаза 6 (v1.0): Официальный менеджер WHQL-драйверов (CfgMgr32 + 4-part Hardware ID + селективный бэкап oemXX.inf) и единый оркестратор «Комплексный Умный Аудит ПК в 1 клик».</Description>
   </PropertyGroup>

@@ -115,7 +115,45 @@ public sealed record ExecutableDiagnosisReport(
     IReadOnlyList<OfficialRuntimePackage> RecommendedPackages);
 
 /// <summary>
-/// Расшифрованный отчет по одному файлу минидампа синего экрана смерти (C:\Windows\Minidump\*.dmp).
+/// Вид файла дампа: дамп ядра после синего экрана или дамп упавшей программы.
+/// </summary>
+public enum CrashDumpKind
+{
+    KernelBugCheck = 0,
+    UserModeProcess = 1
+}
+
+/// <summary>
+/// Насколько надёжно определён виновный драйвер.
+/// </summary>
+public enum CrashCulpritConfidence
+{
+    /// <summary>Драйвер не определён.</summary>
+    None = 0,
+
+    /// <summary>Драйвер найден в стеке вызовов, но при таких сбоях виновником часто оказывается другой модуль.</summary>
+    Low = 1,
+
+    /// <summary>Драйвер найден на вершине стека вызовов ядра.</summary>
+    Medium = 2,
+
+    /// <summary>Windows сама передала адрес сбойной инструкции, и он лежит внутри этого драйвера.</summary>
+    High = 3
+}
+
+/// <summary>
+/// Итог обращения к папке с дампами.
+/// </summary>
+public enum MinidumpFolderStatus
+{
+    Scanned = 0,
+    FolderMissing = 1,
+    AccessDenied = 2,
+    ReadError = 3
+}
+
+/// <summary>
+/// Расшифрованный отчёт по одному файлу аварийного дампа (C:\Windows\Minidump\*.dmp).
 /// </summary>
 public sealed record BsodMinidumpReport(
     string DumpFilePath,
@@ -127,16 +165,92 @@ public sealed record BsodMinidumpReport(
     string? SuspectedThirdPartyDriver,
     string SimpleHumanExplanation,
     string RecommendedUserAction,
-    IReadOnlyList<string> LoadedDriverModulesSample)
+    IReadOnlyList<string> LoadedDriverModulesSample,
+    CrashDumpKind DumpKind = CrashDumpKind.KernelBugCheck,
+    CrashCulpritConfidence CulpritConfidence = CrashCulpritConfidence.None,
+    string? FaultingModule = null,
+    string? TechnicalEvidence = null,
+    IReadOnlyList<ulong>? BugCheckParameters = null,
+    uint? ExceptionCode = null)
 {
-    public string CrashLocalDisplay => CrashTimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
-    public string BugCheckHex => BugCheckCode.HasValue ? $"0x{BugCheckCode.Value:X8}" : "Анализ модулей ядра";
-    public string CulpritBadge => !string.IsNullOrWhiteSpace(SuspectedThirdPartyDriver)
-        ? $"Виновник: {SuspectedThirdPartyDriver}"
-        : "Ядро ОС / Питание / ОЗУ";
+    public bool HasKnownCrashTime => CrashTimestampUtc != default;
+
+    public string CrashLocalDisplay => HasKnownCrashTime
+        ? CrashTimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+        : "время неизвестно";
+
+    public string BugCheckHex
+    {
+        get
+        {
+            var code = DumpKind == CrashDumpKind.UserModeProcess ? ExceptionCode : BugCheckCode;
+            return code.HasValue ? $"0x{code.Value:X8}" : "—";
+        }
+    }
+
+    public string CulpritBadge
+    {
+        get
+        {
+            if (DumpKind == CrashDumpKind.UserModeProcess)
+            {
+                return string.IsNullOrWhiteSpace(FaultingModule) ? "Сбой программы" : $"Модуль: {FaultingModule}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(SuspectedThirdPartyDriver))
+            {
+                return CulpritConfidence == CrashCulpritConfidence.High
+                    ? $"Виновник: {SuspectedThirdPartyDriver}"
+                    : $"Вероятно: {SuspectedThirdPartyDriver}";
+            }
+
+            return string.IsNullOrWhiteSpace(FaultingModule)
+                ? "Драйвер не выявлен"
+                : $"Сбой в {FaultingModule}";
+        }
+    }
+
+    public string ParametersDisplay => BugCheckParameters is { Count: > 0 }
+        ? string.Join(", ", BugCheckParameters.Select(p => $"0x{p:X}"))
+        : "";
+
     public string ExpertModulesJoined => LoadedDriverModulesSample.Count == 0
         ? ""
-        : "Загруженные модули ядра: " + string.Join(", ", LoadedDriverModulesSample);
+        : "Сторонние модули в памяти: " + string.Join(", ", LoadedDriverModulesSample);
+}
+
+/// <summary>
+/// Результат разбора папки с дампами: отчёты и сведения о том, удалось ли прочитать папку.
+/// </summary>
+public sealed record MinidumpScanResult(
+    IReadOnlyList<BsodMinidumpReport> Reports,
+    MinidumpFolderStatus FolderStatus,
+    int UnreadableFileCount);
+
+/// <summary>
+/// Полный итог поиска следов сбоев: дампы, записи журнала событий и состояние папки с дампами.
+/// </summary>
+public sealed record CrashHistoryScanResult(
+    IReadOnlyList<BsodMinidumpReport> Minidumps,
+    IReadOnlyList<SystemCrashEventEntry> CrashEvents,
+    MinidumpFolderStatus FolderStatus,
+    int UnreadableDumpCount)
+{
+    /// <summary>
+    /// Пояснение для пользователя, если папку с дампами не удалось прочитать полностью; иначе null.
+    /// </summary>
+    public string? FolderNote => FolderStatus switch
+    {
+        MinidumpFolderStatus.AccessDenied =>
+            "Папка с дампами доступна только администратору: перезапустите программу с правами администратора, чтобы прочитать дампы синих экранов.",
+        MinidumpFolderStatus.FolderMissing =>
+            "Папки с малыми дампами нет: Windows ещё не записывала дампы синих экранов либо их запись отключена.",
+        MinidumpFolderStatus.ReadError =>
+            "Не удалось прочитать папку с дампами.",
+        _ => UnreadableDumpCount > 0
+            ? $"Не удалось разобрать файлов дампов: {UnreadableDumpCount}."
+            : null
+    };
 }
 
 /// <summary>

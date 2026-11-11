@@ -5,12 +5,21 @@ using UltimateWindows.Modules.Optimizer.Models;
 namespace UltimateWindows.Modules.Optimizer.Catalog;
 
 /// <summary>
-/// Белый барьер безопасности твиков: гарантирует, что ни один встроенный или импортированный из профиля твик
-/// никогда не отключит Windows Defender, SmartScreen, HVCI или Центр обновления Windows.
+/// Барьер безопасности твиков. Делит вмешательства в защиту Windows на два вида:
+/// 1) запрещённые всегда — обход активации и лицензирования Windows;
+/// 2) ослабляющие защиту (Защитник, SmartScreen, защита ядра HVCI, контроль учётных записей) — допустимы
+///    только в правилах, честно помеченных как опасные (<see cref="RiskLevel.High"/> и выше).
+/// Опасное правило не входит в наборы и применяется лишь после отдельного подтверждения пользователя,
+/// поэтому оно не может включиться «заодно» или под видом безобидной настройки.
 /// </summary>
 public static class TweakSafetyGuard
 {
-    private static readonly string[] ForbiddenKeyFragments =
+    private static readonly string[] AlwaysForbiddenKeyFragments =
+    [
+        @"SOFTWAREPROTECTIONPLATFORM"
+    ];
+
+    private static readonly string[] ProtectionWeakeningKeyFragments =
     [
         @"WINDOWS DEFENDER",
         @"DISABLEANTISPYWARE",
@@ -18,13 +27,62 @@ public static class TweakSafetyGuard
         @"WINDEFEND",
         @"SMARTSCREEN",
         @"DEVICEGUARD\SCENARIOS\HYPERVISORENFORCEDCODEINTEGRITY",
-        @"SOFTWAREPROTECTIONPLATFORM",
         @"WINDOWS\CURRENTVERSION\POLICIES\SYSTEM\ENABLELUA"
     ];
 
+    /// <summary>
+    /// Изменение недопустимо ни при каких условиях.
+    /// </summary>
+    public static bool IsAlwaysForbidden(TweakRegistryMutation mutation) =>
+        ContainsAnyFragment(mutation, AlwaysForbiddenKeyFragments);
+
+    /// <summary>
+    /// Изменение ослабляет защиту Windows и допустимо только в опасном правиле.
+    /// </summary>
+    public static bool WeakensSystemProtection(TweakRegistryMutation mutation) =>
+        ContainsAnyFragment(mutation, ProtectionWeakeningKeyFragments);
+
+    /// <summary>
+    /// Изменение безопасно: оно не трогает ни защиту Windows, ни лицензирование.
+    /// </summary>
     public static bool IsSafeAllowedMutation(TweakRegistryMutation mutation)
     {
         if (mutation is null || string.IsNullOrWhiteSpace(mutation.SubKeyPath))
+        {
+            return false;
+        }
+
+        return !IsAlwaysForbidden(mutation) && !WeakensSystemProtection(mutation);
+    }
+
+    public static void ThrowIfUnsafeRule(DeclarativeTweakRule rule)
+    {
+        ArgumentNullException.ThrowIfNull(rule);
+        foreach (var m in rule.Mutations)
+        {
+            if (m is null || string.IsNullOrWhiteSpace(m.SubKeyPath))
+            {
+                throw new InvalidOperationException(
+                    $"В правиле '{rule.TweakId}' есть изменение без пути раздела реестра.");
+            }
+
+            if (IsAlwaysForbidden(m))
+            {
+                throw new InvalidOperationException(
+                    $"Защитный фильтр TweakSafetyGuard заблокировал правило '{rule.TweakId}': вмешательство в лицензирование Windows запрещено ({m.SubKeyPath}).");
+            }
+
+            if (WeakensSystemProtection(m) && !rule.IsDangerous)
+            {
+                throw new InvalidOperationException(
+                    $"Защитный фильтр TweakSafetyGuard заблокировал правило '{rule.TweakId}': оно ослабляет защиту Windows ({m.SubKeyPath}) и должно быть помечено как опасное.");
+            }
+        }
+    }
+
+    private static bool ContainsAnyFragment(TweakRegistryMutation? mutation, string[] fragments)
+    {
+        if (mutation is null)
         {
             return false;
         }
@@ -33,34 +91,21 @@ public static class TweakSafetyGuard
             .Replace('/', '\\')
             .ToUpperInvariant();
 
-        foreach (var forbidden in ForbiddenKeyFragments)
+        foreach (var fragment in fragments)
         {
-            if (combined.Contains(forbidden, StringComparison.Ordinal))
+            if (combined.Contains(fragment, StringComparison.Ordinal))
             {
-                return false;
+                return true;
             }
         }
 
-        return true;
-    }
-
-    public static void ThrowIfUnsafeRule(DeclarativeTweakRule rule)
-    {
-        ArgumentNullException.ThrowIfNull(rule);
-        foreach (var m in rule.Mutations)
-        {
-            if (!IsSafeAllowedMutation(m))
-            {
-                throw new InvalidOperationException(
-                    $"Защитный фильтр TweakSafetyGuard заблокировал опасную модификацию системной защиты в правиле '{rule.TweakId}' ({m.SubKeyPath}).");
-            }
-        }
+        return false;
     }
 }
 
 /// <summary>
-/// Полный каталог 36 проверенных обратимых твиков Windows 10/11 (в стиле Optimizer v14.7 + OptimizerNXT)
-/// со 100% поддержкой отката через Машину времени.
+/// Каталог встроенных обратимых твиков Windows 10/11. Каждое включение записывается в журнал отката.
+/// У твиков, которые подходят не всякому компьютеру, заданы условия применимости (<see cref="TweakRequirements"/>).
 /// </summary>
 public static class DeclarativeTweakCatalog
 {
@@ -166,7 +211,8 @@ public static class DeclarativeTweakCatalog
             RequiresAdministrator: true,
             Mutations:
             [
-                new("HKLM", @"SYSTEM\CurrentControlSet\Control", "SvcHostSplitThresholdInKB", RegistryTweakValueKind.DWord, "67108864", "380000", ExistedByDefault: true)
+                // Стандартное значение Windows — 0x380000 КБ (3,5 ГБ), то есть 3670016 в десятичной записи
+                new("HKLM", @"SYSTEM\CurrentControlSet\Control", "SvcHostSplitThresholdInKB", RegistryTweakValueKind.DWord, "67108864", "3670016", ExistedByDefault: true)
             ]),
 
         new(
@@ -224,7 +270,8 @@ public static class DeclarativeTweakCatalog
             Mutations:
             [
                 new("HKLM", @"SYSTEM\CurrentControlSet\Services\SysMain", "Start", RegistryTweakValueKind.DWord, "4", "2", ExistedByDefault: true)
-            ]),
+            ],
+            Requirements: new TweakRequirements(BestOnSolidStateSystemDrive: true)),
 
         new(
             TweakId: "disk.disable-hibernation-boot-files",
@@ -238,7 +285,9 @@ public static class DeclarativeTweakCatalog
             Mutations:
             [
                 new("HKLM", @"SYSTEM\CurrentControlSet\Control\Power", "HibernateEnabled", RegistryTweakValueKind.DWord, "0", "1", ExistedByDefault: true)
-            ]),
+            ],
+            Requirements: new TweakRequirements(
+                BatteryWarning: "Это устройство с батареей. Без гибернации при полной разрядке во сне несохранённые данные будут потеряны.")),
 
         new(
             TweakId: "disk.disable-windows-search-indexer",
@@ -479,7 +528,8 @@ public static class DeclarativeTweakCatalog
             Mutations:
             [
                 new("HKCU", @"Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32", "", RegistryTweakValueKind.String, "", "", ExistedByDefault: false)
-            ]),
+            ],
+            Requirements: new TweakRequirements(MinWindowsBuild: 22000)),
 
         new(
             TweakId: "ui.taskbar-end-task-button",
@@ -493,7 +543,8 @@ public static class DeclarativeTweakCatalog
             Mutations:
             [
                 new("HKCU", @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings", "TaskbarEndTask", RegistryTweakValueKind.DWord, "1", "0", ExistedByDefault: false)
-            ]),
+            ],
+            Requirements: new TweakRequirements(MinWindowsBuild: 22631)),
 
         new(
             TweakId: "ui.explorer-open-this-pc",
@@ -583,7 +634,8 @@ public static class DeclarativeTweakCatalog
             Mutations:
             [
                 new("HKLM", @"SYSTEM\CurrentControlSet\Control\GraphicsDrivers", "HwSchMode", RegistryTweakValueKind.DWord, "2", "1", ExistedByDefault: true)
-            ]),
+            ],
+            Requirements: new TweakRequirements(MinWindowsBuild: 19041)),
 
         new(
             TweakId: "gaming.enable-windows-game-mode",
