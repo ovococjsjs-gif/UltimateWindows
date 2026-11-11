@@ -1042,7 +1042,7 @@ public sealed class CleanerStudioViewModel : ObservableObject
             _allRuleFindings.Clear();
             foreach (var finding in scan.Findings.Where(f => f.IsPresent).OrderByDescending(f => f.TotalBytes).ThenBy(f => f.Application))
             {
-                _allRuleFindings.Add(new SelectableRuleFindingViewModel(finding, UpdateAppRulesSelectionHeadline));
+                _allRuleFindings.Add(new SelectableRuleFindingViewModel(finding, () => UpdateAppRulesSelectionHeadline()));
             }
 
             ApplyAppRulesFilter();
