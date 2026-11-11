@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>UltimateWindows.Modules.Optimizer</RootNamespace>
     <Description>Модуль Фазы 4: декларативный движок обратимых твиков ОС (с YAML-профилями), менеджер автозагрузки и контекстного меню ShellEx, File Lock Hunter, настройка DNS/сети и менеджер программ.</Description>
   </PropertyGroup>

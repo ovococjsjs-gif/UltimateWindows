@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>UltimateWindows.Modules.Security</RootNamespace>
     <Description>Модуль Фазы 5: стелс-детектор скрытых майнеров (Drop-on-Inspect), анализ Stratum-соединений и маскировки под системные процессы, ревизор закрепления (IFEO, скрытые задачи без SD, Winlogon) и реабилитация системы после майнера с карантином .uwq.</Description>
   </PropertyGroup>
