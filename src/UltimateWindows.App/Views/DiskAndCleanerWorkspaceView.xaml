@@ -19,7 +19,7 @@
         <RadioButton GroupName="CleanerSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
                      IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=0}"
-                     Content="Анализатор диска (WizTree)" />
+                     Content="Анализатор диска" />
         <RadioButton GroupName="CleanerSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
                      IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=1}"

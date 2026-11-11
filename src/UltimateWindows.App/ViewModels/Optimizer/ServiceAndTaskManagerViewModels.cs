@@ -18,7 +18,8 @@ public sealed class ServiceItemViewModel : ObservableObject
     private static readonly IReadOnlyList<ServiceStartupChoice> UserChoices =
     [
         new(ServiceStartupMode.Automatic, ServiceDisplay.GetTitle(ServiceStartupMode.Automatic)),
-        new(ServiceStartupMode.AutomaticDelayed, ServiceDisplay.GetTitle(ServiceStartupMode.AutomaticDelayed)),
+        // Короткая подпись: полное «Автоматически (отложенный запуск)» в поле выбора не помещается
+        new(ServiceStartupMode.AutomaticDelayed, "Авто (отложенный запуск)"),
         new(ServiceStartupMode.Manual, ServiceDisplay.GetTitle(ServiceStartupMode.Manual)),
         new(ServiceStartupMode.Disabled, ServiceDisplay.GetTitle(ServiceStartupMode.Disabled))
     ];

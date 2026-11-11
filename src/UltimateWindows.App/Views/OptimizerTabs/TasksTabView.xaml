@@ -74,14 +74,14 @@
           <DataGridTemplateColumn.CellTemplate>
             <DataTemplate>
               <StackPanel Margin="0,1" ToolTip="{Binding TaskPath}">
-                <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="Medium" TextWrapping="Wrap" MaxHeight="34" TextTrimming="CharacterEllipsis" />
                 <TextBlock Text="{Binding Folder}" FontSize="10.5" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" />
               </StackPanel>
             </DataTemplate>
           </DataGridTemplateColumn.CellTemplate>
         </DataGridTemplateColumn>
 
-        <DataGridTemplateColumn Header="Состояние" Width="112" SortMemberPath="StateText">
+        <DataGridTemplateColumn Header="Состояние" Width="106" SortMemberPath="StateText">
           <DataGridTemplateColumn.CellTemplate>
             <DataTemplate>
               <ContentControl Content="{Binding StateChip}"
@@ -92,8 +92,8 @@
           </DataGridTemplateColumn.CellTemplate>
         </DataGridTemplateColumn>
 
-        <DataGridTextColumn Header="Последний запуск" Binding="{Binding LastRunText}" Width="122" />
-        <DataGridTextColumn Header="Следующий запуск" Binding="{Binding NextRunText}" Width="122" />
+        <DataGridTextColumn Header="Последний запуск" Binding="{Binding LastRunText}" Width="134" />
+        <DataGridTextColumn Header="Следующий запуск" Binding="{Binding NextRunText}" Width="134" />
 
         <DataGridTemplateColumn Header="Что запускает и зачем" Width="3*" MinWidth="220" SortMemberPath="ActionSummary">
           <DataGridTemplateColumn.CellTemplate>
@@ -114,7 +114,7 @@
           </DataGridTemplateColumn.CellTemplate>
         </DataGridTemplateColumn>
 
-        <DataGridTextColumn Header="Автор" Binding="{Binding Author}" Width="130" />
+        <DataGridTextColumn Header="Автор" Binding="{Binding Author}" Width="124" />
       </DataGrid.Columns>
     </DataGrid>
   </Grid>

@@ -112,7 +112,7 @@
             <StackPanel Orientation="Horizontal">
               <Button Style="{StaticResource PrimaryButtonStyle}"
                       Command="{Binding JumpToDiskAnalyzerCommand}"
-                      Content="Анализ диска (WizTree)"
+                      Content="Анализ диска"
                       Margin="0,0,8,0" />
               <Button Style="{StaticResource SecondaryButtonStyle}"
                       Command="{Binding JumpToSpaceSaverCommand}"
@@ -194,7 +194,7 @@
                     Command="{Binding NavigateCommand}" CommandParameter="SmartCleaner"
                     Content="Открыть Диск, Кэш и Реестр →" />
             <StackPanel>
-              <TextBlock Text="Диск (WizTree), Очистка и Реестр" FontSize="14" FontWeight="SemiBold" />
+              <TextBlock Text="Диск, очистка и реестр" FontSize="14" FontWeight="SemiBold" />
               <TextBlock Text="Дерево папок, типы файлов и карта блоков диска, бережная очистка кэша браузеров без потери паролей, 10 категорий реестра и поиск дублей SHA-256."
                          FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0" />
             </StackPanel>

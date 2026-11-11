@@ -105,7 +105,8 @@
                          FontSize="11.5"
                          Foreground="{DynamicResource TextSecondaryBrush}"
                          TextTrimming="CharacterEllipsis"
-                         TextWrapping="NoWrap" />
+                         TextWrapping="Wrap"
+                         MaxHeight="31" />
             </DataTemplate>
           </DataGridTemplateColumn.CellTemplate>
         </DataGridTemplateColumn>
