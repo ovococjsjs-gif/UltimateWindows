@@ -590,6 +590,262 @@ public sealed class WindowsOptimizerPlatformBridge : DefaultOptimizerPlatformBri
         }, ct);
     }
 
+    public override async Task<bool> FlushDnsCacheAsync(CancellationToken ct = default)
+    {
+        if (!OperatingSystem.IsWindows()) return false;
+        try
+        {
+            var psi = new ProcessStartInfo("ipconfig.exe")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            psi.ArgumentList.Add("/flushdns");
+            using var p = Process.Start(psi);
+            if (p is null) return false;
+            await p.WaitForExitAsync(ct).ConfigureAwait(false);
+            return p.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public override Task<bool> LaunchApplicationUninstallerAsync(InstalledApplicationInfo app, CancellationToken ct = default)
+    {
+        if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(app.UninstallString))
+        {
+            return Task.FromResult(false);
+        }
+
+        try
+        {
+            var cmd = Environment.ExpandEnvironmentVariables(app.UninstallString.Trim());
+            string exe;
+            string args = "";
+
+            if (cmd.StartsWith('"'))
+            {
+                var closeIdx = cmd.IndexOf('"', 1);
+                if (closeIdx > 1)
+                {
+                    exe = cmd[1..closeIdx];
+                    args = cmd[(closeIdx + 1)..].Trim();
+                }
+                else
+                {
+                    exe = cmd.Trim('"');
+                }
+            }
+            else if (cmd.StartsWith("MsiExec", StringComparison.OrdinalIgnoreCase))
+            {
+                var sp = cmd.IndexOf(' ');
+                exe = "msiexec.exe";
+                args = sp > 0 ? cmd[(sp + 1)..].Trim().Replace("/I", "/X", StringComparison.OrdinalIgnoreCase) : "";
+            }
+            else
+            {
+                var exePos = cmd.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
+                if (exePos > 0)
+                {
+                    exe = cmd[..(exePos + 4)].Trim();
+                    args = cmd[(exePos + 4)..].Trim();
+                }
+                else
+                {
+                    exe = cmd;
+                }
+            }
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = exe,
+                Arguments = args,
+                UseShellExecute = true
+            };
+            Process.Start(psi);
+            return Task.FromResult(true);
+        }
+        catch
+        {
+            return Task.FromResult(false);
+        }
+    }
+
+    private static readonly string[] ProtectedAppxPrefixes =
+    [
+        "Microsoft.WindowsStore",
+        "Microsoft.StorePurchaseApp",
+        "Microsoft.DesktopAppInstaller",
+        "Microsoft.VCLibs",
+        "Microsoft.NET.Native",
+        "Microsoft.UI.Xaml",
+        "Microsoft.WindowsAppRuntime",
+        "Microsoft.Services.Store",
+        "Microsoft.SecHealthUI",
+        "Microsoft.AAD",
+        "Microsoft.AccountsControl",
+        "Microsoft.Windows.ShellExperienceHost",
+        "Microsoft.Windows.StartMenuExperienceHost",
+        "Windows.CBSPreview",
+        "windows.immersivecontrolpanel"
+    ];
+
+    public override async Task<IReadOnlyList<UwpPackageInfo>> GetInstalledUwpPackagesAsync(CancellationToken ct = default)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return Array.Empty<UwpPackageInfo>();
+        }
+
+        try
+        {
+            const string psScript =
+                "$ErrorActionPreference='SilentlyContinue'; " +
+                "Get-AppxPackage | Select-Object Name,PackageFullName,Version,Publisher,InstallLocation,IsFramework,NonRemovable | ConvertTo-Json -Compress";
+
+            var psi = new ProcessStartInfo("powershell.exe")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = System.Text.Encoding.UTF8
+            };
+            psi.ArgumentList.Add("-NoProfile");
+            psi.ArgumentList.Add("-NonInteractive");
+            psi.ArgumentList.Add("-ExecutionPolicy");
+            psi.ArgumentList.Add("Bypass");
+            psi.ArgumentList.Add("-Command");
+            psi.ArgumentList.Add("[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; " + psScript);
+
+            using var proc = Process.Start(psi);
+            if (proc is null) return Array.Empty<UwpPackageInfo>();
+
+            var stdout = await proc.StandardOutput.ReadToEndAsync(ct).ConfigureAwait(false);
+            await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+
+            if (string.IsNullOrWhiteSpace(stdout))
+            {
+                return Array.Empty<UwpPackageInfo>();
+            }
+
+            using var doc = JsonDocument.Parse(stdout);
+            var list = new List<UwpPackageInfo>();
+
+            if (doc.RootElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var el in doc.RootElement.EnumerateArray())
+                {
+                    if (TryParseUwpElement(el, out var pkg)) list.Add(pkg);
+                }
+            }
+            else if (doc.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                if (TryParseUwpElement(doc.RootElement, out var pkg)) list.Add(pkg);
+            }
+
+            return list
+                .OrderBy(p => p.IsFrameworkOrSystem)
+                .ThenBy(p => p.FriendlyDisplayName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch
+        {
+            return Array.Empty<UwpPackageInfo>();
+        }
+    }
+
+    public override async Task<(int RemovedCount, string ErrorSummary)> RemoveUwpPackagesAsync(
+        IReadOnlyList<UwpPackageInfo> packages,
+        CancellationToken ct = default)
+    {
+        if (!OperatingSystem.IsWindows() || packages.Count == 0)
+        {
+            return (0, "");
+        }
+
+        int removed = 0;
+        var errors = new List<string>();
+
+        foreach (var pkg in packages)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!pkg.CanRemoveSafely) continue;
+
+            try
+            {
+                var safeFullName = pkg.PackageFullName.Replace("'", "''");
+                var psi = new ProcessStartInfo("powershell.exe")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                psi.ArgumentList.Add("-NoProfile");
+                psi.ArgumentList.Add("-NonInteractive");
+                psi.ArgumentList.Add("-ExecutionPolicy");
+                psi.ArgumentList.Add("Bypass");
+                psi.ArgumentList.Add("-Command");
+                psi.ArgumentList.Add($"Remove-AppxPackage -Package '{safeFullName}' -ErrorAction Stop");
+
+                using var proc = Process.Start(psi);
+                if (proc is null) continue;
+                await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+
+                if (proc.ExitCode == 0)
+                {
+                    removed++;
+                }
+                else
+                {
+                    errors.Add(pkg.Name);
+                }
+            }
+            catch
+            {
+                errors.Add(pkg.Name);
+            }
+        }
+
+        var errSummary = errors.Count > 0 ? $"не удалось удалить: {string.Join(", ", errors.Take(3))}" : "";
+        return (removed, errSummary);
+    }
+
+    private static bool TryParseUwpElement(JsonElement el, out UwpPackageInfo info)
+    {
+        info = default!;
+        var name = el.TryGetProperty("Name", out var nEl) ? nEl.GetString() ?? "" : "";
+        var fullName = el.TryGetProperty("PackageFullName", out var fEl) ? fEl.GetString() ?? "" : "";
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(fullName))
+        {
+            return false;
+        }
+
+        var ver = el.TryGetProperty("Version", out var vEl) ? vEl.ToString() : "";
+        var pub = el.TryGetProperty("Publisher", out var pEl) ? pEl.GetString() ?? "" : "";
+        var loc = el.TryGetProperty("InstallLocation", out var lEl) ? lEl.GetString() ?? "" : "";
+        var isFw = el.TryGetProperty("IsFramework", out var fwEl) && fwEl.ValueKind == JsonValueKind.True;
+        var nonRem = el.TryGetProperty("NonRemovable", out var nrEl) && nrEl.ValueKind == JsonValueKind.True;
+
+        var isProtected = isFw || nonRem ||
+                          ProtectedAppxPrefixes.Any(pref => name.StartsWith(pref, StringComparison.OrdinalIgnoreCase));
+
+        info = new UwpPackageInfo(
+            Name: name,
+            PackageFullName: fullName,
+            Version: ver,
+            Publisher: pub,
+            InstallLocation: loc,
+            IsFrameworkOrSystem: isProtected,
+            NonRemovable: nonRem);
+        return true;
+    }
+
     private static async Task<bool> SetAdapterIpv4DnsInternalAsync(
         string adapterName,
         IReadOnlyList<string> ipv4Servers,

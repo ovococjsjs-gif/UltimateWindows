@@ -1,0 +1,612 @@
+<UserControl x:Class="UltimateWindows.App.Views.DiskAndCleanerWorkspaceView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:UltimateWindows.App.Controls"
+             xmlns:cleanerModels="clr-namespace:UltimateWindows.Modules.Cleaner.Models;assembly=UltimateWindows.Modules.Cleaner">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- ВЕРХНЯЯ ПАНЕЛЬ ВКЛАДОК РАЗДЕЛА -->
+    <Border Grid.Row="0"
+            Background="{DynamicResource SurfaceSidebarBrush}"
+            BorderBrush="{DynamicResource CardBorderBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="14,0">
+      <StackPanel Orientation="Horizontal">
+        <RadioButton GroupName="CleanerSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=0}"
+                     Content="Анализатор диска (WizTree)" />
+        <RadioButton GroupName="CleanerSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=1}"
+                     Content="Очистка кэша (Пароли под замком)" />
+        <RadioButton GroupName="CleanerSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=2}"
+                     Content="Реестр (10 категорий)" />
+        <RadioButton GroupName="CleanerSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=3}"
+                     Content="Поиск дублей и Резервы C:\" />
+      </StackPanel>
+    </Border>
+
+    <!-- ========================================================================= -->
+    <!-- ВКЛАДКА 0: WIZTREE АНАЛИЗАТОР ПРОСТРАНСТВА ДИСКА + TREEMAP                -->
+    <!-- ========================================================================= -->
+    <Grid Grid.Row="1"
+          Margin="12,10,12,10"
+          Visibility="{Binding IsDiskAnalyzerTab, Converter={StaticResource BoolToVis}}">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" MinHeight="180" />
+        <RowDefinition Height="6" />
+        <RowDefinition Height="205" MinHeight="110" />
+      </Grid.RowDefinitions>
+
+      <!-- Панель управления WizTree -->
+      <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="10,8" Margin="0,0,0,8">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="270" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+
+          <!-- Выбор тома -->
+          <ComboBox Grid.Column="0"
+                    ItemsSource="{Binding MountedVolumes}"
+                    SelectedItem="{Binding SelectedVolume}"
+                    DisplayMemberPath="DisplayTitle"
+                    Margin="0,0,8,0" />
+
+          <!-- Путь + Обзор -->
+          <Grid Grid.Column="1" Margin="0,0,8,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox Grid.Column="0"
+                     Text="{Binding DiskMapTargetPath, UpdateSourceTrigger=PropertyChanged}"
+                     Margin="0,0,6,0" />
+            <Button Grid.Column="1"
+                    Style="{StaticResource CompactButtonStyle}"
+                    Command="{Binding BrowseDiskTargetCommand}"
+                    Content="Папка..." />
+          </Grid>
+
+          <!-- Кнопки действий -->
+          <StackPanel Grid.Column="2" Orientation="Horizontal">
+            <Button Style="{StaticResource PrimaryButtonStyle}"
+                    Padding="14,6"
+                    Command="{Binding AnalyzeDiskSpaceCommand}"
+                    Content="Сканировать"
+                    Margin="0,0,6,0" />
+            <Button Style="{StaticResource CompactButtonStyle}"
+                    Visibility="{Binding IsAnalyzingDisk, Converter={StaticResource BoolToVis}}"
+                    Command="{Binding CancelDiskAnalysisCommand}"
+                    Content="Стоп"
+                    Margin="0,0,6,0" />
+            <Button Style="{StaticResource CompactButtonStyle}"
+                    Command="{Binding DrillUpCommand}"
+                    ToolTip="Подняться на уровень выше"
+                    Content="↑ Вверх"
+                    Margin="0,0,8,0" />
+            <CheckBox IsChecked="{Binding IsFilesFlatView}"
+                      Content="Топ файлов"
+                      VerticalAlignment="Center"
+                      Margin="0,0,10,0" />
+            <Button Style="{StaticResource CompactButtonStyle}"
+                    Command="{Binding OpenNodeInExplorerCommand}"
+                    ToolTip="Показать выбранный элемент в Проводнике Windows"
+                    Content="Проводник"
+                    Margin="0,0,5,0" />
+            <Button Style="{StaticResource CompactButtonStyle}"
+                    Command="{Binding CopyNodePathCommand}"
+                    ToolTip="Скопировать полный путь в буфер обмена"
+                    Content="Путь"
+                    Margin="0,0,5,0" />
+            <Button Style="{StaticResource DangerButtonStyle}"
+                    Padding="10,5"
+                    FontSize="11.5"
+                    Command="{Binding RecycleSelectedNodeCommand}"
+                    ToolTip="Переместить выбранную папку/файл в Корзину Windows"
+                    Content="В Корзину" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- Строка сводки тома (Объем / Занято / Свободно + Статус сканирования) -->
+      <Border Grid.Row="1"
+              Background="{DynamicResource SurfaceElevatedBrush}"
+              BorderBrush="{DynamicResource CardBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="6"
+              Padding="12,5"
+              Margin="0,0,0,8">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+            <TextBlock Text="Объем: " FontSize="11.5" Foreground="{DynamicResource TextMutedBrush}" />
+            <TextBlock Text="{Binding SelectedVolume.FormattedTotal, FallbackValue=—}" FontSize="11.5" FontWeight="SemiBold" Margin="0,0,12,0" />
+            <TextBlock Text="Занято: " FontSize="11.5" Foreground="{DynamicResource TextMutedBrush}" />
+            <TextBlock Text="{Binding SelectedVolume.FormattedUsed, FallbackValue=—}" FontSize="11.5" FontWeight="SemiBold" Margin="0,0,12,0" />
+            <TextBlock Text="Свободно: " FontSize="11.5" Foreground="{DynamicResource TextMutedBrush}" />
+            <TextBlock Text="{Binding SelectedVolume.FormattedFree, FallbackValue=—}" FontSize="11.5" FontWeight="Bold" Foreground="{DynamicResource SafeEmeraldBrush}" />
+          </StackPanel>
+          <TextBlock Text="{Binding DiskMapStatusText}"
+                     FontSize="12"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     TextTrimming="CharacterEllipsis" />
+        </DockPanel>
+      </Border>
+
+      <!-- ЦЕНТРАЛЬНАЯ СПЛИТ-ЗОНА: СЛЕВА ДЕРЕВО ПАПОК (ИЛИ ТОП ФАЙЛОВ), СПРАВА ТИПЫ ФАЙЛОВ -->
+      <Grid Grid.Row="2">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="1.7*" MinWidth="360" />
+          <ColumnDefinition Width="6" />
+          <ColumnDefinition Width="1*" MinWidth="260" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Левая панель: Иерархическое дерево WizTree (или плоский список крупнейших файлов) -->
+        <Grid Grid.Column="0">
+          <!-- Режим 1: Иерархическое дерево папок с полосами % -->
+          <Border Background="{DynamicResource SurfaceCardBrush}"
+                  BorderBrush="{DynamicResource CardBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="6"
+                  Visibility="{Binding IsTreeHierarchyView, Converter={StaticResource BoolToVis}}">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="28" />
+                <RowDefinition Height="*" />
+              </Grid.RowDefinitions>
+
+              <!-- Шапка колонок дерева -->
+              <Border Grid.Row="0"
+                      Background="{DynamicResource SurfaceElevatedBrush}"
+                      BorderBrush="{DynamicResource CardBorderBrush}"
+                      BorderThickness="0,0,0,1"
+                      Padding="10,0,16,0">
+                <Grid VerticalAlignment="Center">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="260" />
+                    <ColumnDefinition Width="125" />
+                    <ColumnDefinition Width="86" />
+                    <ColumnDefinition Width="68" />
+                    <ColumnDefinition Width="108" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Grid.Column="0" Text="Папка / Файл (2×клик — войти)" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  <TextBlock Grid.Column="1" Text="% от раздела" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  <TextBlock Grid.Column="2" Text="Размер" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Right" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  <TextBlock Grid.Column="3" Text="Файлы" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Right" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  <TextBlock Grid.Column="4" Text="Изменено" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Right" Foreground="{DynamicResource TextSecondaryBrush}" />
+                </Grid>
+              </Border>
+
+              <!-- Само дерево WizTree -->
+              <TreeView x:Name="DiskTree"
+                        Grid.Row="1"
+                        BorderThickness="0"
+                        ItemsSource="{Binding TreeRootNodes}"
+                        SelectedItemChanged="OnTreeSelectedItemChanged"
+                        MouseDoubleClick="OnTreeMouseDoubleClick">
+                <TreeView.Resources>
+                  <HierarchicalDataTemplate DataType="{x:Type cleanerModels:DiskTreeNode}"
+                                            ItemsSource="{Binding Children}">
+                    <Grid Margin="2,1,8,1" HorizontalAlignment="Stretch">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="250" />
+                        <ColumnDefinition Width="125" />
+                        <ColumnDefinition Width="86" />
+                        <ColumnDefinition Width="68" />
+                        <ColumnDefinition Width="108" />
+                      </Grid.ColumnDefinitions>
+
+                      <!-- Цветовой маркер + Имя -->
+                      <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Width="8" Height="8" CornerRadius="2"
+                                Background="{Binding ColorHex, Converter={StaticResource HexToBrush}}"
+                                Margin="0,0,7,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Name}"
+                                   FontSize="12"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding FullPath}" />
+                      </StackPanel>
+
+                      <!-- Визуальная полоска доли % (как в WizTree) -->
+                      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Width="72" Height="11" CornerRadius="2.5"
+                                Background="{DynamicResource ToggleOffTrackBrush}"
+                                ClipToBounds="True" Margin="0,0,6,0">
+                          <Border HorizontalAlignment="Left"
+                                  Background="{Binding ColorHex, Converter={StaticResource HexToBrush}}"
+                                  Width="{Binding ShareOfRootPercent, Converter={StaticResource PctToWidth}, ConverterParameter=72}" />
+                        </Border>
+                        <TextBlock Text="{Binding ShareLabel}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                      </StackPanel>
+
+                      <!-- Размер -->
+                      <TextBlock Grid.Column="2"
+                                 Text="{Binding FormattedSize}"
+                                 FontSize="12"
+                                 FontWeight="SemiBold"
+                                 HorizontalAlignment="Right"
+                                 VerticalAlignment="Center" />
+
+                      <!-- Число файлов -->
+                      <TextBlock Grid.Column="3"
+                                 Text="{Binding FilesFormatted}"
+                                 FontSize="11"
+                                 Foreground="{DynamicResource TextSecondaryBrush}"
+                                 HorizontalAlignment="Right"
+                                 VerticalAlignment="Center" />
+
+                      <!-- Дата изменения -->
+                      <TextBlock Grid.Column="4"
+                                 Text="{Binding ModifiedFormatted}"
+                                 FontSize="11"
+                                 Foreground="{DynamicResource TextMutedBrush}"
+                                 HorizontalAlignment="Right"
+                                 VerticalAlignment="Center" />
+                    </Grid>
+                  </HierarchicalDataTemplate>
+                </TreeView.Resources>
+              </TreeView>
+            </Grid>
+          </Border>
+
+          <!-- Режим 2: Плоская таблица крупнейших файлов -->
+          <DataGrid ItemsSource="{Binding LargestFiles}"
+                    Visibility="{Binding IsFilesFlatView, Converter={StaticResource BoolToVis}}">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Файл" Binding="{Binding Name}" Width="200" />
+              <DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="95" />
+              <DataGridTextColumn Header="Доля %" Binding="{Binding ShareLabel}" Width="75" />
+              <DataGridTextColumn Header="Полный путь" Binding="{Binding FullPath}" Width="*" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+
+        <!-- Вертикальный сплиттер -->
+        <GridSplitter Grid.Column="1"
+                      Width="6"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"
+                      Background="Transparent" />
+
+        <!-- Правая панель: Таблица расширений WizTree с цветовыми индикаторами -->
+        <DataGrid Grid.Column="2" ItemsSource="{Binding ExtensionStats}">
+          <DataGrid.Columns>
+            <DataGridTemplateColumn Header="" Width="26">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <Border Width="11" Height="11" CornerRadius="2"
+                          Background="{Binding ColorHex, Converter={StaticResource HexToBrush}}"
+                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTextColumn Header="Расшир." Binding="{Binding Extension}" Width="78" />
+            <DataGridTextColumn Header="Описание" Binding="{Binding FileTypeDescription}" Width="*" />
+            <DataGridTextColumn Header="%" Binding="{Binding ShareLabel}" Width="58" />
+            <DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="86" />
+            <DataGridTextColumn Header="Файлы" Binding="{Binding FilesCountFormatted}" Width="66" />
+          </DataGrid.Columns>
+        </DataGrid>
+      </Grid>
+
+      <!-- Горизонтальный сплиттер над картой блоков -->
+      <GridSplitter Grid.Row="3"
+                    Height="6"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    Background="Transparent" />
+
+      <!-- НИЖНЯЯ ПАНЕЛЬ: ИНТЕРАКТИВНАЯ КАРТА БЛОКОВ ДИСКА (SQUARIFIED TREEMAP) -->
+      <Border Grid.Row="4"
+              Background="#111520"
+              BorderBrush="{DynamicResource CardBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="6"
+              ClipToBounds="True">
+        <controls:DiskTreemapControl ItemsSource="{Binding TreemapNodes}"
+                                     SelectedNode="{Binding SelectedTreeNode}"
+                                     DrillDownCommand="{Binding DrillDownNodeCommand}" />
+      </Border>
+    </Grid>
+
+    <!-- ========================================================================= -->
+    <!-- ВКЛАДКА 1: СТАНДАРТНАЯ ОЧИСТКА CCLEANER-КЛАССА С ЗАЩИТОЙ ПАРОЛЕЙ          -->
+    <!-- ========================================================================= -->
+    <Grid Grid.Row="1"
+          Margin="12,10"
+          Visibility="{Binding IsStandardCleanerTab, Converter={StaticResource BoolToVis}}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="300" />
+        <ColumnDefinition Width="12" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <!-- Левая колонка правил и брони паролей -->
+      <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+            <Button Style="{StaticResource SecondaryButtonStyle}"
+                    Command="{Binding ScanPreviewCommand}"
+                    Content="Анализ кэша и мусора"
+                    Margin="0,0,0,8" />
+            <Button Style="{StaticResource PrimaryButtonStyle}"
+                    Command="{Binding ExecuteSafeCleanCommand}"
+                    Content="Очистить найденный кэш" />
+          </StackPanel>
+
+          <StackPanel>
+            <TextBlock Text="Защита данных браузеров" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,10" />
+
+            <DockPanel Margin="0,0,0,10">
+              <CheckBox DockPanel.Dock="Left" Style="{StaticResource PillToggleSwitchStyle}"
+                        IsChecked="{Binding PreservePasswordsAndAutofill}" Margin="0,0,10,0" />
+              <TextBlock Text="Пароли, ключи и автозаполнение форм под замком" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
+            </DockPanel>
+
+            <DockPanel Margin="0,0,0,14">
+              <CheckBox DockPanel.Dock="Left" Style="{StaticResource PillToggleSwitchStyle}"
+                        IsChecked="{Binding PreserveBrowserSessions}" Margin="0,0,10,0" />
+              <TextBlock Text="Не выходить из аккаунтов и вкладок (Cookies)" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
+            </DockPanel>
+
+            <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,0,0,12" />
+            <TextBlock Text="Категории безопасной очистки" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,10" />
+
+            <CheckBox IsChecked="{Binding CleanBrowserCaches}" Content="Кэш браузеров (Chrome, Edge, Brave, Yandex, Firefox)" Margin="0,0,0,9" />
+            <CheckBox IsChecked="{Binding CleanSystemTempAndShaders}" Content="Временные файлы ОС и кэш шейдеров DX/NVIDIA/AMD" Margin="0,0,0,9" />
+            <CheckBox IsChecked="{Binding IncludeDeveloperCaches}" Content="Кэш пакетов разработки (npm, pip, NuGet HTTP)" Margin="0,0,0,9" />
+            <CheckBox IsChecked="{Binding EmptyRecycleBin}" Content="Корзина Windows" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
+
+      <!-- Правая часть: сводка + категории + таблица файлов -->
+      <Grid Grid.Column="2">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="180" />
+          <RowDefinition Height="8" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="14,10" Margin="0,0,0,8">
+          <StackPanel>
+            <TextBlock Text="{Binding ScanSummaryHeadline}" FontSize="13" FontWeight="Medium" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding VaultShieldBadgeText}" FontSize="11.5" Foreground="{DynamicResource SafeEmeraldBrush}" Margin="0,4,0,0" />
+            <TextBlock Text="{Binding BrowserWarningBanner}"
+                       Visibility="{Binding HasBrowserWarnings, Converter={StaticResource BoolToVis}}"
+                       FontSize="11.5" Foreground="{DynamicResource CautionAmberBrush}" Margin="0,4,0,0" TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+
+        <!-- Таблица категорий -->
+        <DataGrid Grid.Row="1" ItemsSource="{Binding Categories}">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="Категория" Binding="{Binding FriendlyTitle}" Width="240" />
+            <DataGridTextColumn Header="Файлов" Binding="{Binding ItemCount, StringFormat={}{0:N0}}" Width="85" />
+            <DataGridTextColumn Header="Объем" Binding="{Binding FormattedSize}" Width="105" />
+            <DataGridTextColumn Header="Описание" Binding="{Binding FriendlyDescription}" Width="*" />
+          </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Предпросмотр конкретных файлов кэша -->
+        <DataGrid Grid.Row="3" ItemsSource="{Binding CandidateFilesPreview}">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="Источник" Binding="{Binding SourceLabel}" Width="165" />
+            <DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="95" />
+            <DataGridTextColumn Header="Путь к файлу кэша" Binding="{Binding FullPath}" Width="*" />
+          </DataGrid.Columns>
+        </DataGrid>
+      </Grid>
+    </Grid>
+
+    <!-- ========================================================================= -->
+    <!-- ВКЛАДКА 2: ОЧИСТКА РЕЕСТРА CCLEANER-КЛАССА (10 КАТЕГОРИЙ + БЕКАП VAULT)   -->
+    <!-- ========================================================================= -->
+    <Grid Grid.Row="1"
+          Margin="12,10"
+          Visibility="{Binding IsRegistryTab, Converter={StaticResource BoolToVis}}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="290" />
+        <ColumnDefinition Width="12" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <!-- Левая колонка: 10 категорий целостности реестра (как в CCleaner) -->
+      <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+            <UniformGrid Columns="2" Margin="0,0,0,8">
+              <Button Style="{StaticResource CompactButtonStyle}" Command="{Binding ToggleAllRegistryCategoriesCommand}" CommandParameter="true" Content="Выбрать все" Margin="0,0,4,0" />
+              <Button Style="{StaticResource CompactButtonStyle}" Command="{Binding ToggleAllRegistryCategoriesCommand}" CommandParameter="false" Content="Снять все" Margin="4,0,0,0" />
+            </UniformGrid>
+            <Button Style="{StaticResource PrimaryButtonStyle}"
+                    Command="{Binding ScanRegistryCommand}"
+                    Content="Поиск проблем реестра" />
+          </StackPanel>
+
+          <StackPanel>
+            <TextBlock Text="Целостность реестра" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10" />
+            <ItemsControl ItemsSource="{Binding RegistryCategoryFilters}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <CheckBox IsChecked="{Binding IsChecked}"
+                            Content="{Binding Title}"
+                            Margin="0,0,0,8" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </DockPanel>
+      </Border>
+
+      <!-- Правая область: таблица найденных проблем + Исправить выбранные -->
+      <Grid Grid.Column="2">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="14,9" Margin="0,0,0,8">
+          <DockPanel>
+            <Button DockPanel.Dock="Right"
+                    Style="{StaticResource PrimaryButtonStyle}"
+                    Command="{Binding FixSelectedRegistryCommand}"
+                    Content="Исправить выбранные (с бэкапом)"
+                    Margin="12,0,0,0" />
+            <TextBlock Text="{Binding RegistryStatusText}" FontSize="12.5" VerticalAlignment="Center" TextWrapping="Wrap" />
+          </DockPanel>
+        </Border>
+
+        <DataGrid Grid.Row="1" ItemsSource="{Binding RegistryOrphanItems}">
+          <DataGrid.Columns>
+            <DataGridTemplateColumn Header="✓" Width="42">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" />
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTextColumn Header="Проблема" Binding="{Binding CategoryTitle}" Width="175" />
+            <DataGridTextColumn Header="Отсутствующий файл / Данные" Binding="{Binding MissingPath}" Width="240" />
+            <DataGridTextColumn Header="Ключ реестра" Binding="{Binding RegistryLocation}" Width="*" />
+          </DataGrid.Columns>
+        </DataGrid>
+      </Grid>
+    </Grid>
+
+    <!-- ========================================================================= -->
+    <!-- ВКЛАДКА 3: ПОИСК ДУБЛЕЙ SHA-256 + ОСВОБОЖДЕНИЕ СИСТЕМНЫХ ГИГАБАЙТОВ C:\   -->
+    <!-- ========================================================================= -->
+    <Grid Grid.Row="1"
+          Margin="12,10"
+          Visibility="{Binding IsDuplicatesAndSpaceTab, Converter={StaticResource BoolToVis}}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="1.45*" />
+        <ColumnDefinition Width="12" />
+        <ColumnDefinition Width="1*" />
+      </Grid.ColumnDefinitions>
+
+      <!-- Левая панель: Трехступенчатый Поиск Дублей SHA-256 -->
+      <Grid Grid.Column="0">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="12,10" Margin="0,0,0,8">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="110" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox Grid.Column="0" Text="{Binding DuplicateTargetPath, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,6,0" />
+            <Button Grid.Column="1" Style="{StaticResource CompactButtonStyle}" Command="{Binding BrowseDuplicateFolderCommand}" Content="Папка..." Margin="0,0,6,0" />
+            <ComboBox Grid.Column="2" SelectedIndex="{Binding SelectedMinSizeIndex}" Margin="0,0,6,0">
+              <ComboBoxItem Content="от 64 КБ" />
+              <ComboBoxItem Content="от 1 МБ" />
+              <ComboBoxItem Content="от 10 МБ" />
+              <ComboBoxItem Content="от 50 МБ" />
+            </ComboBox>
+            <Button Grid.Column="3" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ScanDuplicatesCommand}" Content="Найти дубли" />
+          </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="12,8" Margin="0,0,0,8">
+          <DockPanel>
+            <Button DockPanel.Dock="Right"
+                    Style="{StaticResource DangerButtonStyle}"
+                    Padding="12,5"
+                    Command="{Binding RecycleSelectedDuplicatesCommand}"
+                    Content="Удалить копии в Корзину"
+                    Margin="10,0,0,0" />
+            <TextBlock Text="{Binding DuplicateStatusText}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
+          </DockPanel>
+        </Border>
+
+        <DataGrid Grid.Row="2" ItemsSource="{Binding DuplicateItems}">
+          <DataGrid.Columns>
+            <DataGridTemplateColumn Header="✓" Width="40">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" />
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTextColumn Header="Статус" Binding="{Binding RoleBadge}" Width="140" />
+            <DataGridTextColumn Header="Имя файла" Binding="{Binding FileName}" Width="165" />
+            <DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="88" />
+            <DataGridTextColumn Header="SHA-256" Binding="{Binding GroupShortHash}" Width="105" />
+            <DataGridTextColumn Header="Папка" Binding="{Binding DirectoryPath}" Width="*" />
+          </DataGrid.Columns>
+        </DataGrid>
+      </Grid>
+
+      <!-- Правая панель: Освобождение крупных системных резервов C:\ -->
+      <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}">
+        <DockPanel>
+          <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <Button DockPanel.Dock="Right" Style="{StaticResource CompactButtonStyle}"
+                    Command="{Binding RefreshSystemReservesCommand}" Content="Обновить" />
+            <TextBlock Text="Системные резервы C:\" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+          </DockPanel>
+
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding SystemReserves}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                          BorderBrush="{DynamicResource CardBorderBrush}"
+                          BorderThickness="1"
+                          CornerRadius="6"
+                          Padding="12,10"
+                          Margin="0,0,0,8">
+                    <StackPanel>
+                      <DockPanel>
+                        <TextBlock DockPanel.Dock="Right"
+                                   Text="{Binding FormattedSize}"
+                                   FontSize="13"
+                                   FontWeight="Bold"
+                                   Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Text="{Binding Title}" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+                      </DockPanel>
+                      <TextBlock Text="{Binding Description}"
+                                 FontSize="11.5"
+                                 Foreground="{DynamicResource TextSecondaryBrush}"
+                                 TextWrapping="Wrap"
+                                 Margin="0,4,0,8" />
+                      <Button Style="{StaticResource SecondaryButtonStyle}"
+                              HorizontalAlignment="Left"
+                              Padding="11,5"
+                              FontSize="11.5"
+                              IsEnabled="{Binding CanActionReclaim}"
+                              Command="{Binding ExecuteCommand}"
+                              Content="{Binding ActionButtonLabel}" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

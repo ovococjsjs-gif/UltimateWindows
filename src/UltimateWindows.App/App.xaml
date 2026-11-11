@@ -12,6 +12,9 @@
 
       <infra:BoolToVisibilityConverterEx x:Key="BoolToVis" Invert="False" />
       <infra:BoolToVisibilityConverterEx x:Key="InverseBoolToVis" Invert="True" />
+      <infra:PercentToBarWidthConverter x:Key="PctToWidth" MaxPixels="88" />
+      <infra:HexToSolidBrushConverter x:Key="HexToBrush" />
+      <infra:IntEqualsConverter x:Key="IntEq" />
     </ResourceDictionary>
   </Application.Resources>
 </Application>

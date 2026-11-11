@@ -27,7 +27,7 @@ public sealed class PeIssueItemViewModel : ObservableObject
     public bool CanQuarantineConflictingLocalDll => Issue.CanQuarantineConflictingLocalDll;
     public bool CanInstallOfficialRuntime => Issue.CanInstallOfficialRuntime;
     public string InstallButtonLabel => Issue.RecommendedPackage is not null
-        ? $"📥 Установить «{Issue.RecommendedPackage.FriendlyName}»"
+        ? $"Установить «{Issue.RecommendedPackage.FriendlyName}»"
         : "Установить пакет";
 
     public ICommand QuarantineCommand { get; }
@@ -59,7 +59,6 @@ public sealed class RepairPlaybookItemViewModel : ObservableObject
     }
 
     public RepairPlaybookDescriptor Descriptor { get; }
-    public string IconGlyph => Descriptor.IconGlyph;
     public string FriendlyTitle => Descriptor.FriendlyTitle;
     public string FriendlyDescription => Descriptor.FriendlyDescription;
     public string ExpertCommandsPreview => Descriptor.ExpertCommandsPreview;
@@ -67,18 +66,16 @@ public sealed class RepairPlaybookItemViewModel : ObservableObject
     public ICommand RunPlaybookCommand { get; }
 }
 
-/// <summary>
-/// ViewModel экрана Фазы 3 «Доктор библиотек DLL (0xC000007B), расшифровка BSOD и лечение ОС».
-/// </summary>
 public sealed class RepairStudioViewModel : ObservableObject
 {
     private readonly SystemRepairService _repairService;
     private readonly Func<string, Task> _onActionCompletedAsync;
 
+    private int _selectedSubTabIndex;
     private string _targetExecutablePath = @"C:\Windows\System32\notepad.exe";
-    private string _peDiagnosisHeadline = "Выберите не запускающийся .exe файл игры или программы — Доктор проверит разрядность всех DLL (ошибка 0xC000007B) и подберет официальные пакеты Microsoft.";
-    private string _targetArchitectureBadge = "Ожидание выбора .exe";
-    private string _bsodScanHeadline = "Нажмите «Проверить синие экраны и сбои», чтобы расшифровать файлы C:\\Windows\\Minidump и последние сбои из Журнала событий.";
+    private string _peDiagnosisHeadline = "Выберите проблемный .exe файл игры или программы — Доктор проверит разрядность всех импортируемых DLL (0xC000007B) и подберет официальный пакет Microsoft.";
+    private string _targetArchitectureBadge = "Готов к анализу";
+    private string _bsodScanHeadline = "Нажмите «Проверить синие экраны и сбои», чтобы расшифровать минидампы C:\\Windows\\Minidump и журнал событий.";
     private string _lastRepairActionBanner = "";
     private string _lastRepairTechnicalLog = "";
 
@@ -95,6 +92,10 @@ public sealed class RepairStudioViewModel : ObservableObject
         CrashEvents = new ObservableCollection<SystemCrashEventEntry>();
         Playbooks = new ObservableCollection<RepairPlaybookItemViewModel>();
 
+        SelectSubTabCommand = new RelayCommand(p =>
+        {
+            if (p is string s && int.TryParse(s, out var idx)) SelectedSubTabIndex = idx;
+        });
         BrowseExecutableCommand = new RelayCommand(_ => BrowseForExecutable());
         DiagnoseExecutableCommand = new RelayCommand(_ => RunExecutableDiagnosis());
         ScanBsodAndCrashesCommand = new AsyncRelayCommand(_ => ScanBsodAndCrashLogsAsync());
@@ -122,53 +123,46 @@ public sealed class RepairStudioViewModel : ObservableObject
     public ObservableCollection<SystemCrashEventEntry> CrashEvents { get; }
     public ObservableCollection<RepairPlaybookItemViewModel> Playbooks { get; }
 
-    public string TargetExecutablePath
+    public int SelectedSubTabIndex
     {
-        get => _targetExecutablePath;
-        set => SetProperty(ref _targetExecutablePath, value);
+        get => _selectedSubTabIndex;
+        set
+        {
+            if (SetProperty(ref _selectedSubTabIndex, value))
+            {
+                OnPropertyChanged(nameof(IsPlaybooksTab));
+                OnPropertyChanged(nameof(IsPeDoctorTab));
+                OnPropertyChanged(nameof(IsBsodTab));
+            }
+        }
     }
 
-    public string PeDiagnosisHeadline
-    {
-        get => _peDiagnosisHeadline;
-        private set => SetProperty(ref _peDiagnosisHeadline, value);
-    }
+    public bool IsPlaybooksTab => SelectedSubTabIndex == 0;
+    public bool IsPeDoctorTab => SelectedSubTabIndex == 1;
+    public bool IsBsodTab => SelectedSubTabIndex == 2;
 
-    public string TargetArchitectureBadge
-    {
-        get => _targetArchitectureBadge;
-        private set => SetProperty(ref _targetArchitectureBadge, value);
-    }
-
-    public string BsodScanHeadline
-    {
-        get => _bsodScanHeadline;
-        private set => SetProperty(ref _bsodScanHeadline, value);
-    }
+    public string TargetExecutablePath { get => _targetExecutablePath; set => SetProperty(ref _targetExecutablePath, value); }
+    public string PeDiagnosisHeadline { get => _peDiagnosisHeadline; private set => SetProperty(ref _peDiagnosisHeadline, value); }
+    public string TargetArchitectureBadge { get => _targetArchitectureBadge; private set => SetProperty(ref _targetArchitectureBadge, value); }
+    public string BsodScanHeadline { get => _bsodScanHeadline; private set => SetProperty(ref _bsodScanHeadline, value); }
 
     public string LastRepairActionBanner
     {
         get => _lastRepairActionBanner;
         private set
         {
-            if (SetProperty(ref _lastRepairActionBanner, value))
-            {
-                OnPropertyChanged(nameof(HasRepairActionBanner));
-            }
+            if (SetProperty(ref _lastRepairActionBanner, value)) OnPropertyChanged(nameof(HasRepairActionBanner));
         }
     }
 
-    public string LastRepairTechnicalLog
-    {
-        get => _lastRepairTechnicalLog;
-        private set => SetProperty(ref _lastRepairTechnicalLog, value);
-    }
+    public string LastRepairTechnicalLog { get => _lastRepairTechnicalLog; private set => SetProperty(ref _lastRepairTechnicalLog, value); }
 
     public bool HasRepairActionBanner => !string.IsNullOrWhiteSpace(LastRepairActionBanner);
     public bool HasDependencyIssues => DependencyIssues.Count > 0;
     public bool HasMinidumps => Minidumps.Count > 0;
     public bool HasCrashEvents => CrashEvents.Count > 0;
 
+    public ICommand SelectSubTabCommand { get; }
     public ICommand BrowseExecutableCommand { get; }
     public ICommand DiagnoseExecutableCommand { get; }
     public ICommand ScanBsodAndCrashesCommand { get; }
@@ -177,7 +171,7 @@ public sealed class RepairStudioViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(TargetExecutablePath) || !File.Exists(TargetExecutablePath))
         {
-            PeDiagnosisHeadline = "⚠️ Указанный .exe файл не найден. Выберите существующий файл программы или игры.";
+            PeDiagnosisHeadline = "Указанный .exe файл не найден. Выберите существующий файл программы или игры.";
             return;
         }
 
@@ -209,37 +203,26 @@ public sealed class RepairStudioViewModel : ObservableObject
         BsodScanHeadline = "Анализ системных минидампов C:\\Windows\\Minidump и критических событий Windows...";
         try
         {
-            var (dumps, events) = await _repairService.ScanBsodAndCrashHistoryAsync(maxItems: 15);
+            var (dumps, events) = await _repairService.ScanBsodAndCrashHistoryAsync(maxItems: 20);
 
             Minidumps.Clear();
-            foreach (var d in dumps)
-            {
-                Minidumps.Add(d);
-            }
+            foreach (var d in dumps) Minidumps.Add(d);
 
             CrashEvents.Clear();
-            foreach (var ev in events)
-            {
-                CrashEvents.Add(ev);
-            }
+            foreach (var ev in events) CrashEvents.Add(ev);
 
             OnPropertyChanged(nameof(HasMinidumps));
             OnPropertyChanged(nameof(HasCrashEvents));
 
-            if (dumps.Count == 0 && events.Count == 0)
-            {
-                BsodScanHeadline = "✅ За последнее время синих экранов (BSOD) и критических падений программ не зафиксировано.";
-            }
-            else
-            {
-                BsodScanHeadline = $"Найдено минидампов BSOD: {dumps.Count} • Записей о сбоях в журнале Windows: {events.Count}.";
-            }
+            BsodScanHeadline = dumps.Count == 0 && events.Count == 0
+                ? "Синих экранов (BSOD) и критических падений программ за последнее время не обнаружено."
+                : $"Найдено минидампов BSOD: {dumps.Count} • Записей сбоев в журнале: {events.Count}.";
 
             await _onActionCompletedAsync(BsodScanHeadline);
         }
         catch (Exception ex)
         {
-            BsodScanHeadline = $"Не удалось прочитать журналы сбоев: {ex.Message}";
+            BsodScanHeadline = $"Ошибка чтения журналов сбоев: {ex.Message}";
         }
     }
 
@@ -267,17 +250,13 @@ public sealed class RepairStudioViewModel : ObservableObject
         LastRepairActionBanner = res.UserFriendlySummary;
         LastRepairTechnicalLog = res.TechnicalLogOutput;
 
-        if (res.Succeeded)
-        {
-            RunExecutableDiagnosis();
-        }
-
+        if (res.Succeeded) RunExecutableDiagnosis();
         await _onActionCompletedAsync(res.UserFriendlySummary);
     }
 
     private async Task InstallRuntimePackageAsync(OfficialRuntimePackage package)
     {
-        LastRepairActionBanner = $"Идет тихая установка официального пакета «{package.FriendlyName}» через winget...";
+        LastRepairActionBanner = $"Установка официального пакета «{package.FriendlyName}» через winget...";
         LastRepairTechnicalLog = $"winget install --exact --id {package.WingetPackageId}";
 
         var res = await _repairService.InstallOfficialRuntimeAsync(package);

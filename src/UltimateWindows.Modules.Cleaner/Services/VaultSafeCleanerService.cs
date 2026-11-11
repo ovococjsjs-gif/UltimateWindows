@@ -73,11 +73,36 @@ public class DefaultCleanerPlatformBridge : ICleanerPlatformBridge
 
     public virtual Task<bool> EmptyRecycleBinAsync(CancellationToken ct = default)
         => Task.FromResult(false);
+
+    public virtual Task<bool> SendPathToRecycleBinAsync(string fullPath, CancellationToken ct = default)
+    {
+        try
+        {
+            if (File.Exists(fullPath))
+            {
+                File.Delete(fullPath);
+                return Task.FromResult(true);
+            }
+
+            if (Directory.Exists(fullPath))
+            {
+                Directory.Delete(fullPath, recursive: true);
+                return Task.FromResult(true);
+            }
+        }
+        catch
+        {
+            // Ignore
+        }
+
+        return Task.FromResult(false);
+    }
 }
 
 /// <summary>
 /// Главный сервис Фазы 2: Бережная очистка диска и браузеров (с защитой паролей и автозаполнения),
-/// верифицированная гигиена реестра с записью микро-отката в Машину времени и быстрый анализ места.
+/// многокатегорийная гигиена реестра с записью микро-отката в Машину времени, WizTree-анализатор диска,
+/// поиск точных дубликатов SHA-256 и освобождение системных гигабайт.
 /// </summary>
 public sealed class VaultSafeCleanerService
 {
@@ -86,6 +111,8 @@ public sealed class VaultSafeCleanerService
     private readonly BrowserCacheScanner _browserScanner;
     private readonly SystemJunkScanner _systemJunkScanner;
     private readonly FastDiskSpaceAnalyzer _diskAnalyzer;
+    private readonly DuplicateFileFinder _duplicateFinder;
+    private readonly SystemSpaceReclaimer _spaceReclaimer;
 
     public VaultSafeCleanerService(
         IVaultService vaultService,
@@ -99,7 +126,11 @@ public sealed class VaultSafeCleanerService
         _browserScanner = browserScanner ?? new BrowserCacheScanner(_platformBridge);
         _systemJunkScanner = systemJunkScanner ?? new SystemJunkScanner();
         _diskAnalyzer = diskAnalyzer ?? new FastDiskSpaceAnalyzer();
+        _duplicateFinder = new DuplicateFileFinder();
+        _spaceReclaimer = new SystemSpaceReclaimer();
     }
+
+    public IReadOnlyList<DiskVolumeSummary> GetMountedVolumes() => FastDiskSpaceAnalyzer.GetReadyVolumes();
 
     /// <summary>
     /// Выполняет быстрое неразрушающее сканирование (Dry-Run Предпросмотр) без удаления ни единого байта.
@@ -118,33 +149,50 @@ public sealed class VaultSafeCleanerService
             browserWarnings.AddRange(warnings);
         }
 
-        var sysJunk = await Task.Run(() => _systemJunkScanner.ScanSystemJunk(options, ct), ct).ConfigureAwait(false);
-        allFiles.AddRange(sysJunk);
+        if (options.CleanSystemTempAndShaders || options.IncludeDeveloperCaches)
+        {
+            var sysFiles = await Task.Run(() => _systemJunkScanner.ScanSystemJunk(
+                includeSystemTempAndShaders: options.CleanSystemTempAndShaders,
+                includeDeveloperCaches: options.IncludeDeveloperCaches,
+                minimumTempAgeHours: options.MinimumTempFileAgeHours,
+                ct: ct), ct).ConfigureAwait(false);
+            allFiles.AddRange(sysFiles);
+        }
+
+        if (options.PreservePasswordsAndAutofill)
+        {
+            allFiles.RemoveAll(f => BrowserVaultGuard.IsProtectedPersonalData(f.FullPath));
+        }
 
         IReadOnlyList<RegistryOrphanCandidate> regOrphans = Array.Empty<RegistryOrphanCandidate>();
         if (options.CleanRegistryOrphans)
         {
             var rawOrphans = await _platformBridge.ScanVerifiedRegistryOrphansAsync(ct).ConfigureAwait(false);
-            // Дополнительный инвариант: отсекаем любые запрещенные ветки COM/WinRT/CLSID!
-            regOrphans = rawOrphans
-                .Where(o => !CommandLinePathExtractor.IsForbiddenComOrSystemRegistryKey($@"{o.HiveName}\{o.SubKeyPath}"))
-                .ToList();
+            var safeFiltered = rawOrphans
+                .Where(r => !CommandLinePathExtractor.IsForbiddenComOrSystemRegistryKey($@"{r.HiveName}\{r.SubKeyPath}"));
+
+            if (options.EnabledRegistryCategories is { Count: > 0 } allowedSet)
+            {
+                safeFiltered = safeFiltered.Where(r => allowedSet.Contains(r.Kind));
+            }
+
+            regOrphans = safeFiltered.ToList();
         }
 
         long recycleBytes = 0;
-        int recycleCount = 0;
+        int recycleItems = 0;
         if (options.EmptyRecycleBin)
         {
-            (recycleBytes, recycleCount) = await _platformBridge.QueryRecycleBinSizeAsync(ct).ConfigureAwait(false);
+            (recycleBytes, recycleItems) = await _platformBridge.QueryRecycleBinSizeAsync(ct).ConfigureAwait(false);
         }
 
-        var categories = BuildCategorySummaries(allFiles, regOrphans, options.EmptyRecycleBin, recycleBytes, recycleCount);
-        var totalBytes = allFiles.Sum(f => f.SizeBytes) + recycleBytes;
+        var categories = BuildCategorySummaries(allFiles, regOrphans, options.EmptyRecycleBin, recycleBytes, recycleItems);
+        var totalBytes = allFiles.Sum(f => f.SizeBytes) + (options.EmptyRecycleBin ? recycleBytes : 0);
 
         return new CleanupScanReport(
             ScannedAtUtc: DateTimeOffset.UtcNow,
             TotalReclaimableBytes: totalBytes,
-            TotalFilesCount: allFiles.Count + recycleCount,
+            TotalFilesCount: allFiles.Count + (options.EmptyRecycleBin ? recycleItems : 0),
             TotalRegistryOrphansCount: regOrphans.Count,
             PasswordsAndAutofillProtected: options.PreservePasswordsAndAutofill,
             RunningBrowserWarnings: browserWarnings,
@@ -153,11 +201,78 @@ public sealed class VaultSafeCleanerService
             RegistryOrphans: regOrphans);
     }
 
+    public async Task<IReadOnlyList<RegistryOrphanCandidate>> ScanRegistryCategoriesAsync(
+        IReadOnlySet<RegistryOrphanKind> selectedCategories,
+        CancellationToken ct = default)
+    {
+        var raw = await _platformBridge.ScanVerifiedRegistryOrphansAsync(ct).ConfigureAwait(false);
+        return raw
+            .Where(r => !CommandLinePathExtractor.IsForbiddenComOrSystemRegistryKey($@"{r.HiveName}\{r.SubKeyPath}"))
+            .Where(r => selectedCategories.Count == 0 || selectedCategories.Contains(r.Kind))
+            .ToList();
+    }
+
+    public async Task<(int FixedCount, Guid? RollbackSessionId, string Message)> FixSelectedRegistryOrphansAsync(
+        IReadOnlyList<RegistryOrphanCandidate> selectedOrphans,
+        CancellationToken ct = default)
+    {
+        if (selectedOrphans.Count == 0)
+        {
+            return (0, null, "Не выбрано ни одной записи реестра для исправления.");
+        }
+
+        var safeList = selectedOrphans
+            .Where(o => !CommandLinePathExtractor.IsForbiddenComOrSystemRegistryKey($@"{o.HiveName}\{o.SubKeyPath}"))
+            .ToList();
+
+        if (safeList.Count == 0)
+        {
+            return (0, null, "Все выбранные записи защищены системным фильтром.");
+        }
+
+        await using var tx = _vaultService.BeginTransaction(
+            SystemDomain.SmartCleaner,
+            friendlyTitle: $"Исправление проблем реестра ({safeList.Count} шт.)",
+            friendlySummary: "Очищены устаревшие ссылки на удаленные файлы и приложения. Полная резервная копия сохранена в Машине времени.",
+            technicalDetails: string.Join("; ", safeList.Take(12).Select(r => r.FullRegistryDisplayPath)));
+
+        foreach (var orphan in safeList)
+        {
+            var snapshotJson = JsonSerializer.Serialize(new
+            {
+                Hive = orphan.HiveName,
+                SubKey = orphan.SubKeyPath,
+                ValueName = orphan.ValueName,
+                ExistedBefore = true,
+                ValueKind = orphan.RegistryValueKindCode,
+                SerializedData = orphan.PreviousValueSerialized
+            });
+
+            tx.RecordStateDelta(
+                StateTargetKind.RegistryValue,
+                orphan.FullRegistryDisplayPath,
+                previousStateJson: snapshotJson,
+                newStateJson: null);
+        }
+
+        var fixedCount = await _platformBridge.DeleteVerifiedRegistryOrphansAsync(safeList, ct).ConfigureAwait(false);
+        Guid? sessionId = null;
+        if (fixedCount > 0)
+        {
+            var committed = await tx.CommitAsync(ct: ct).ConfigureAwait(false);
+            sessionId = committed.SessionId;
+        }
+
+        return (
+            fixedCount,
+            sessionId,
+            fixedCount > 0
+                ? $"Исправлено записей реестра: {fixedCount} (точка отката сохранена в Машину времени)."
+                : "Записи требуют прав Администратора или уже были исправлены.");
+    }
+
     /// <summary>
-    /// Безопасно очищает найденные в отчете элементы:
-    /// 1) Проверяет каждый файл через BrowserVaultGuard (жесткая защита паролей и форм!);
-    /// 2) Аккуратно пропускает занятые открытыми программами файлы без сбоев;
-    /// 3) Записывает все очищаемые сироты реестра в единую компактную транзакцию Zero-Bloat Vault для отката в 1 клик!
+    /// Безопасно выполняет очистку по ранее подтвержденному отчету предпросмотра.
     /// </summary>
     public async Task<CleanupExecutionResult> ExecuteCleanupAsync(
         CleanupScanReport report,
@@ -175,10 +290,10 @@ public sealed class VaultSafeCleanerService
         {
             ct.ThrowIfCancellationRequested();
 
-            // Финальный барьер безопасности перед каждым File.Delete!
-            if (options.PreservePasswordsAndAutofill)
+            if (options.PreservePasswordsAndAutofill && BrowserVaultGuard.IsProtectedPersonalData(file.FullPath))
             {
-                BrowserVaultGuard.ThrowIfProtected(file.FullPath);
+                throw new InvalidOperationException(
+                    $"АВАРИЙНАЯ БЛОКИРОВКА BrowserVaultGuard: попытка затронуть защищенные личные данные '{file.FullPath}' пресечена.");
             }
 
             if (!File.Exists(file.FullPath))
@@ -223,43 +338,9 @@ public sealed class VaultSafeCleanerService
 
         if (options.CleanRegistryOrphans && report.RegistryOrphans.Count > 0)
         {
-            await using var tx = _vaultService.BeginTransaction(
-                SystemDomain.SmartCleaner,
-                friendlyTitle: $"Безопасная гигиена реестра ({report.RegistryOrphans.Count} устаревших ссылок)",
-                friendlySummary: "Очищены ссылки на давно удаленные программы в автозагрузке, кэше имен и правилах совместимости. Можно вернуть в 1 клик.",
-                technicalDetails: string.Join("; ", report.RegistryOrphans.Take(10).Select(r => r.FullRegistryDisplayPath)));
-
-            foreach (var orphan in report.RegistryOrphans)
-            {
-                if (CommandLinePathExtractor.IsForbiddenComOrSystemRegistryKey($@"{orphan.HiveName}\{orphan.SubKeyPath}"))
-                {
-                    continue;
-                }
-
-                // Совместимый формат со структурой RegistryValueSnapshot в WindowsSystemStateApplier!
-                var snapshotJson = JsonSerializer.Serialize(new
-                {
-                    Hive = orphan.HiveName,
-                    SubKey = orphan.SubKeyPath,
-                    ValueName = orphan.ValueName,
-                    ExistedBefore = true,
-                    ValueKind = orphan.RegistryValueKindCode,
-                    SerializedData = orphan.PreviousValueSerialized
-                });
-
-                tx.RecordStateDelta(
-                    StateTargetKind.RegistryValue,
-                    orphan.FullRegistryDisplayPath,
-                    previousStateJson: snapshotJson,
-                    newStateJson: null);
-            }
-
-            cleanedRegCount = await _platformBridge.DeleteVerifiedRegistryOrphansAsync(report.RegistryOrphans, ct).ConfigureAwait(false);
-            if (cleanedRegCount > 0)
-            {
-                var committed = await tx.CommitAsync(ct: ct).ConfigureAwait(false);
-                rollbackSessionId = committed.SessionId;
-            }
+            var (fixedReg, sid, _) = await FixSelectedRegistryOrphansAsync(report.RegistryOrphans, ct).ConfigureAwait(false);
+            cleanedRegCount = fixedReg;
+            rollbackSessionId = sid;
         }
 
         var regPart = cleanedRegCount > 0 ? $", исправлено {cleanedRegCount} сирот реестра (точка отката сохранена)" : "";
@@ -277,10 +358,61 @@ public sealed class VaultSafeCleanerService
 
     public Task<DiskSpaceAnalysisReport> AnalyzeDiskSpaceAsync(
         string rootPath,
-        int topDirectoryLimit = 12,
-        int largestFilesLimit = 15,
+        int topDirectoryLimit = 25,
+        int largestFilesLimit = 150,
         CancellationToken ct = default)
         => _diskAnalyzer.AnalyzeDirectoryOrDriveAsync(rootPath, topDirectoryLimit, largestFilesLimit, ct);
+
+    public Task<DuplicateScanReport> FindExactDuplicatesAsync(
+        string rootPath,
+        long minFileSizeBytes = 1024 * 1024,
+        int maxGroups = 150,
+        CancellationToken ct = default)
+        => _duplicateFinder.FindExactDuplicatesAsync(rootPath, minFileSizeBytes, maxGroups, ct);
+
+    public Task<IReadOnlyList<SystemSpaceReserveItem>> InspectSystemReservesAsync(CancellationToken ct = default)
+        => _spaceReclaimer.InspectSystemReservesAsync(ct);
+
+    public Task<(bool Succeeded, string Message)> ExecuteSystemReserveActionAsync(
+        SystemSpaceReserveItem item,
+        CancellationToken ct = default)
+        => _spaceReclaimer.ExecuteReserveActionAsync(item, ct);
+
+    public async Task<(bool Succeeded, string Message)> SafeSendToRecycleBinAsync(
+        string targetPath,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(targetPath))
+        {
+            return (false, "Путь не указан.");
+        }
+
+        var full = Path.GetFullPath(targetPath);
+
+        // Запрещаем удалять корни дисков, папку Windows и защищенные хранилища паролей
+        var root = Path.GetPathRoot(full);
+        if (string.Equals(full.TrimEnd('\\'), root?.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+        {
+            return (false, "Удаление корневого раздела диска заблокировано.");
+        }
+
+        var winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        if (!string.IsNullOrWhiteSpace(winDir) &&
+            full.StartsWith(winDir, StringComparison.OrdinalIgnoreCase))
+        {
+            return (false, "Защита ОС: удаление файлов напрямую из системного каталога Windows заблокировано.");
+        }
+
+        if (BrowserVaultGuard.IsProtectedPersonalData(full))
+        {
+            return (false, "BrowserVaultGuard: этот файл содержит защищенные пароли или личные данные браузера.");
+        }
+
+        var ok = await _platformBridge.SendPathToRecycleBinAsync(full, ct).ConfigureAwait(false);
+        return ok
+            ? (true, $"Перемещено в Корзину Windows: {Path.GetFileName(full.TrimEnd('\\'))}")
+            : (false, "Не удалось переместить элемент в Корзину (возможно, файл занят открытой программой).");
+    }
 
     private static IReadOnlyList<CleanupCategorySummary> BuildCategorySummaries(
         List<CleanupCandidateFile> files,
@@ -312,9 +444,9 @@ public sealed class VaultSafeCleanerService
         {
             list.Add(new CleanupCategorySummary(
                 Category: CleanerCategoryKind.RecycleBin,
-                IconGlyph: "🗑️",
+                IconGlyph: "RB",
                 FriendlyTitle: "Корзина Windows",
-                FriendlyDescription: "Ранее удаленные вами файлы, ожидающие окончательной очистки.",
+                FriendlyDescription: "Ранее удаленные файлы в Корзине, ожидающие окончательной очистки.",
                 TotalBytes: recycleBytes,
                 ItemCount: recycleItems,
                 SamplePathsForExpert: ["Shell32 SHQueryRecycleBinW / SHEmptyRecycleBinW"]));
@@ -324,12 +456,12 @@ public sealed class VaultSafeCleanerService
         {
             list.Add(new CleanupCategorySummary(
                 Category: CleanerCategoryKind.VerifiedRegistryOrphans,
-                IconGlyph: "🧬",
-                FriendlyTitle: "Безопасная гигиена реестра (удаленные программы)",
-                FriendlyDescription: "Только 100% проверенные ссылки на несуществующие локальные .exe файлы (без затрагивания системных классов COM/WinRT).",
+                IconGlyph: "REG",
+                FriendlyTitle: "Гигиена реестра (удаленные программы)",
+                FriendlyDescription: "Проверенные ссылки на несуществующие локальные файлы без затрагивания системных классов COM/WinRT.",
                 TotalBytes: 0,
                 ItemCount: regOrphans.Count,
-                SamplePathsForExpert: regOrphans.Take(10).Select(r => $"{r.FullRegistryDisplayPath} -> нет файла '{r.MissingReferencedFilePath}'").ToList()));
+                SamplePathsForExpert: regOrphans.Take(10).Select(r => $"{r.FullRegistryDisplayPath} -> нет '{r.MissingReferencedFilePath}'").ToList()));
         }
 
         return list;
@@ -338,29 +470,29 @@ public sealed class VaultSafeCleanerService
     private static (string Icon, string Title, string Desc) DescribeCategory(CleanerCategoryKind kind) => kind switch
     {
         CleanerCategoryKind.BrowserCache => (
-            "🌐",
-            "Кэш браузеров (Пароли и формы под замком 🔒)",
-            "Временные картинки, скрипты и кэш шейдеров страниц без выхода из аккаунтов и без удаления паролей."),
+            "WEB",
+            "Кэш браузеров (пароли и формы под защитой)",
+            "Временные изображения, скрипты и кэш шейдеров страниц без выхода из аккаунтов и потери паролей."),
         CleanerCategoryKind.SystemTemp => (
-            "🗂️",
+            "TMP",
             "Временные файлы Windows и программ (старше 24 ч)",
-            "Отработанные временные файлы установщиков и системы. Свежие рабочие файлы за последние сутки не затрагиваются."),
+            "Отработанные временные файлы установщиков и ОС."),
         CleanerCategoryKind.GpuShaderCache => (
-            "🎮",
-            "Старый кэш шейдеров видеокарты (DirectX / NVIDIA / AMD)",
-            "Накопленные кэши старых игр и прошлых версий видеодрайверов. Освобождает гигабайты и помогает убрать статтеры."),
+            "GPU",
+            "Кэш шейдеров видеокарты (DirectX / NVIDIA / AMD)",
+            "Накопленные кэши прошлых версий видеодрайверов и старых игр."),
         CleanerCategoryKind.WindowsErrorReports => (
-            "📋",
-            "Архивы старых отчетов об ошибках (WER)",
-            "Отправленные или устаревшие диагностические отчеты о сбоях программ."),
+            "WER",
+            "Отчеты об ошибках и дампы сбоев (WER)",
+            "Архивные диагностические отчеты о закрытии программ."),
         CleanerCategoryKind.WindowsUpdateCache => (
-            "📦",
-            "Устаревший кэш загрузок Центра обновления",
-            "Скачанные установочные пакеты прошлых обновлений Windows (старше 48 часов)."),
+            "WU",
+            "Кэш загрузок Центра обновления",
+            "Установочные пакеты уже примененных прошлых обновлений Windows."),
         CleanerCategoryKind.DeveloperPackageCache => (
-            "🛠️",
-            "Кэш скачанных пакетов разработчика (pip / npm / NuGet)",
-            "Локальные копии архивов библиотек, которые при необходимости скачиваются заново."),
-        _ => ("🧹", "Временные данные", "Безопасные для удаления временные файлы.")
+            "DEV",
+            "Кэш пакетов разработчика (pip / npm / NuGet)",
+            "Локальные копии архивов библиотек разработки."),
+        _ => ("CLN", "Временные данные", "Безопасные для удаления временные файлы.")
     };
 }

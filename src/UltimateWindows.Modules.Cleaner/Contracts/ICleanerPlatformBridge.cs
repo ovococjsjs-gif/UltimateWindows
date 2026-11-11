@@ -5,7 +5,7 @@ namespace UltimateWindows.Modules.Cleaner.Contracts;
 /// <summary>
 /// Платформенный мост для специфичных вызовов Windows в модуле очистки:
 /// проверка запущенных браузеров (Restart Manager / процессы), безопасный поиск сирот реестра,
-/// очистка Корзины и быстрый обход тома NTFS ($MFT / USN).
+/// очистка Корзины и отправка выбранных элементов в Корзину Windows (Shell32).
 /// </summary>
 public interface ICleanerPlatformBridge
 {
@@ -22,4 +22,6 @@ public interface ICleanerPlatformBridge
     Task<(long RecycleBinBytes, int RecycleBinItems)> QueryRecycleBinSizeAsync(CancellationToken ct = default);
 
     Task<bool> EmptyRecycleBinAsync(CancellationToken ct = default);
+
+    Task<bool> SendPathToRecycleBinAsync(string fullPath, CancellationToken ct = default);
 }

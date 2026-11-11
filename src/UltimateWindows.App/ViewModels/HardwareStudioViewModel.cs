@@ -31,18 +31,20 @@ public sealed class HardwareStudioViewModel : ObservableObject
     private readonly Func<string, Task> _onActionCompletedAsync;
     private CancellationTokenSource? _stressCts;
 
+    private int _selectedSubTabIndex;
     private int _hardwareScore = 100;
+    private string _shortMachineSpecLine = "Определение конфигурации ПК...";
     private string _cpuSummary = "Сканирование процессора...";
     private string _cpuExpert = "";
-    private string _boardSummary = "Сканирование материнской платы и BIOS...";
+    private string _boardSummary = "Сканирование платы и BIOS...";
     private string _boardExpert = "";
     private string _memorySummary = "Сканирование оперативной памяти...";
     private string _memoryExpert = "";
-    private string _gpuSummary = "Сканирование видеоподсистемы...";
+    private string _gpuSummary = "Сканирование видеокарты...";
     private string _gpuExpert = "";
-    private string _storageSummary = "Чтение паспорта дисков и S.M.A.R.T....";
+    private string _storageSummary = "Чтение S.M.A.R.T. накопителей...";
     private string _storageExpert = "";
-    private string _displaySummary = "Проверка мониторов и частоты обновления...";
+    private string _displaySummary = "Проверка мониторов и Гц...";
     private string _displayExpert = "";
 
     private int _stressDurationSeconds = 10;
@@ -59,78 +61,76 @@ public sealed class HardwareStudioViewModel : ObservableObject
         _onActionCompletedAsync = onActionCompletedAsync;
 
         Advisories = new ObservableCollection<AdvisoryItemViewModel>();
+        Drives = new ObservableCollection<StorageDriveSmartInfo>();
+        RamSticks = new ObservableCollection<MemoryModuleSlotInfo>();
+        Monitors = new ObservableCollection<DisplayMonitorInfo>();
 
+        SelectSubTabCommand = new RelayCommand(p =>
+        {
+            if (p is string s && int.TryParse(s, out var idx)) SelectedSubTabIndex = idx;
+        });
         RefreshHardwareCommand = new AsyncRelayCommand(_ => RefreshAuditAsync());
         StartStressTestCommand = new AsyncRelayCommand(_ => StartStressTestAsync());
         StopStressTestCommand = new RelayCommand(_ => StopStressTest());
     }
 
     public ObservableCollection<AdvisoryItemViewModel> Advisories { get; }
+    public ObservableCollection<StorageDriveSmartInfo> Drives { get; }
+    public ObservableCollection<MemoryModuleSlotInfo> RamSticks { get; }
+    public ObservableCollection<DisplayMonitorInfo> Monitors { get; }
+
+    public int SelectedSubTabIndex
+    {
+        get => _selectedSubTabIndex;
+        set
+        {
+            if (SetProperty(ref _selectedSubTabIndex, value))
+            {
+                OnPropertyChanged(nameof(IsSpecsTab));
+                OnPropertyChanged(nameof(IsDriversTab));
+                OnPropertyChanged(nameof(IsStressTab));
+            }
+        }
+    }
+
+    public bool IsSpecsTab => SelectedSubTabIndex == 0;
+    public bool IsDriversTab => SelectedSubTabIndex == 1;
+    public bool IsStressTab => SelectedSubTabIndex == 2;
 
     public bool HasNoAdvisories => Advisories.Count == 0;
-
-    public int HardwareScore
-    {
-        get => _hardwareScore;
-        private set => SetProperty(ref _hardwareScore, value);
-    }
+    public int HardwareScore { get => _hardwareScore; private set => SetProperty(ref _hardwareScore, value); }
+    public string ShortMachineSpecLine { get => _shortMachineSpecLine; private set => SetProperty(ref _shortMachineSpecLine, value); }
 
     public string CpuSummary { get => _cpuSummary; private set => SetProperty(ref _cpuSummary, value); }
     public string CpuExpert { get => _cpuExpert; private set => SetProperty(ref _cpuExpert, value); }
-
     public string BoardSummary { get => _boardSummary; private set => SetProperty(ref _boardSummary, value); }
     public string BoardExpert { get => _boardExpert; private set => SetProperty(ref _boardExpert, value); }
-
     public string MemorySummary { get => _memorySummary; private set => SetProperty(ref _memorySummary, value); }
     public string MemoryExpert { get => _memoryExpert; private set => SetProperty(ref _memoryExpert, value); }
-
     public string GpuSummary { get => _gpuSummary; private set => SetProperty(ref _gpuSummary, value); }
     public string GpuExpert { get => _gpuExpert; private set => SetProperty(ref _gpuExpert, value); }
-
     public string StorageSummary { get => _storageSummary; private set => SetProperty(ref _storageSummary, value); }
     public string StorageExpert { get => _storageExpert; private set => SetProperty(ref _storageExpert, value); }
-
     public string DisplaySummary { get => _displaySummary; private set => SetProperty(ref _displaySummary, value); }
     public string DisplayExpert { get => _displayExpert; private set => SetProperty(ref _displayExpert, value); }
 
-    public int StressDurationSeconds
-    {
-        get => _stressDurationSeconds;
-        set => SetProperty(ref _stressDurationSeconds, Math.Clamp(value, 5, 120));
-    }
-
-    public int ThermalCutoffCelsius
-    {
-        get => _thermalCutoffCelsius;
-        set => SetProperty(ref _thermalCutoffCelsius, Math.Clamp(value, 75, 95));
-    }
+    public int StressDurationSeconds { get => _stressDurationSeconds; set => SetProperty(ref _stressDurationSeconds, Math.Clamp(value, 5, 120)); }
+    public int ThermalCutoffCelsius { get => _thermalCutoffCelsius; set => SetProperty(ref _thermalCutoffCelsius, Math.Clamp(value, 75, 95)); }
 
     public bool IsStressRunning
     {
         get => _isStressRunning;
         private set
         {
-            if (SetProperty(ref _isStressRunning, value))
-            {
-                OnPropertyChanged(nameof(CanStartStress));
-            }
+            if (SetProperty(ref _isStressRunning, value)) OnPropertyChanged(nameof(CanStartStress));
         }
     }
 
     public bool CanStartStress => !IsStressRunning;
+    public string StressStatusText { get => _stressStatusText; private set => SetProperty(ref _stressStatusText, value); }
+    public string StressThroughputText { get => _stressThroughputText; private set => SetProperty(ref _stressThroughputText, value); }
 
-    public string StressStatusText
-    {
-        get => _stressStatusText;
-        private set => SetProperty(ref _stressStatusText, value);
-    }
-
-    public string StressThroughputText
-    {
-        get => _stressThroughputText;
-        private set => SetProperty(ref _stressThroughputText, value);
-    }
-
+    public ICommand SelectSubTabCommand { get; }
     public ICommand RefreshHardwareCommand { get; }
     public ICommand StartStressTestCommand { get; }
     public ICommand StopStressTestCommand { get; }
@@ -140,44 +140,45 @@ public sealed class HardwareStudioViewModel : ObservableObject
         var (snap, audit) = await _hardwareService.CaptureAndAnalyzeAsync();
         HardwareScore = audit.HardwareHealthScore;
 
-        // 1. CPU
         var coreTopology = snap.Cpu.EfficientCores > 0
-            ? $"{snap.Cpu.PhysicalCores} ядер ({snap.Cpu.PerformanceCores}P + {snap.Cpu.EfficientCores}E) / {snap.Cpu.LogicalProcessors} потоков"
+            ? $"{snap.Cpu.PhysicalCores} ядер ({snap.Cpu.PerformanceCores}P+{snap.Cpu.EfficientCores}E) / {snap.Cpu.LogicalProcessors} потоков"
             : $"{snap.Cpu.PhysicalCores} ядер / {snap.Cpu.LogicalProcessors} потоков";
         var mhzPart = snap.Cpu.BaseClockMhz > 0 ? $" • {snap.Cpu.BaseClockMhz} МГц" : "";
         CpuSummary = $"{snap.Cpu.BrandName}\n{coreTopology}{mhzPart}";
-        CpuExpert = $"Vendor={snap.Cpu.Vendor}, Family={snap.Cpu.Family}, Model={snap.Cpu.Model}, Stepping={snap.Cpu.Stepping}, L3={ByteFormatter.Format(snap.Cpu.L3CacheBytes)}, ISA=[{string.Join(", ", snap.Cpu.InstructionSets)}]";
+        CpuExpert = $"Vendor={snap.Cpu.Vendor}, Family={snap.Cpu.Family}, Model={snap.Cpu.Model}, L3={ByteFormatter.Format(snap.Cpu.L3CacheBytes)}, ISA=[{string.Join(", ", snap.Cpu.InstructionSets)}]";
 
-        // 2. Motherboard & BIOS
-        BoardSummary = $"{snap.Motherboard.BoardManufacturer} {snap.Motherboard.BoardProduct}\nBIOS: {snap.Motherboard.BiosVersion} ({snap.Motherboard.BiosReleaseDate}) • Профиль питания: {snap.ActivePowerPlan.FriendlyName}";
-        BoardExpert = $"SMBIOS v{snap.Motherboard.SmbiosMajorVersion}.{snap.Motherboard.SmbiosMinorVersion}, BiosVendor={snap.Motherboard.BiosVendor}, Scheme={snap.ActivePowerPlan.SchemeGuid}";
+        BoardSummary = $"{snap.Motherboard.BoardManufacturer} {snap.Motherboard.BoardProduct}\nBIOS: {snap.Motherboard.BiosVersion} ({snap.Motherboard.BiosReleaseDate}) • Схема: {snap.ActivePowerPlan.FriendlyName}";
+        BoardExpert = $"SMBIOS v{snap.Motherboard.SmbiosMajorVersion}.{snap.Motherboard.SmbiosMinorVersion}, BiosVendor={snap.Motherboard.BiosVendor}";
 
-        // 3. Memory
         var chanLabel = snap.Memory.IsDualOrMultiChannelActive
-            ? "Двухканальный режим активен"
-            : (snap.Memory.PopulatedSlotsCount >= 2 ? "Внимание: одноканальный режим" : "Одноканальный режим");
-        var speedPart = snap.Memory.ConfiguredSpeedMtPerSec > 0 ? $" • {snap.Memory.ConfiguredSpeedMtPerSec} МТ/с" : "";
-        MemorySummary = $"{snap.Memory.FormattedTotal} {snap.Memory.MemoryGeneration}{speedPart}\nЗанято слотов: {snap.Memory.PopulatedSlotsCount} из {Math.Max(snap.Memory.TotalSlotsCount, snap.Memory.PopulatedSlotsCount)} • {chanLabel}";
+            ? "Двухканальный режим"
+            : (snap.Memory.PopulatedSlotsCount >= 2 ? "Одноканальный режим (!)" : "Одноканальный режим");
+        var speedPart = snap.Memory.ConfiguredSpeedMtPerSec > 0 ? $" @ {snap.Memory.ConfiguredSpeedMtPerSec} МТ/с" : "";
+        MemorySummary = $"{snap.Memory.FormattedTotal} {snap.Memory.MemoryGeneration}{speedPart} (свободно {ByteFormatter.Format(snap.Memory.AvailablePhysicalBytes)})\nСлотов: {snap.Memory.PopulatedSlotsCount} из {Math.Max(snap.Memory.TotalSlotsCount, snap.Memory.PopulatedSlotsCount)} • {chanLabel}";
         MemoryExpert = snap.Memory.Modules.Count > 0
-            ? string.Join(" | ", snap.Memory.Modules.Where(m => m.IsPopulated).Select(m => $"{m.DeviceLocator}:{m.FormattedCapacity}@{m.ConfiguredSpeedMtPerSec}/{m.RatedSpeedMtPerSec}MT/s ({m.Manufacturer} {m.PartNumber})"))
+            ? string.Join(" | ", snap.Memory.Modules.Where(m => m.IsPopulated).Select(m => $"{m.DeviceLocator}: {m.FormattedCapacity} @ {m.ConfiguredSpeedMtPerSec} MT/s ({m.Manufacturer} {m.PartNumber})"))
             : $"Available={ByteFormatter.Format(snap.Memory.AvailablePhysicalBytes)}";
 
-        // 4. GPU
+        RamSticks.Clear();
+        foreach (var m in snap.Memory.Modules.Where(x => x.IsPopulated)) RamSticks.Add(m);
+
         if (snap.Gpus.Count > 0)
         {
             var g = snap.Gpus[0];
-            var tempPart = g.CoreTemperatureC.HasValue ? $" • Температура: {g.CoreTemperatureC.Value:F0}°C" : "";
+            var tempPart = g.CoreTemperatureC.HasValue ? $" • {g.CoreTemperatureC.Value:F0}°C" : "";
             GpuSummary = $"{g.Name} ({g.FormattedVram}){tempPart}\nДрайвер: {g.DriverVersion}";
             GpuExpert = string.Join(" || ", snap.Gpus.Select(x =>
-                $"{x.Name}: PCIe Gen{x.CurrentPcieGen?.ToString() ?? "?"} x{x.CurrentPcieLanes?.ToString() ?? "?"} (Max x{x.MaxPcieLanes?.ToString() ?? "?"}), ReBAR={(x.IsResizableBarEnabled.HasValue ? (x.IsResizableBarEnabled.Value ? "ON" : "OFF") : "N/A")}, Power={x.PowerDrawWatts?.ToString("F1") ?? "-"}W"));
+                $"{x.Name}: PCIe Gen{x.CurrentPcieGen?.ToString() ?? "?"} x{x.CurrentPcieLanes?.ToString() ?? "?"}, ReBAR={(x.IsResizableBarEnabled.HasValue ? (x.IsResizableBarEnabled.Value ? "ON" : "OFF") : "N/A")}"));
         }
         else
         {
             GpuSummary = "Базовый графический адаптер";
-            GpuExpert = "Видеокарта не вернула расширенный профиль реестра / NVML.";
+            GpuExpert = "Расширенная телеметрия GPU недоступна.";
         }
 
-        // 5. Storage S.M.A.R.T.
+        Drives.Clear();
+        foreach (var d in snap.Drives) Drives.Add(d);
+
         if (snap.Drives.Count > 0)
         {
             StorageSummary = string.Join("\n", snap.Drives.Select(d =>
@@ -188,15 +189,17 @@ public sealed class HardwareStudioViewModel : ObservableObject
                 return $"{d.Model} ({d.FormattedCapacity}, {d.BusKind}) — {state}{life}{temp}";
             }));
             StorageExpert = string.Join(" || ", snap.Drives.Select(d =>
-                $"Disk#{d.DriveIndex} FW={d.FirmwareRevision} TBW={d.TotalBytesWrittenTb?.ToString("F2") ?? "-"}TB POH={d.PowerOnHours?.ToString() ?? "-"}h UnsafeOff={d.UnsafeShutdowns?.ToString() ?? "-"} MediaErr={d.MediaIntegrityErrors ?? 0}"));
+                $"Disk#{d.DriveIndex} FW={d.FirmwareRevision} TBW={d.TotalBytesWrittenTb?.ToString("F2") ?? "-"}TB POH={d.PowerOnHours?.ToString() ?? "-"}h"));
         }
         else
         {
             StorageSummary = "Системный накопитель работает штатно";
-            StorageExpert = "Для глубокого чтения NVMe Health Log может потребоваться запуск от имени Администратора.";
+            StorageExpert = "Запустите от имени Администратора для прямого опроса NVMe S.M.A.R.T.";
         }
 
-        // 6. Monitors & Refresh Rate
+        Monitors.Clear();
+        foreach (var m in snap.Monitors) Monitors.Add(m);
+
         if (snap.Monitors.Count > 0)
         {
             DisplaySummary = string.Join("\n", snap.Monitors.Select(m =>
@@ -204,16 +207,17 @@ public sealed class HardwareStudioViewModel : ObservableObject
                 var diag = m.DiagonalInches.HasValue ? $" ({m.DiagonalInches:F1}\")" : "";
                 return $"{m.FriendlyModelName}{diag}: {m.NativeWidthPx}×{m.NativeHeightPx} @ {m.CurrentRefreshHz} Гц (макс. {m.MaxSupportedRefreshHz} Гц)";
             }));
-            DisplayExpert = string.Join(" || ", snap.Monitors.Select(m =>
-                $"{m.GdiDeviceName} Mfg={m.ManufacturerCode} Year={m.ManufactureYear?.ToString() ?? "?"} BitDepth={m.ColorBitDepth?.ToString() ?? "?"}-bit"));
+            DisplayExpert = string.Join(" || ", snap.Monitors.Select(m => $"{m.GdiDeviceName} Mfg={m.ManufacturerCode}"));
         }
         else
         {
-            DisplaySummary = "Стандартный дисплей рабочего стола";
+            DisplaySummary = "Стандартный дисплей";
             DisplayExpert = "EDID не обнаружен.";
         }
 
-        // 7. Advisories
+        var gpuShort = snap.Gpus.Count > 0 ? $" • {snap.Gpus[0].Name}" : "";
+        ShortMachineSpecLine = $"{snap.Cpu.BrandName.Trim()} ({snap.Cpu.PhysicalCores}C/{snap.Cpu.LogicalProcessors}T) • {snap.Memory.FormattedTotal} ОЗУ{gpuShort}";
+
         Advisories.Clear();
         foreach (var finding in audit.Findings)
         {
@@ -234,10 +238,7 @@ public sealed class HardwareStudioViewModel : ObservableObject
 
     private async Task StartStressTestAsync()
     {
-        if (IsStressRunning)
-        {
-            return;
-        }
+        if (IsStressRunning) return;
 
         _stressCts = new CancellationTokenSource();
         IsStressRunning = true;
@@ -273,8 +274,5 @@ public sealed class HardwareStudioViewModel : ObservableObject
         }
     }
 
-    private void StopStressTest()
-    {
-        _stressCts?.Cancel();
-    }
+    private void StopStressTest() => _stressCts?.Cancel();
 }

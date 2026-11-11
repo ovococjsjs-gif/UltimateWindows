@@ -135,9 +135,44 @@ public sealed class OptimizerTweaksAndNetworkTests : IDisposable
         Assert.Equal(2, parsed.Count(x => x.IsSuspiciousSecurityBlock));
     }
 
+    [Fact]
+    public async Task OptimizerV2CatalogAndHostsEditor_CoversAllCategories_BlocksSecurityHijacks_AndRecordsHostsRollback()
+    {
+        var rules = DeclarativeTweakCatalog.GetAllRules();
+        Assert.True(rules.Count >= 36);
+        Assert.Contains(rules, r => r.Category == TweakCategory.DiskAndFileSystem);
+        Assert.Contains(rules, r => r.Category == TweakCategory.AppTelemetry);
+        Assert.Contains(rules, r => r.Category == TweakCategory.GamingAndLatency);
+
+        var hostsFile = Path.Combine(_sandboxDir, "hosts_test");
+        await File.WriteAllTextAsync(hostsFile, "127.0.0.1 localhost\r\n");
+
+        var bridge = new FakeOptimizerBridge { CustomHostsPath = hostsFile };
+        var applier = new RecordingStateApplier();
+        var vault = new ZeroBloatVaultService(Path.Combine(_sandboxDir, "VaultHosts"), stateApplier: applier);
+        var service = new SmartOptimizerService(vault, bridge);
+
+        // Попытка заблокировать домен безопасности или Windows Update отклоняется защитным фильтром
+        var blocked = await service.AddHostsEntryAsync("0.0.0.0", "www.virustotal.com");
+        Assert.False(blocked.Succeeded);
+
+        // Обычный рекламный/телеметрийный домен добавляется и сохраняет бекап в Машину времени
+        var added = await service.AddHostsEntryAsync("0.0.0.0", "ads.example-tracker.org");
+        Assert.True(added.Succeeded);
+        Assert.NotNull(added.RollbackSessionId);
+        Assert.Single(service.InspectHostsFile(), e => e.DomainHost == "ads.example-tracker.org");
+
+        await vault.RollbackTransactionAsync(added.RollbackSessionId!.Value);
+        Assert.Single(applier.RestoredDeltas);
+        Assert.Equal("HostsSabotageCleanup", applier.RestoredDeltas[0].TargetPath);
+    }
+
     private sealed class FakeOptimizerBridge : DefaultOptimizerPlatformBridge
     {
+        public string? CustomHostsPath { get; set; }
         public Dictionary<string, (int Kind, string Val)> Store { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public override string GetHostsFilePath() => CustomHostsPath ?? base.GetHostsFilePath();
 
         public override bool IsRunningAsAdministrator() => true;
 

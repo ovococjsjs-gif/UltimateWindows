@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
 
 namespace UltimateWindows.App.Infrastructure;
 
@@ -103,4 +104,94 @@ public sealed class BoolToVisibilityConverterEx : IValueConverter
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => value is Visibility.Visible != Invert;
+}
+
+public sealed class PercentToBarWidthConverter : IValueConverter
+{
+    public double MaxPixels { get; set; } = 92.0;
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        double maxPx = MaxPixels;
+        if (parameter is string s && double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var custom))
+        {
+            maxPx = custom;
+        }
+
+        double pct = value switch
+        {
+            double d => d,
+            float f => f,
+            int i => i,
+            _ => 0.0
+        };
+
+        pct = Math.Clamp(pct, 0.0, 100.0);
+        return Math.Max(pct > 0.1 ? 2.5 : 0.0, pct / 100.0 * maxPx);
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => Binding.DoNothing;
+}
+
+public sealed class HexToSolidBrushConverter : IValueConverter
+{
+    private static readonly Dictionary<string, SolidColorBrush> Cache = new(StringComparer.OrdinalIgnoreCase);
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var hex = value as string;
+        if (string.IsNullOrWhiteSpace(hex))
+        {
+            return Brushes.SlateBlue;
+        }
+
+        if (Cache.TryGetValue(hex, out var cached))
+        {
+            return cached;
+        }
+
+        try
+        {
+            if (ColorConverter.ConvertFromString(hex) is Color c)
+            {
+                var brush = new SolidColorBrush(c);
+                brush.Freeze();
+                Cache[hex] = brush;
+                return brush;
+            }
+        }
+        catch
+        {
+            // Ignore
+        }
+
+        return Brushes.SlateBlue;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => Binding.DoNothing;
+}
+
+public sealed class IntEqualsConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is int current && parameter is string s && int.TryParse(s, out var target))
+        {
+            return current == target;
+        }
+
+        return false;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is true && parameter is string s && int.TryParse(s, out var target))
+        {
+            return target;
+        }
+
+        return Binding.DoNothing;
+    }
 }
