@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 2,
+
+  "tweaks": [
+    {
+      "id": "sec.disable-autorun",
+      "category": "Security",
+      "title": "Запретить автозапуск со съёмных носителей",
+      "explanation": "Windows не выполняет команды из файла autorun.inf на флешках и дисках — так распространялись многие вирусы. Открывать носители вручную можно как обычно.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "name": "NoDriveTypeAutoRun", "kind": "dword", "value": 255 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "name": "NoAutorun", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "sec.disable-autoplay",
+      "category": "Security",
+      "title": "Отключить автовоспроизведение",
+      "explanation": "При подключении флешки, телефона или диска Windows ничего не открывает и не спрашивает, что с ними делать.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\AutoplayHandlers", "name": "DisableAutoplay", "kind": "dword", "value": 1, "default": 0 }
+      ]
+    },
+    {
+      "id": "sec.disable-smb1",
+      "category": "Security",
+      "title": "Отключить SMB 1.0 на этом компьютере",
+      "explanation": "Компьютер перестаёт принимать подключения по устаревшему протоколу, через который распространялись WannaCry и NotPetya. Очень старые устройства — Windows XP, старые сетевые принтеры и медиаплееры — не смогут открыть общие папки этого компьютера.",
+      "risk": "Safe",
+      "restart": "reboot",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters", "name": "SMB1", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "sec.disable-remote-assistance",
+      "category": "Security",
+      "title": "Отключить удалённый помощник",
+      "explanation": "К компьютеру нельзя подключиться по приглашению удалённого помощника Windows. На «Быструю поддержку» и сторонние программы удалённого доступа настройка не влияет.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\Remote Assistance", "name": "fAllowToGetHelp", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "sec.disable-llmnr",
+      "category": "Security",
+      "title": "Отключить LLMNR",
+      "explanation": "Отключает запасной способ искать компьютеры по имени в локальной сети: в чужой сети он позволяет подменять ответы и перехватывать пароли. Если в домашней сети устройства перестали находиться по имени, выключите настройку.",
+      "risk": "Low",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows NT\\DNSClient", "name": "EnableMulticast", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "sec.disable-wpad",
+      "category": "Security",
+      "title": "Отключить автоматический поиск прокси (WPAD)",
+      "explanation": "Windows перестаёт сама искать в сети прокси-сервер — в чужих сетях этим пользуются для перехвата трафика. В корпоративной сети с автонастройкой прокси интернет может пропасть.",
+      "risk": "Low",
+      "restart": "reboot",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\WinHttp", "name": "DisableWpad", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "sec.spooler-no-remote",
+      "category": "Security",
+      "title": "Закрыть диспетчер печати для подключений по сети",
+      "explanation": "Диспетчер печати перестаёт принимать удалённые подключения — защита от уязвимостей вроде PrintNightmare. Печатать с этого компьютера можно, а раздать свой принтер другим компьютерам нельзя.",
+      "risk": "Low",
+      "restart": "reboot",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows NT\\Printers", "name": "RegisterSpoolerRemoteRpcEndPoint", "kind": "dword", "value": 2 }
+      ]
+    },
+    {
+      "id": "sec.disable-webclient",
+      "category": "Security",
+      "title": "Отключить клиент WebDAV",
+      "explanation": "Отключает службу «Веб-клиент», через которую компьютер можно заставить отправить учётные данные на чужой сервер. Сетевые диски WebDAV перестанут подключаться.",
+      "risk": "Low",
+      "restart": "reboot",
+      "actions": [
+        { "type": "service", "name": "WebClient", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "sec.disable-script-host",
+      "category": "Security",
+      "title": "Отключить Windows Script Host",
+      "explanation": "Файлы .vbs и .js перестают запускаться двойным щелчком — это частый способ заражения через вложения в письмах. Перестанут работать и законные сценарии: некоторые установщики, сценарии входа, slmgr.vbs.",
+      "risk": "Moderate",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\Windows Script Host\\Settings", "name": "Enabled", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "sec.lsa-protection",
+      "category": "Security",
+      "title": "Включить защиту процесса LSA",
+      "explanation": "Процесс, хранящий пароли входа, запускается защищённым: другие программы не могут читать его память. Старые драйверы смарт-карт и модули входа сторонних программ могут перестать работать.",
+      "risk": "Moderate",
+      "restart": "reboot",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\Lsa", "name": "RunAsPPL", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "sec.reject-ntlmv1",
+      "category": "Security",
+      "title": "Отказаться от устаревших LM и NTLMv1",
+      "explanation": "Компьютер использует и принимает только NTLMv2. Старые сетевые хранилища и принтеры с устаревшей авторизацией перестанут подключаться.",
+      "risk": "Moderate",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\Lsa", "name": "LmCompatibilityLevel", "kind": "dword", "value": 5 }
+      ]
+    },
+    {
+      "id": "sec.disable-smartscreen",
+      "category": "Security",
+      "title": "Отключить SmartScreen для файлов",
+      "explanation": "Windows перестаёт проверять скачанные программы по репутации и предупреждать перед запуском неизвестных файлов. Это одна из главных преград для свежих вредоносных программ.",
+      "risk": "High",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\System", "name": "EnableSmartScreen", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "sec.disable-system-restore",
+      "category": "Security",
+      "title": "Отключить восстановление системы",
+      "explanation": "Windows перестаёт создавать точки восстановления: откатить систему после неудачного драйвера или обновления будет нечем. Место на диске, занятое точками, освобождается.",
+      "risk": "High",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows NT\\SystemRestore", "name": "DisableSR", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows NT\\SystemRestore", "name": "DisableConfig", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "sec.disable-spectre-mitigations",
+      "category": "Security",
+      "title": "Отключить защиту от Spectre и Meltdown",
+      "explanation": "Отключает программную защиту от аппаратных уязвимостей процессора. На старых процессорах возвращает несколько процентов производительности; программы и сайты получают возможность читать чужую память.",
+      "risk": "High",
+      "restart": "reboot",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management", "name": "FeatureSettingsOverride", "kind": "dword", "value": 3 },
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management", "name": "FeatureSettingsOverrideMask", "kind": "dword", "value": 3 }
+      ]
+    }
+  ]
+}

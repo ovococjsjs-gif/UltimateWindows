@@ -35,4 +35,13 @@
   <SolidColorBrush x:Key="ToggleOffTrackBrush" Color="#2A3146" />
   <SolidColorBrush x:Key="ScrollThumbBrush" Color="#323B54" />
   <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#4C5A7F" />
+
+  <!-- Текст на цветных подложках меток, затемнение под окном предпросмотра, консоль проверки связи -->
+  <SolidColorBrush x:Key="OverlayBackdropBrush" Color="#D906080D" />
+  <SolidColorBrush x:Key="DangerTextBrush" Color="#FCA5A5" />
+  <SolidColorBrush x:Key="AmberTextBrush" Color="#FCD34D" />
+  <SolidColorBrush x:Key="SafeTextBrush" Color="#6EE7B7" />
+  <SolidColorBrush x:Key="AccentTextBrush" Color="#A5B4FC" />
+  <SolidColorBrush x:Key="ConsoleBackgroundBrush" Color="#0B0E14" />
+  <SolidColorBrush x:Key="ConsoleTextBrush" Color="#A5F3FC" />
 </ResourceDictionary>

@@ -8,54 +8,66 @@ using UltimateWindows.Modules.Optimizer.Models;
 namespace UltimateWindows.Modules.Optimizer.Catalog;
 
 /// <summary>
-/// Каталог твиков, прочитанный из файла данных: правила в порядке показа и готовые наборы.
+/// Один файл данных каталога: имя (для сообщений об ошибках) и содержимое JSON.
+/// </summary>
+public sealed record TweakCatalogDocument(string Name, string Json);
+
+/// <summary>
+/// Каталог твиков, прочитанный из файлов данных: правила в порядке показа и готовые наборы.
 /// </summary>
 public sealed class TweakCatalogData
 {
     private readonly Dictionary<string, DeclarativeTweakRule> _rulesById;
-    private readonly Dictionary<string, IReadOnlyList<string>> _presets;
+    private readonly Dictionary<string, TweakPresetDescriptor> _presets;
 
     internal TweakCatalogData(
         IReadOnlyList<DeclarativeTweakRule> rules,
         Dictionary<string, DeclarativeTweakRule> rulesById,
-        Dictionary<string, IReadOnlyList<string>> presets)
+        IReadOnlyList<TweakPresetDescriptor> presets)
     {
         Rules = rules;
         _rulesById = rulesById;
-        _presets = presets;
+        Presets = presets;
+        _presets = presets.ToDictionary(p => p.Key, StringComparer.OrdinalIgnoreCase);
     }
 
     public IReadOnlyList<DeclarativeTweakRule> Rules { get; }
+
+    public IReadOnlyList<TweakPresetDescriptor> Presets { get; }
 
     public IReadOnlyCollection<string> PresetKeys => _presets.Keys;
 
     public DeclarativeTweakRule? FindById(string? tweakId) =>
         tweakId is not null && _rulesById.TryGetValue(tweakId, out var rule) ? rule : null;
 
+    public TweakPresetDescriptor? FindPreset(string? presetKey) =>
+        presetKey is not null && _presets.TryGetValue(presetKey, out var preset) ? preset : null;
+
     /// <summary>
     /// Идентификаторы твиков набора. Неизвестное название набора означает набор по умолчанию.
     /// </summary>
     public IReadOnlyList<string> GetPresetIds(string? presetKey) =>
-        presetKey is not null && _presets.TryGetValue(presetKey, out var ids)
-            ? ids
-            : _presets[TweakCatalogLoader.DefaultPresetKey];
+        (FindPreset(presetKey) ?? _presets[TweakCatalogLoader.DefaultPresetKey]).TweakIds;
 }
 
 /// <summary>
-/// Читает каталог твиков из JSON и проверяет его целиком. Ошибка в файле данных не должна дойти до реестра
+/// Читает каталог твиков из JSON и проверяет его целиком. Ошибка в файле данных не должна дойти до системы
 /// пользователя, поэтому любое отступление от формата — неизвестное поле, опечатка в названии куста реестра,
 /// повтор идентификатора, число не того вида — останавливает загрузку с понятным сообщением
-/// (<see cref="InvalidDataException"/>), в котором назван твик и поле.
+/// (<see cref="InvalidDataException"/>), в котором назван файл, твик и поле.
+/// Каталог может состоять из нескольких файлов: твики и наборы из них складываются.
 /// </summary>
 public static class TweakCatalogLoader
 {
-    public const int SupportedSchemaVersion = 1;
+    public const int SupportedSchemaVersion = 2;
     public const string DefaultPresetKey = "recommended";
-    public const string BuiltInResourceName = "UltimateWindows.Optimizer.tweaks.json";
+    public const string BuiltInResourcePrefix = "UltimateWindows.Optimizer.Catalog.";
 
     private const string RootContext = "корень файла";
 
     private static readonly Regex TweakIdPattern = new(@"^[a-z0-9]+(\.[a-z0-9-]+)+$", RegexOptions.CultureInvariant);
+    private static readonly Regex PresetKeyPattern = new(@"^[a-z0-9]+(-[a-z0-9]+)*$", RegexOptions.CultureInvariant);
+    private static readonly Regex ServiceNamePattern = new(@"^[A-Za-z0-9_.\-]+$", RegexOptions.CultureInvariant);
 
     private static readonly string[] KnownHives = ["HKLM", "HKCU", "HKCR", "HKU"];
 
@@ -63,35 +75,98 @@ public static class TweakCatalogLoader
 
     private static readonly string[] TweakFields =
     [
-        "id", "category", "icon", "title", "explanation", "impact", "risk",
-        "requiresAdministrator", "requirements", "actions"
+        "id", "category", "title", "explanation", "risk", "restart", "requirements", "actions"
     ];
+
+    private static readonly string[] PresetFields = ["title", "description", "tweaks"];
 
     private static readonly string[] RequirementFields =
     [
-        "minWindowsBuild", "maxWindowsBuild", "bestOnSolidStateSystemDrive", "batteryWarning"
+        "minWindowsBuild", "maxWindowsBuild", "bestOnSolidStateSystemDrive", "batteryWarning", "installedAny", "installedNote"
     ];
 
-    private static readonly string[] RegistryActionFields = ["type", "hive", "key", "name", "kind", "value", "default"];
+    private static readonly string[] RegistryActionFields =
+    [
+        "type", "hive", "key", "name", "kind", "value", "default", "removeEmptyKey"
+    ];
+
+    private static readonly string[] ServiceActionFields = ["type", "name", "startup", "default"];
+
+    private static readonly string[] TaskActionFields = ["type", "path", "enabled"];
+
+    private static readonly RiskLevel[] AllowedRisks = [RiskLevel.Safe, RiskLevel.Low, RiskLevel.Moderate, RiskLevel.High];
+
+    private static readonly RiskLevel[] PresetRisks = [RiskLevel.Safe, RiskLevel.Low];
 
     /// <summary>
-    /// Каталог, встроенный в сборку (файл <c>Catalog/tweaks.json</c>).
+    /// Каталог, встроенный в сборку (файлы <c>Catalog/Data/*.json</c>). Файлы читаются в порядке имён.
     /// </summary>
     public static TweakCatalogData LoadBuiltIn()
     {
         var assembly = typeof(TweakCatalogLoader).Assembly;
-        using var stream = assembly.GetManifestResourceStream(BuiltInResourceName)
-            ?? throw new InvalidDataException(
-                $"Каталог твиков: в сборке нет встроенного файла данных «{BuiltInResourceName}».");
-        using var reader = new StreamReader(stream, Encoding.UTF8);
-        return Parse(reader.ReadToEnd());
+        var names = assembly.GetManifestResourceNames()
+            .Where(n => n.StartsWith(BuiltInResourcePrefix, StringComparison.Ordinal) &&
+                        n.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
+
+        if (names.Length == 0)
+        {
+            throw new InvalidDataException(
+                $"Каталог твиков: в сборке нет встроенных файлов данных «{BuiltInResourcePrefix}*.json».");
+        }
+
+        var documents = new List<TweakCatalogDocument>(names.Length);
+        foreach (var name in names)
+        {
+            using var stream = assembly.GetManifestResourceStream(name)
+                ?? throw new InvalidDataException($"Каталог твиков: не удалось открыть встроенный файл данных «{name}».");
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            documents.Add(new TweakCatalogDocument(name[BuiltInResourcePrefix.Length..], reader.ReadToEnd()));
+        }
+
+        return ParseDocuments(documents);
     }
 
-    public static TweakCatalogData Parse(string json)
+    /// <summary>
+    /// Каталог из одного файла данных.
+    /// </summary>
+    public static TweakCatalogData Parse(string json) => ParseDocuments([new TweakCatalogDocument("", json)]);
+
+    public static TweakCatalogData ParseDocuments(IEnumerable<TweakCatalogDocument> documents)
+    {
+        ArgumentNullException.ThrowIfNull(documents);
+
+        var rules = new List<DeclarativeTweakRule>();
+        var rulesById = new Dictionary<string, DeclarativeTweakRule>(StringComparer.OrdinalIgnoreCase);
+        var rawPresets = new List<RawPreset>();
+        var documentCount = 0;
+
+        foreach (var document in documents)
+        {
+            documentCount++;
+            var file = string.IsNullOrWhiteSpace(document.Name) ? "" : $"файл «{document.Name}», ";
+            ParseDocument(document.Json, file, rules, rulesById, rawPresets);
+        }
+
+        if (documentCount == 0 || rules.Count == 0)
+        {
+            throw new InvalidDataException("Каталог твиков: в файлах данных нет ни одного твика (список «tweaks» пуст).");
+        }
+
+        return new TweakCatalogData(rules.ToArray(), rulesById, ResolvePresets(rawPresets, rulesById));
+    }
+
+    private static void ParseDocument(
+        string json,
+        string file,
+        List<DeclarativeTweakRule> rules,
+        Dictionary<string, DeclarativeTweakRule> rulesById,
+        List<RawPreset> rawPresets)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
-            throw new InvalidDataException("Каталог твиков: файл данных пуст.");
+            throw new InvalidDataException($"Каталог твиков: {file}файл данных пуст.");
         }
 
         JsonDocument document;
@@ -105,54 +180,66 @@ public static class TweakCatalogLoader
         }
         catch (JsonException ex)
         {
-            throw new InvalidDataException($"Каталог твиков: файл данных не является корректным JSON. {ex.Message}", ex);
+            throw new InvalidDataException($"Каталог твиков: {file}файл данных не является корректным JSON. {ex.Message}", ex);
         }
 
         using (document)
         {
             var root = document.RootElement;
-            RequireObject(root, RootContext);
-            RejectUnknownFields(root, RootContext, RootFields);
+            var rootContext = file + RootContext;
+            RequireObject(root, rootContext);
+            RejectUnknownFields(root, rootContext, RootFields);
 
-            var version = RequireInt(root, "schemaVersion", RootContext);
+            var version = RequireInt(root, "schemaVersion", rootContext);
             if (version != SupportedSchemaVersion)
             {
                 throw Error(
-                    RootContext,
+                    rootContext,
                     $"версия формата {version} не поддерживается: эта версия программы понимает версию {SupportedSchemaVersion}.");
             }
 
-            var rules = new List<DeclarativeTweakRule>();
-            var rulesById = new Dictionary<string, DeclarativeTweakRule>(StringComparer.OrdinalIgnoreCase);
-            var index = 0;
-            foreach (var tweakElement in RequireArray(root, "tweaks", RootContext).EnumerateArray())
+            var hasTweaks = root.TryGetProperty("tweaks", out var tweaksElement);
+            var hasPresets = root.TryGetProperty("presets", out var presetsElement);
+            if (!hasTweaks && !hasPresets)
             {
-                index++;
-                var rule = ParseTweak(tweakElement, index);
-                if (!rulesById.TryAdd(rule.TweakId, rule))
+                throw Error(rootContext, "нет ни списка «tweaks», ни раздела «presets».");
+            }
+
+            if (hasTweaks)
+            {
+                if (tweaksElement.ValueKind != JsonValueKind.Array)
                 {
-                    throw Error(DescribeTweak(rule.TweakId), "такой идентификатор уже есть у другого твика.");
+                    throw Error(rootContext, "«tweaks» должен быть списком в квадратных скобках.");
                 }
 
-                rules.Add(rule);
+                var index = 0;
+                foreach (var tweakElement in tweaksElement.EnumerateArray())
+                {
+                    index++;
+                    var rule = ParseTweak(tweakElement, file, index);
+                    if (!rulesById.TryAdd(rule.TweakId, rule))
+                    {
+                        throw Error(file + DescribeTweak(rule.TweakId), "такой идентификатор уже есть у другого твика.");
+                    }
+
+                    rules.Add(rule);
+                }
             }
 
-            if (rules.Count == 0)
+            if (hasPresets)
             {
-                throw Error(RootContext, "список «tweaks» пуст.");
+                ParsePresets(presetsElement, file, rawPresets);
             }
-
-            return new TweakCatalogData(rules.ToArray(), rulesById, ParsePresets(root, rulesById));
         }
     }
 
-    private static DeclarativeTweakRule ParseTweak(JsonElement element, int index)
+    private static DeclarativeTweakRule ParseTweak(JsonElement element, string file, int index)
     {
-        var context = $"твик №{index}";
+        var context = $"{file}твик №{index}";
         RequireObject(element, context);
 
         var id = RequireString(element, "id", context);
-        context = DescribeTweak(id);
+        context = file + DescribeTweak(id);
         if (!TweakIdPattern.IsMatch(id))
         {
             throw Error(
@@ -163,12 +250,29 @@ public static class TweakCatalogLoader
         RejectUnknownFields(element, context, TweakFields);
 
         var category = RequireEnum<TweakCategory>(element, "category", context);
-        var icon = RequireString(element, "icon", context);
         var title = RequireString(element, "title", context);
         var explanation = RequireString(element, "explanation", context);
-        var impact = RequireString(element, "impact", context);
         var risk = RequireEnum<RiskLevel>(element, "risk", context);
-        var requiresAdministrator = RequireBool(element, "requiresAdministrator", context);
+        if (Array.IndexOf(AllowedRisks, risk) < 0)
+        {
+            throw Error(
+                context,
+                $"поле «risk»: для твиков допустимы значения {string.Join(", ", AllowedRisks)}.");
+        }
+
+        var restart = TweakRestartKind.None;
+        if (element.TryGetProperty("restart", out _))
+        {
+            var restartText = RequireString(element, "restart", context);
+            restart = restartText switch
+            {
+                "none" => TweakRestartKind.None,
+                "explorer" => TweakRestartKind.ExplorerRestart,
+                "signout" => TweakRestartKind.SignOut,
+                "reboot" => TweakRestartKind.Reboot,
+                _ => throw Error(context, $"поле «restart»: неизвестное значение «{restartText}». Допустимые: none, explorer, signout, reboot.")
+            };
+        }
 
         TweakRequirements? requirements = null;
         if (element.TryGetProperty("requirements", out var requirementsElement))
@@ -176,46 +280,36 @@ public static class TweakCatalogLoader
             requirements = ParseRequirements(requirementsElement, $"{context}, условия применимости");
         }
 
-        var mutations = new List<TweakRegistryMutation>();
-        var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var actions = new List<TweakAction>();
+        var targets = new HashSet<string>(StringComparer.Ordinal);
         var actionIndex = 0;
         foreach (var actionElement in RequireArray(element, "actions", context).EnumerateArray())
         {
             actionIndex++;
             var actionContext = $"{context}, действие №{actionIndex}";
-            var mutation = ParseAction(actionElement, actionContext);
-            if (!targets.Add($"{mutation.Hive}\n{mutation.SubKeyPath}\n{mutation.ValueName}"))
+            var action = ParseAction(actionElement, actionContext);
+            if (!targets.Add(action.TargetKey))
             {
-                throw Error(actionContext, "это значение реестра уже меняется другим действием того же твика.");
+                throw Error(actionContext, "эта цель уже меняется другим действием того же твика.");
             }
 
-            mutations.Add(mutation);
+            actions.Add(action);
         }
 
-        if (mutations.Count == 0)
+        if (actions.Count == 0)
         {
             throw Error(context, "нет ни одного действия.");
-        }
-
-        if (!requiresAdministrator &&
-            mutations.Exists(m => !string.Equals(m.Hive, "HKCU", StringComparison.Ordinal)))
-        {
-            throw Error(
-                context,
-                "твик меняет общий для всех пользователей раздел реестра (не HKCU), поэтому «requiresAdministrator» должно быть true.");
         }
 
         var rule = new DeclarativeTweakRule(
             id,
             category,
-            icon,
             title,
             explanation,
-            impact,
             risk,
-            requiresAdministrator,
-            mutations.ToArray(),
-            requirements);
+            actions.ToArray(),
+            requirements,
+            restart);
 
         try
         {
@@ -223,7 +317,7 @@ public static class TweakCatalogLoader
         }
         catch (InvalidOperationException ex)
         {
-            throw new InvalidDataException($"Каталог твиков: {ex.Message}", ex);
+            throw new InvalidDataException($"Каталог твиков: {file}{ex.Message}", ex);
         }
 
         return rule;
@@ -252,22 +346,66 @@ public static class TweakCatalogLoader
             throw Error(context, "«minWindowsBuild» больше, чем «maxWindowsBuild».");
         }
 
-        if (min is null && max is null && !bestOnSsd && batteryWarning is null)
+        string[]? installedAny = null;
+        if (element.TryGetProperty("installedAny", out var installedElement))
+        {
+            if (installedElement.ValueKind != JsonValueKind.Array)
+            {
+                throw Error(context, "«installedAny» — список разделов реестра в квадратных скобках.");
+            }
+
+            var keys = new List<string>();
+            foreach (var item in installedElement.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.String)
+                {
+                    throw Error(context, "«installedAny»: разделы реестра пишутся в кавычках.");
+                }
+
+                var path = item.GetString() ?? string.Empty;
+                if (!TrySplitRegistryPath(path, out var hive, out var key) || Array.IndexOf(KnownHives, hive) < 0 || !IsWellFormedKeyPath(key))
+                {
+                    throw Error(context, $"«installedAny»: «{path}» — не путь раздела реестра вида «HKLM\\SOFTWARE\\Пример».");
+                }
+
+                keys.Add($@"{hive}\{key}");
+            }
+
+            if (keys.Count == 0)
+            {
+                throw Error(context, "«installedAny» пуст.");
+            }
+
+            installedAny = keys.ToArray();
+        }
+
+        var installedNote = element.TryGetProperty("installedNote", out _)
+            ? RequireString(element, "installedNote", context)
+            : null;
+
+        if ((installedAny is null) != (installedNote is null))
+        {
+            throw Error(context, "«installedAny» и «installedNote» задаются вместе: список разделов и пояснение, какой программы нет.");
+        }
+
+        if (min is null && max is null && !bestOnSsd && batteryWarning is null && installedAny is null)
         {
             throw Error(context, "раздел пуст. Если условий нет, удалите «requirements» целиком.");
         }
 
-        return new TweakRequirements(min, max, bestOnSsd, batteryWarning);
+        return new TweakRequirements(min, max, bestOnSsd, batteryWarning, installedAny, installedNote);
     }
 
-    private static TweakRegistryMutation ParseAction(JsonElement element, string context)
+    private static TweakAction ParseAction(JsonElement element, string context)
     {
         RequireObject(element, context);
         var type = RequireString(element, "type", context);
         return type switch
         {
             "registry" => ParseRegistryAction(element, context),
-            _ => throw Error(context, $"неизвестный тип действия «{type}». Эта версия программы понимает тип «registry».")
+            "service" => ParseServiceAction(element, context),
+            "task" => ParseTaskAction(element, context),
+            _ => throw Error(context, $"неизвестный тип действия «{type}». Эта версия программы понимает типы registry, service, task.")
         };
     }
 
@@ -282,13 +420,22 @@ public static class TweakCatalogLoader
         }
 
         var key = RequireString(element, "key", context);
-        if (key.Contains('/') || key.StartsWith('\\') || key.EndsWith('\\') || key.Contains(@"\\", StringComparison.Ordinal))
+        if (!IsWellFormedKeyPath(key))
         {
             throw Error(context, "путь раздела «key» пишется через одну обратную косую черту, без неё в начале и в конце.");
         }
 
         // Пустое имя — это значение «(По умолчанию)» раздела
         var name = RequireString(element, "name", context, allowEmpty: true);
+
+        if (string.Equals(name, "Start", StringComparison.OrdinalIgnoreCase) &&
+            TweakSafetyGuard.TryGetServiceNameFromRegistryPath(key) is { } serviceName &&
+            key.EndsWith(@"\" + serviceName, StringComparison.OrdinalIgnoreCase))
+        {
+            throw Error(
+                context,
+                $"тип запуска службы «{serviceName}» задаётся действием типа «service», а не записью значения Start в реестр: так изменение сразу видит диспетчер служб.");
+        }
 
         var kindText = RequireString(element, "kind", context);
         var kind = kindText switch
@@ -313,6 +460,17 @@ public static class TweakCatalogLoader
             standard = ReadRegistryData(defaultElement, kind, "default", context);
         }
 
+        if (standard is not null && string.Equals(standard, desired, StringComparison.OrdinalIgnoreCase))
+        {
+            throw Error(context, "«value» совпадает с «default»: такое действие ничего не меняет.");
+        }
+
+        var removeEmptyKey = element.TryGetProperty("removeEmptyKey", out _) && RequireBool(element, "removeEmptyKey", context);
+        if (removeEmptyKey && standard is not null)
+        {
+            throw Error(context, "«removeEmptyKey» имеет смысл только без «default»: раздел удаляется, когда удалено значение.");
+        }
+
         return new TweakRegistryMutation(
             hive,
             key,
@@ -320,7 +478,55 @@ public static class TweakCatalogLoader
             kind,
             desired,
             standard ?? string.Empty,
-            ExistedByDefault: standard is not null);
+            ExistedByDefault: standard is not null,
+            RemoveEmptyKeyOnRestore: removeEmptyKey);
+    }
+
+    private static TweakServiceAction ParseServiceAction(JsonElement element, string context)
+    {
+        RejectUnknownFields(element, context, ServiceActionFields);
+
+        var name = RequireString(element, "name", context);
+        if (!ServiceNamePattern.IsMatch(name))
+        {
+            throw Error(context, $"«{name}» — не имя службы. Нужно короткое имя (например DiagTrack), а не отображаемое название.");
+        }
+
+        var startup = ReadStartupMode(element, "startup", context);
+        var standard = ReadStartupMode(element, "default", context);
+        if (startup == standard)
+        {
+            throw Error(context, "«startup» совпадает с «default»: такое действие ничего не меняет.");
+        }
+
+        return new TweakServiceAction(name, startup, standard);
+    }
+
+    private static ServiceStartupMode ReadStartupMode(JsonElement element, string field, string context)
+    {
+        var text = RequireString(element, field, context);
+        return text switch
+        {
+            "automatic" => ServiceStartupMode.Automatic,
+            "automaticDelayed" => ServiceStartupMode.AutomaticDelayed,
+            "manual" => ServiceStartupMode.Manual,
+            "disabled" => ServiceStartupMode.Disabled,
+            _ => throw Error(context, $"поле «{field}»: неизвестный тип запуска «{text}». Допустимые: automatic, automaticDelayed, manual, disabled.")
+        };
+    }
+
+    private static TweakScheduledTaskAction ParseTaskAction(JsonElement element, string context)
+    {
+        RejectUnknownFields(element, context, TaskActionFields);
+
+        var path = RequireString(element, "path", context);
+        if (!path.StartsWith('\\') || path.EndsWith('\\') || path.Contains('/') || path.Contains(@"\\", StringComparison.Ordinal))
+        {
+            throw Error(context, "путь задания «path» начинается с обратной косой черты и содержит папку и имя, например «\\Microsoft\\Windows\\Maps\\MapsUpdateTask».");
+        }
+
+        var enabled = RequireBool(element, "enabled", context);
+        return new TweakScheduledTaskAction(path, enabled);
     }
 
     private static string ReadRegistryData(JsonElement value, RegistryTweakValueKind kind, string field, string context)
@@ -368,53 +574,75 @@ public static class TweakCatalogLoader
                uint.TryParse(text.AsSpan(2), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out value);
     }
 
-    private static Dictionary<string, IReadOnlyList<string>> ParsePresets(
-        JsonElement root,
-        Dictionary<string, DeclarativeTweakRule> rulesById)
+    private static bool IsWellFormedKeyPath(string key) =>
+        !string.IsNullOrWhiteSpace(key) &&
+        !key.Contains('/') &&
+        !key.StartsWith('\\') &&
+        !key.EndsWith('\\') &&
+        !key.Contains(@"\\", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Делит запись «HKLM\SOFTWARE\Пример» на куст и путь раздела.
+    /// </summary>
+    public static bool TrySplitRegistryPath(string? path, out string hive, out string key)
     {
-        const string sectionContext = "раздел «presets»";
-        if (!root.TryGetProperty("presets", out var presetsElement))
+        hive = string.Empty;
+        key = string.Empty;
+        if (string.IsNullOrWhiteSpace(path))
         {
-            throw Error(RootContext, "нет раздела «presets».");
+            return false;
         }
 
+        var separator = path.IndexOf('\\');
+        if (separator <= 0 || separator == path.Length - 1)
+        {
+            return false;
+        }
+
+        hive = path[..separator];
+        key = path[(separator + 1)..];
+        return true;
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Готовые наборы
+    // ---------------------------------------------------------------------------------------------
+
+    private sealed record RawPreset(string Key, string Title, string Description, IReadOnlyList<string> Ids, string Context);
+
+    private static void ParsePresets(JsonElement presetsElement, string file, List<RawPreset> sink)
+    {
+        var sectionContext = $"{file}раздел «presets»";
         RequireObject(presetsElement, sectionContext);
 
-        var presets = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var preset in presetsElement.EnumerateObject())
         {
-            var context = $"набор «{preset.Name}»";
-            if (preset.Value.ValueKind != JsonValueKind.Array)
+            var context = $"{file}набор «{preset.Name}»";
+            if (!PresetKeyPattern.IsMatch(preset.Name))
             {
-                throw Error(context, "ожидался список идентификаторов твиков в квадратных скобках.");
+                throw Error(context, "название набора пишется строчными латинскими буквами, цифрами и дефисами, например «clean-ui».");
             }
 
+            if (sink.Exists(p => string.Equals(p.Key, preset.Name, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw Error(context, "набор с таким названием уже есть.");
+            }
+
+            RequireObject(preset.Value, context);
+            RejectUnknownFields(preset.Value, context, PresetFields);
+
+            var title = RequireString(preset.Value, "title", context);
+            var description = RequireString(preset.Value, "description", context);
+
             var ids = new List<string>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var item in preset.Value.EnumerateArray())
+            foreach (var item in RequireArray(preset.Value, "tweaks", context).EnumerateArray())
             {
                 if (item.ValueKind != JsonValueKind.String)
                 {
                     throw Error(context, "идентификаторы твиков пишутся в кавычках.");
                 }
 
-                var id = item.GetString() ?? string.Empty;
-                if (!rulesById.TryGetValue(id, out var rule))
-                {
-                    throw Error(context, $"твика «{id}» нет в каталоге.");
-                }
-
-                if (rule.IsDangerous)
-                {
-                    throw Error(context, $"«{id}» — опасный твик, в наборы такие не входят.");
-                }
-
-                if (!seen.Add(id))
-                {
-                    throw Error(context, $"твик «{id}» указан дважды.");
-                }
-
-                ids.Add(rule.TweakId);
+                ids.Add(item.GetString() ?? string.Empty);
             }
 
             if (ids.Count == 0)
@@ -422,18 +650,53 @@ public static class TweakCatalogLoader
                 throw Error(context, "набор пуст.");
             }
 
-            if (!presets.TryAdd(preset.Name, ids.ToArray()))
-            {
-                throw Error(context, "набор с таким названием уже есть.");
-            }
+            sink.Add(new RawPreset(preset.Name, title, description, ids, context));
         }
+    }
 
-        if (!presets.ContainsKey(DefaultPresetKey))
+    private static IReadOnlyList<TweakPresetDescriptor> ResolvePresets(
+        List<RawPreset> rawPresets,
+        Dictionary<string, DeclarativeTweakRule> rulesById)
+    {
+        var presets = new List<TweakPresetDescriptor>(rawPresets.Count);
+        foreach (var raw in rawPresets)
         {
-            throw Error(sectionContext, $"нет обязательного набора «{DefaultPresetKey}».");
+            var ids = new List<string>(raw.Ids.Count);
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var id in raw.Ids)
+            {
+                if (!rulesById.TryGetValue(id, out var rule))
+                {
+                    throw Error(raw.Context, $"твика «{id}» нет в каталоге.");
+                }
+
+                if (rule.IsDangerous)
+                {
+                    throw Error(raw.Context, $"«{id}» — опасный твик, в наборы такие не входят.");
+                }
+
+                if (Array.IndexOf(PresetRisks, rule.Risk) < 0)
+                {
+                    throw Error(raw.Context, $"«{id}» — твик с оговорками (риск {rule.Risk}); в наборы входят только твики с риском Safe или Low.");
+                }
+
+                if (!seen.Add(id))
+                {
+                    throw Error(raw.Context, $"твик «{id}» указан дважды.");
+                }
+
+                ids.Add(rule.TweakId);
+            }
+
+            presets.Add(new TweakPresetDescriptor(raw.Key, raw.Title, raw.Description, ids.ToArray()));
         }
 
-        return presets;
+        if (!presets.Exists(p => string.Equals(p.Key, DefaultPresetKey, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidDataException($"Каталог твиков: нет обязательного набора «{DefaultPresetKey}» (раздел «presets»).");
+        }
+
+        return presets.ToArray();
     }
 
     // ---------------------------------------------------------------------------------------------

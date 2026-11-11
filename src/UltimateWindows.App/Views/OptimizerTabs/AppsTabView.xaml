@@ -1,0 +1,140 @@
+<UserControl x:Class="UltimateWindows.App.Views.OptimizerTabs.AppsTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid Margin="14,12,14,12">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- Переключатель вида -->
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+      <RadioButton GroupName="AppsMode" Style="{StaticResource SegmentRadioStyle}"
+                   IsChecked="{Binding AppsMode, Converter={StaticResource IntEq}, ConverterParameter=0}"
+                   Content="Установленные программы" />
+      <RadioButton GroupName="AppsMode" Style="{StaticResource SegmentRadioStyle}"
+                   IsChecked="{Binding AppsMode, Converter={StaticResource IntEq}, ConverterParameter=1}"
+                   Content="Приложения Windows"
+                   ToolTip="Встроенные приложения и приложения из Microsoft Store" />
+    </StackPanel>
+
+    <!-- УСТАНОВЛЕННЫЕ ПРОГРАММЫ -->
+    <Grid Grid.Row="1" Visibility="{Binding IsProgramsMode, Converter={StaticResource BoolToVis}}">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+
+      <DockPanel Grid.Row="0" Margin="0,0,0,8">
+        <Button DockPanel.Dock="Right"
+                Style="{StaticResource CompactButtonStyle}"
+                Command="{Binding RefreshAllOptimizerDataCommand}"
+                Content="Обновить"
+                VerticalAlignment="Center"
+                Margin="10,0,0,0" />
+        <TextBox Style="{StaticResource SearchBoxStyle}"
+                 Tag="Название программы или издатель"
+                 Text="{Binding AppSearchFilter, UpdateSourceTrigger=PropertyChanged}"
+                 MaxWidth="420"
+                 HorizontalAlignment="Left"
+                 MinWidth="320" />
+      </DockPanel>
+
+      <DataGrid Grid.Row="1"
+                ItemsSource="{Binding FilteredInstalledApps}"
+                IsReadOnly="True"
+                RowHeaderWidth="0">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Программа" Binding="{Binding DisplayName}" Width="2*" MinWidth="220" />
+          <DataGridTextColumn Header="Издатель" Binding="{Binding Publisher}" Width="*" MinWidth="140" />
+          <DataGridTextColumn Header="Версия" Binding="{Binding DisplayVersion}" Width="120" />
+          <DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="90" />
+          <DataGridTemplateColumn Header="" Width="190">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal">
+                  <Button Style="{StaticResource CompactButtonStyle}" Padding="8,3" FontSize="11"
+                          Visibility="{Binding HasInstallFolder, Converter={StaticResource BoolToVis}}"
+                          Command="{Binding OpenFolderCommand}" Content="Папка" Margin="0,0,5,0" />
+                  <Button Style="{StaticResource DangerButtonStyle}" Padding="8,3" FontSize="11"
+                          Visibility="{Binding HasUninstaller, Converter={StaticResource BoolToVis}}"
+                          Command="{Binding UninstallCommand}" Content="Удалить" />
+                </StackPanel>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+        </DataGrid.Columns>
+      </DataGrid>
+    </Grid>
+
+    <!-- ПРИЛОЖЕНИЯ WINDOWS -->
+    <Grid Grid.Row="1" Visibility="{Binding IsWindowsAppsMode, Converter={StaticResource BoolToVis}}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="12" />
+        <ColumnDefinition Width="290" />
+      </Grid.ColumnDefinitions>
+
+      <DataGrid Grid.Column="0"
+                ItemsSource="{Binding UwpPackages}"
+                IsReadOnly="True"
+                RowHeaderWidth="0">
+        <DataGrid.Columns>
+          <DataGridTemplateColumn Header="" Width="42">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                          IsEnabled="{Binding CanSelect}"
+                          HorizontalAlignment="Center" />
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTextColumn Header="Приложение" Binding="{Binding FriendlyName}" Width="1.4*" MinWidth="200" />
+          <DataGridTextColumn Header="Имя пакета" Binding="{Binding RawPackageName}" Width="*" MinWidth="160" />
+          <DataGridTextColumn Header="Версия" Binding="{Binding Version}" Width="120" />
+          <DataGridTextColumn Header="Вид" Binding="{Binding KindBadge}" Width="150" />
+        </DataGrid.Columns>
+      </DataGrid>
+
+      <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}">
+        <StackPanel>
+          <TextBlock Text="Приложения Windows" Style="{StaticResource CardTitleTextStyle}" />
+
+          <TextBox Style="{StaticResource SearchBoxStyle}"
+                   Tag="Название приложения"
+                   Text="{Binding UwpSearchFilter, UpdateSourceTrigger=PropertyChanged}"
+                   Margin="0,0,0,10" />
+
+          <CheckBox IsChecked="{Binding HideUwpFrameworks}"
+                    Content="Скрывать системные компоненты"
+                    ToolTip="Библиотеки и компоненты, без которых не работают другие приложения. Удалять их нельзя"
+                    Margin="0,0,0,12" />
+
+          <UniformGrid Columns="2" Margin="0,0,0,10">
+            <Button Style="{StaticResource CompactButtonStyle}" Command="{Binding ToggleSelectAllUwpCommand}" CommandParameter="true" Content="Отметить все" Margin="0,0,4,0" />
+            <Button Style="{StaticResource CompactButtonStyle}" Command="{Binding ToggleSelectAllUwpCommand}" CommandParameter="false" Content="Снять отметки" Margin="4,0,0,0" />
+          </UniformGrid>
+
+          <Button Style="{StaticResource DangerButtonStyle}"
+                  Command="{Binding RemoveSelectedUwpCommand}"
+                  Content="Удалить отмеченные"
+                  Margin="0,0,0,8" />
+
+          <Button Style="{StaticResource SecondaryButtonStyle}"
+                  Command="{Binding RefreshUwpCommand}"
+                  Content="Обновить список"
+                  Margin="0,0,0,12" />
+
+          <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" Padding="10,8">
+            <TextBlock Text="{Binding UwpStatusText}" Style="{StaticResource HintTextStyle}" />
+          </Border>
+
+          <TextBlock Style="{StaticResource HintTextStyle}"
+                     FontSize="11"
+                     Margin="0,10,0,0"
+                     Text="Удалённое приложение можно вернуть из Microsoft Store. В «Машину времени» удаление приложений не записывается." />
+        </StackPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

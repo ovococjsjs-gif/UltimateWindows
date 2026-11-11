@@ -1,0 +1,90 @@
+<UserControl x:Class="UltimateWindows.App.Views.OptimizerTabs.ToolsTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid Margin="14,12,14,12">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="1*" />
+      <ColumnDefinition Width="12" />
+      <ColumnDefinition Width="1.1*" />
+    </Grid.ColumnDefinitions>
+
+    <!-- Кто держит файл -->
+    <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" VerticalAlignment="Top">
+      <StackPanel>
+        <TextBlock Text="Кто держит файл" Style="{StaticResource CardTitleTextStyle}" Margin="0,0,0,2" />
+        <TextBlock Style="{StaticResource HintTextStyle}"
+                   Margin="0,0,0,10"
+                   Text="Если файл или папку не удаётся удалить, переименовать или переместить, программа покажет, какие процессы их используют." />
+
+        <Grid Margin="0,0,0,8">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBox Grid.Column="0" Text="{Binding LockedTargetPath, UpdateSourceTrigger=PropertyChanged}" ToolTip="Полный путь к файлу или папке" Margin="0,0,6,0" />
+          <Button Grid.Column="1" Style="{StaticResource CompactButtonStyle}" Command="{Binding BrowseLockedPathCommand}" Content="Выбрать" Margin="0,0,6,0" />
+          <Button Grid.Column="2" Style="{StaticResource PrimaryButtonStyle}" Padding="12,6" Command="{Binding FindLockersCommand}" Content="Найти" />
+        </Grid>
+
+        <TextBlock Text="{Binding LockHunterHeadline}" Style="{StaticResource HintTextStyle}" Margin="0,0,0,6" />
+
+        <ItemsControl ItemsSource="{Binding LockingProcesses}" Focusable="False">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="0,6">
+                <DockPanel>
+                  <Button DockPanel.Dock="Right" Style="{StaticResource DangerButtonStyle}" Padding="9,3" FontSize="11"
+                          IsEnabled="{Binding CanCloseSafely}"
+                          Command="{Binding CloseCommand}" Content="Закрыть" VerticalAlignment="Center" Margin="8,0,0,0" />
+                  <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding DisplayHeadline}" FontSize="12.5" FontWeight="Medium" />
+                    <TextBlock Text="{Binding ExecutablePath}" FontSize="10.5" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                </DockPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
+
+    <!-- Контекстное меню Проводника -->
+    <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Top">
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Style="{StaticResource CompactButtonStyle}"
+                    Command="{Binding RefreshAllOptimizerDataCommand}" Content="Обновить" VerticalAlignment="Top" Margin="8,0,0,0" />
+            <TextBlock Text="Контекстное меню Проводника" Style="{StaticResource CardTitleTextStyle}" Margin="0,0,0,2" />
+          </DockPanel>
+          <TextBlock Style="{StaticResource HintTextStyle}"
+                     Margin="0,0,0,10"
+                     Text="Пункты, которые сторонние программы добавили в меню правого щелчка. Скрытый пункт не удаляется: его можно вернуть." />
+          <TextBlock Visibility="{Binding HasNoShellExtensions, Converter={StaticResource BoolToVis}}"
+                     Style="{StaticResource HintTextStyle}"
+                     Text="Сторонних пунктов меню не найдено." />
+        </StackPanel>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <ItemsControl ItemsSource="{Binding ShellExtensions}" Focusable="False">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="0,7">
+                  <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource CompactButtonStyle}" Padding="9,3" FontSize="11"
+                            Command="{Binding ToggleBlockCommand}" Content="{Binding ToggleLabel}" Margin="10,0,0,0" VerticalAlignment="Center" />
+                    <StackPanel VerticalAlignment="Center">
+                      <TextBlock Text="{Binding HandlerName}" FontSize="12.5" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding TechnicalPathAndClsid}" FontSize="10.5" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                  </DockPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+  </Grid>
+</UserControl>

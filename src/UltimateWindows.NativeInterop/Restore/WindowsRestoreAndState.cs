@@ -7,8 +7,10 @@ using Microsoft.Win32;
 using UltimateWindows.Core.Contracts;
 using UltimateWindows.Core.Enums;
 using UltimateWindows.Core.Models;
+using UltimateWindows.Modules.Optimizer.Models;
 using UltimateWindows.Modules.Safety.Services;
 using UltimateWindows.Modules.Safety.Storage;
+using UltimateWindows.NativeInterop.Optimizer;
 using UltimateWindows.NativeInterop.Security;
 
 namespace UltimateWindows.NativeInterop.Restore;
@@ -125,16 +127,21 @@ public sealed class WindowsSystemRestoreBridge : IRestorePointProvider
 /// <summary>
 /// Модель сериализации состояния значения реестра для точного отката.
 /// </summary>
+/// <param name="CreatedKeyPath">
+/// Самый верхний раздел, которого не было до изменения. При откате опустевшие разделы от <paramref name="SubKey"/>
+/// до него включительно удаляются: откат убирает ровно то, что создало изменение.
+/// </param>
 public sealed record RegistryValueSnapshot(
     string Hive,
     string SubKey,
     string ValueName,
     bool ExistedBefore,
     RegistryValueKind ValueKind,
-    string? SerializedData);
+    string? SerializedData,
+    string? CreatedKeyPath = null);
 
 /// <summary>
-/// Полноценный исполнитель откатов для Windows: восстанавливает значения реестра, видеорежимы монитора, схемы питания и файлы из карантина.
+/// Полноценный исполнитель откатов для Windows: восстанавливает значения реестра, типы запуска служб, задания планировщика, видеорежимы монитора, схемы питания и файлы из карантина.
 /// </summary>
 public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
 {
@@ -155,6 +162,22 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
                 RestoreRegistrySnapshot(snapshot);
             }
 
+            return;
+        }
+
+        if (delta.TargetKind == StateTargetKind.WindowsService &&
+            OperatingSystem.IsWindows() &&
+            !string.IsNullOrWhiteSpace(delta.PreviousStateJson))
+        {
+            RestoreServiceStartup(delta);
+            return;
+        }
+
+        if (delta.TargetKind == StateTargetKind.ScheduledTask &&
+            OperatingSystem.IsWindows() &&
+            !string.IsNullOrWhiteSpace(delta.PreviousStateJson))
+        {
+            RestoreScheduledTask(delta);
             return;
         }
 
@@ -250,6 +273,64 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
         await base.ApplyRollbackDeltaAsync(delta, restoreBlobBytesAsync, ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Возвращает службе прежний тип запуска. Если службу с тех пор удалили, возвращать нечего.
+    /// </summary>
+    private static void RestoreServiceStartup(StateDeltaRecord delta)
+    {
+        using var doc = JsonDocument.Parse(delta.PreviousStateJson!);
+        var name = doc.RootElement.TryGetProperty("ServiceName", out var nameElement) ? nameElement.GetString() : delta.TargetPath;
+        var startupText = doc.RootElement.TryGetProperty("Startup", out var startupElement) ? startupElement.GetString() : null;
+
+        if (string.IsNullOrWhiteSpace(name) ||
+            !Enum.TryParse<ServiceStartupMode>(startupText, ignoreCase: true, out var startup))
+        {
+            return;
+        }
+
+        var current = WindowsServiceControl.Query(name);
+        if (current is null || current.Startup == startup)
+        {
+            return;
+        }
+
+        var result = WindowsServiceControl.SetStartup(name, startup);
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(
+                $"Не удалось вернуть службе «{name}» тип запуска «{ServiceDisplay.GetTitle(startup)}»: {result.Error}.");
+        }
+    }
+
+    /// <summary>
+    /// Возвращает заданию планировщика прежнее состояние. Если задание с тех пор удалили, возвращать нечего.
+    /// </summary>
+    private static void RestoreScheduledTask(StateDeltaRecord delta)
+    {
+        using var doc = JsonDocument.Parse(delta.PreviousStateJson!);
+        var path = doc.RootElement.TryGetProperty("TaskPath", out var pathElement) ? pathElement.GetString() : delta.TargetPath;
+        if (string.IsNullOrWhiteSpace(path) ||
+            !doc.RootElement.TryGetProperty("Enabled", out var enabledElement) ||
+            (enabledElement.ValueKind != JsonValueKind.True && enabledElement.ValueKind != JsonValueKind.False))
+        {
+            return;
+        }
+
+        var enabled = enabledElement.GetBoolean();
+        var current = WindowsTaskScheduler.Query([path]);
+        if (!current.TryGetValue(path, out var snapshot) || snapshot.Enabled == enabled)
+        {
+            return;
+        }
+
+        var result = WindowsTaskScheduler.SetEnabled(path, enabled);
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(
+                $"Не удалось вернуть задание «{path}» в состояние «{TweakScheduledTaskAction.FormatEnabled(enabled)}»: {result.Error}.");
+        }
+    }
+
     private static void RestoreRegistrySnapshot(RegistryValueSnapshot snapshot)
     {
         var hive = snapshot.Hive.ToUpperInvariant() switch
@@ -263,8 +344,12 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
         using var baseKey = RegistryKey.OpenBaseKey(hive, RegistryView.Default);
         if (!snapshot.ExistedBefore)
         {
-            using var subKey = baseKey.OpenSubKey(snapshot.SubKey, writable: true);
-            subKey?.DeleteValue(snapshot.ValueName, throwOnMissingValue: false);
+            using (var subKey = baseKey.OpenSubKey(snapshot.SubKey, writable: true))
+            {
+                subKey?.DeleteValue(snapshot.ValueName, throwOnMissingValue: false);
+            }
+
+            RemoveCreatedKeys(baseKey, snapshot.SubKey, snapshot.CreatedKeyPath);
             return;
         }
 
@@ -284,5 +369,51 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
         };
 
         writableKey.SetValue(snapshot.ValueName, valueToWrite, snapshot.ValueKind);
+    }
+
+    /// <summary>
+    /// Удаляет разделы, созданные изменением: от самого глубокого вверх до <paramref name="createdKeyPath"/> включительно,
+    /// и только пока раздел пуст. Раздел, в котором с тех пор появилось что-то ещё, остаётся.
+    /// </summary>
+    private static void RemoveCreatedKeys(RegistryKey baseKey, string subKeyPath, string? createdKeyPath)
+    {
+        if (string.IsNullOrWhiteSpace(createdKeyPath) ||
+            !subKeyPath.StartsWith(createdKeyPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var path = subKeyPath;
+        while (path.Length >= createdKeyPath.Length)
+        {
+            try
+            {
+                using (var key = baseKey.OpenSubKey(path, writable: false))
+                {
+                    if (key is null)
+                    {
+                        // Раздела уже нет — проверяем его родителя
+                    }
+                    else if (key.ValueCount > 0 || key.SubKeyCount > 0)
+                    {
+                        return;
+                    }
+                }
+
+                baseKey.DeleteSubKey(path, throwOnMissingSubKey: false);
+            }
+            catch (Exception)
+            {
+                return;
+            }
+
+            var separator = path.LastIndexOf('\\');
+            if (path.Length == createdKeyPath.Length || separator <= 0)
+            {
+                return;
+            }
+
+            path = path[..separator];
+        }
     }
 }

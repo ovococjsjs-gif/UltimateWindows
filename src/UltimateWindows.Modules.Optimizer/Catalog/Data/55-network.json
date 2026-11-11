@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 2,
+
+  "tweaks": [
+    {
+      "id": "net.prefer-ipv4",
+      "category": "Network",
+      "title": "Предпочитать IPv4 вместо IPv6",
+      "explanation": "Windows сначала пробует соединение по IPv4. Помогает, когда у провайдера или VPN плохо работает IPv6 и сайты открываются с задержкой. Сам IPv6 остаётся включённым.",
+      "risk": "Low",
+      "restart": "reboot",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters", "name": "DisabledComponents", "kind": "dword", "value": 32 }
+      ]
+    },
+    {
+      "id": "net.disable-ipv6-tunnels",
+      "category": "Network",
+      "title": "Отключить туннели IPv6 (Teredo, ISATAP, 6to4)",
+      "explanation": "Отключает устаревшие способы передавать IPv6 поверх IPv4 — лишний путь в обход сетевого экрана. Приложение Xbox может сообщать о закрытом NAT для сетевой игры и голосового чата.",
+      "risk": "Low",
+      "restart": "reboot",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\TCPIP\\v6Transition", "name": "Teredo_State", "kind": "string", "value": "Disabled" },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\TCPIP\\v6Transition", "name": "ISATAP_State", "kind": "string", "value": "Disabled" },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\TCPIP\\v6Transition", "name": "6to4_State", "kind": "string", "value": "Disabled" }
+      ]
+    },
+    {
+      "id": "net.no-network-in-standby",
+      "category": "Network",
+      "title": "Отключать сеть в спящем режиме",
+      "explanation": "Ноутбук с современным режимом ожидания во сне отключается от сети: батарея садится медленнее, и корпус не греется в сумке. Почта и мессенджеры не обновляются, пока ноутбук спит. На компьютерах без этого режима ничего не меняется.",
+      "risk": "Low",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Power\\PowerSettings\\f15576e8-98b7-4186-b944-eafa664402d9", "name": "ACSettingIndex", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Power\\PowerSettings\\f15576e8-98b7-4186-b944-eafa664402d9", "name": "DCSettingIndex", "kind": "dword", "value": 0 }
+      ]
+    }
+  ]
+}

@@ -118,45 +118,47 @@ public sealed class OptimizerTweaksAndNetworkTests : IDisposable
         {
             Facts = new SystemFacts(WindowsBuildNumber: 19045, SystemDriveIsSolidState: false, HasBattery: true)
         };
+        bridge.Services["SysMain"] = ServiceStartupMode.Automatic;
         var vault = new ZeroBloatVaultService(Path.Combine(_sandboxDir, "VaultFacts"));
         var service = new SmartOptimizerService(vault, bridge);
 
         var states = service.EvaluateAllTweaks();
         Assert.Equal(
             TweakApplicabilityStatus.NotApplicable,
-            states.Single(s => s.Rule.TweakId == "ui.win11-classic-full-context-menu").Applicability.Status);
+            states.Single(s => s.Rule.TweakId == "explorer.classic-context-menu").Applicability.Status);
         Assert.Equal(
             TweakApplicabilityStatus.NotRecommended,
-            states.Single(s => s.Rule.TweakId == "disk.disable-superfetch-sysmain").Applicability.Status);
+            states.Single(s => s.Rule.TweakId == "disk.disable-sysmain").Applicability.Status);
         Assert.Equal(
             TweakApplicabilityStatus.NotRecommended,
-            states.Single(s => s.Rule.TweakId == "disk.disable-hibernation-boot-files").Applicability.Status);
-        Assert.True(states.Single(s => s.Rule.TweakId == "ui.fast-menu-response").Applicability.IsApplicable);
+            states.Single(s => s.Rule.TweakId == "disk.disable-hibernation").Applicability.Status);
+        Assert.True(states.Single(s => s.Rule.TweakId == "explorer.menu-delay").Applicability.IsApplicable);
 
         // Твик только для Windows 11 нельзя включить на Windows 10 даже с явным согласием
         var notApplicable = await service.SetTweakStateAsync(
-            "ui.win11-classic-full-context-menu", enableTweak: true, options: TweakApplyOptions.AcceptAll);
+            "explorer.classic-context-menu", enableTweak: true, options: TweakApplyOptions.AcceptAll);
         Assert.False(notApplicable.Succeeded);
         Assert.Equal(TweakConfirmationKind.None, notApplicable.ConfirmationRequired);
         Assert.Empty(bridge.Store);
 
         // Не рекомендуемый твик без согласия не применяется и просит подтверждение
-        var needsConsent = await service.SetTweakStateAsync("disk.disable-superfetch-sysmain", enableTweak: true);
+        var needsConsent = await service.SetTweakStateAsync("disk.disable-sysmain", enableTweak: true);
         Assert.False(needsConsent.Succeeded);
         Assert.Equal(TweakConfirmationKind.NotRecommendedForThisPc, needsConsent.ConfirmationRequired);
         Assert.Contains("HDD", needsConsent.UserFriendlyMessage);
-        Assert.Empty(bridge.Store);
+        Assert.Equal(ServiceStartupMode.Automatic, bridge.Services["SysMain"]);
 
         // С явным согласием пользователя твик применяется
         var consented = await service.SetTweakStateAsync(
-            "disk.disable-superfetch-sysmain", enableTweak: true, options: new TweakApplyOptions(AcceptNotRecommended: true));
+            "disk.disable-sysmain", enableTweak: true, options: new TweakApplyOptions(AcceptNotRecommended: true));
         Assert.True(consented.Succeeded);
-        Assert.Equal("4", bridge.Store[@"HKLM\SYSTEM\CurrentControlSet\Services\SysMain::Start"].Val);
+        Assert.Equal(ServiceStartupMode.Disabled, bridge.Services["SysMain"]);
+        Assert.Equal(TweakRestartKind.Reboot, consented.RestartRequired);
 
         // Возврат к стандарту Windows разрешён всегда и подтверждений не требует
-        var restored = await service.SetTweakStateAsync("disk.disable-superfetch-sysmain", enableTweak: false);
+        var restored = await service.SetTweakStateAsync("disk.disable-sysmain", enableTweak: false);
         Assert.True(restored.Succeeded);
-        Assert.Equal("2", bridge.Store[@"HKLM\SYSTEM\CurrentControlSet\Services\SysMain::Start"].Val);
+        Assert.Equal(ServiceStartupMode.Automatic, bridge.Services["SysMain"]);
     }
 
     [Fact]
@@ -167,35 +169,46 @@ public sealed class OptimizerTweaksAndNetworkTests : IDisposable
         // Идентификаторы уникальны
         Assert.Equal(rules.Count, rules.Select(r => r.TweakId).Distinct(StringComparer.OrdinalIgnoreCase).Count());
 
-        // В готовые наборы не попадает ничего опасного и ничего с условиями применимости
-        foreach (var presetKey in new[] { "recommended", "gaming", "privacy" })
+        // В готовые наборы попадают только настройки без оговорок: риск Safe или Low
+        var presets = DeclarativeTweakCatalog.GetPresets();
+        Assert.Equal(new[] { "recommended", "privacy", "gaming", "clean-ui" }, presets.Select(p => p.Key).ToArray());
+        foreach (var preset in presets)
         {
-            foreach (var id in DeclarativeTweakCatalog.GetPresetIds(presetKey))
+            Assert.False(string.IsNullOrWhiteSpace(preset.Title));
+            Assert.False(string.IsNullOrWhiteSpace(preset.Description));
+            foreach (var id in preset.TweakIds)
             {
                 var rule = DeclarativeTweakCatalog.FindById(id);
                 Assert.NotNull(rule);
-                Assert.False(rule!.IsDangerous);
-                Assert.Same(TweakRequirements.None, rule.EffectiveRequirements);
+                Assert.False(rule.IsDangerous);
+                Assert.True(rule.Risk <= RiskLevel.Low, $"{id} в наборе «{preset.Key}» имеет риск {rule.Risk}");
             }
         }
 
+        // Набор «Рекомендуемый» не трогает ничего с побочным эффектом
+        Assert.All(
+            DeclarativeTweakCatalog.GetPresetIds("recommended"),
+            id => Assert.Equal(RiskLevel.Safe, DeclarativeTweakCatalog.FindById(id)!.Risk));
+
         // Стандартный порог разделения svchost в Windows — 0x380000 КБ
-        var svchost = DeclarativeTweakCatalog.FindById("sys.svchost-split-threshold-ram");
+        var svchost = DeclarativeTweakCatalog.FindById("perf.svchost-split");
         Assert.NotNull(svchost);
-        Assert.Equal("3670016", svchost!.Mutations[0].DefaultRestoreSerializedValue);
+        Assert.Equal("3670016", svchost.Mutations[0].DefaultRestoreSerializedValue);
+
+        // Права администратора выводятся из действий: куст пользователя их не требует, политики и службы — требуют
+        Assert.False(DeclarativeTweakCatalog.FindById("explorer.show-file-extensions")!.RequiresAdministrator);
+        Assert.True(DeclarativeTweakCatalog.FindById("ads.disable-bing-in-start")!.RequiresAdministrator);
+        Assert.True(DeclarativeTweakCatalog.FindById("privacy.disable-telemetry-services")!.RequiresAdministrator);
     }
 
-    private static DeclarativeTweakRule BuildTestRule(string id, RiskLevel risk, TweakRegistryMutation mutation) =>
+    private static DeclarativeTweakRule BuildTestRule(string id, RiskLevel risk, TweakAction action) =>
         new(
             id,
-            TweakCategory.SecurityAndClarity,
-            "TST",
+            TweakCategory.Security,
             "Тестовое правило",
             "Правило только для проверки защитного фильтра.",
-            "—",
             risk,
-            RequiresAdministrator: true,
-            Mutations: [mutation]);
+            [action]);
 
     [Fact]
     public async Task SmartOptimizerService_TogglesTweaks_ExportsImportsYaml_AndRecordsVaultRollback()
@@ -207,14 +220,14 @@ public sealed class OptimizerTweaksAndNetworkTests : IDisposable
         var vault1 = new ZeroBloatVaultService(Path.Combine(_sandboxDir, "Vault1"), stateApplier: applier);
         var service1 = new SmartOptimizerService(vault1, bridge1);
 
-        var enableRes = await service1.SetTweakStateAsync("ui.fast-menu-response", enableTweak: true);
+        var enableRes = await service1.SetTweakStateAsync("explorer.menu-delay", enableTweak: true);
         Assert.True(enableRes.Succeeded);
         Assert.NotNull(enableRes.RollbackSessionId);
-        Assert.Equal("20", bridge1.Store[@"HKCU\Control Panel\Desktop::MenuShowDelay"].Val);
+        Assert.Equal("100", bridge1.Store[@"HKCU\Control Panel\Desktop::MenuShowDelay"].Val);
 
         // Проверяем экспорт активных настроек в декларативный YAML и импорт на второй чистой машине
         var yaml = service1.ExportActiveTweaksToYaml("Киберспорт и скорость");
-        Assert.Contains("ui.fast-menu-response", yaml);
+        Assert.Contains("explorer.menu-delay", yaml);
 
         var bridge2 = new FakeOptimizerBridge();
         var vault2 = new ZeroBloatVaultService(Path.Combine(_sandboxDir, "Vault2"));
@@ -222,7 +235,7 @@ public sealed class OptimizerTweaksAndNetworkTests : IDisposable
 
         var importRes = await service2.ImportAndApplyYamlProfileAsync(yaml);
         Assert.True(importRes.Succeeded);
-        Assert.Equal("20", bridge2.Store[@"HKCU\Control Panel\Desktop::MenuShowDelay"].Val);
+        Assert.Equal("100", bridge2.Store[@"HKCU\Control Panel\Desktop::MenuShowDelay"].Val);
 
         // Проверяем откат в 1 клик на первой системе (возврат "400" из Машины времени)
         await vault1.RollbackTransactionAsync(enableRes.RollbackSessionId!.Value);
@@ -283,10 +296,11 @@ public sealed class OptimizerTweaksAndNetworkTests : IDisposable
     public async Task OptimizerV2CatalogAndHostsEditor_CoversAllCategories_BlocksSecurityHijacks_AndRecordsHostsRollback()
     {
         var rules = DeclarativeTweakCatalog.GetAllRules();
-        Assert.True(rules.Count >= 36);
-        Assert.Contains(rules, r => r.Category == TweakCategory.DiskAndFileSystem);
-        Assert.Contains(rules, r => r.Category == TweakCategory.AppTelemetry);
-        Assert.Contains(rules, r => r.Category == TweakCategory.GamingAndLatency);
+        Assert.True(rules.Count >= 150);
+        foreach (var category in TweakCategoryInfo.DisplayOrder)
+        {
+            Assert.Contains(rules, r => r.Category == category);
+        }
 
         var hostsFile = Path.Combine(_sandboxDir, "hosts_test");
         await File.WriteAllTextAsync(hostsFile, "127.0.0.1 localhost\r\n");
@@ -309,51 +323,6 @@ public sealed class OptimizerTweaksAndNetworkTests : IDisposable
         await vault.RollbackTransactionAsync(added.RollbackSessionId!.Value);
         Assert.Single(applier.RestoredDeltas);
         Assert.Equal("HostsSabotageCleanup", applier.RestoredDeltas[0].TargetPath);
-    }
-
-    private sealed class FakeOptimizerBridge : DefaultOptimizerPlatformBridge
-    {
-        public string? CustomHostsPath { get; set; }
-        public SystemFacts Facts { get; set; } = SystemFacts.Unknown;
-
-        public override SystemFacts GetSystemFacts() => Facts;
-        public Dictionary<string, (int Kind, string Val)> Store { get; } = new(StringComparer.OrdinalIgnoreCase);
-
-        public override string GetHostsFilePath() => CustomHostsPath ?? base.GetHostsFilePath();
-
-        public override bool IsRunningAsAdministrator() => true;
-
-        public override (bool Exists, int ValueKindCode, string? SerializedValue) ReadRegistryValue(
-            string hive,
-            string subKeyPath,
-            string valueName)
-        {
-            var key = $@"{hive}\{subKeyPath}::{valueName}";
-            return Store.TryGetValue(key, out var item)
-                ? (true, item.Kind, item.Val)
-                : (false, 1, null);
-        }
-
-        public override bool WriteRegistryValue(
-            string hive,
-            string subKeyPath,
-            string valueName,
-            RegistryTweakValueKind kind,
-            string serializedValue)
-        {
-            var key = $@"{hive}\{subKeyPath}::{valueName}";
-            if (kind == RegistryTweakValueKind.DeleteValue)
-            {
-                Store.Remove(key);
-                return true;
-            }
-
-            Store[key] = ((int)kind, serializedValue);
-            return true;
-        }
-
-        public override Task<bool> TryPoliteCloseProcessAsync(int processId, CancellationToken ct = default) =>
-            Task.FromResult(processId == 4512);
     }
 
     private sealed class RecordingStateApplier : ISystemStateApplier

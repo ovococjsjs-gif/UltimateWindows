@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:UltimateWindows.App.ViewModels"
         xmlns:views="clr-namespace:UltimateWindows.App.Views"
-        Title="UltimateWindows v2.0 — Анализатор диска, Оптимизатор, Очистка и Защита ПК"
+        Title="UltimateWindows — диск, очистка, настройка, защита и ремонт Windows"
         Width="1360"
         Height="840"
         MinWidth="1060"
@@ -121,7 +121,7 @@
                        Style="{StaticResource NavRadioButtonStyle}"
                        Tag="{StaticResource IconOptimizer}"
                        IsChecked="{Binding IsOptimizerNav, Mode=TwoWay}"
-                       Content="Оптимизатор и UWP" />
+                       Content="Оптимизатор" />
 
           <RadioButton GroupName="MainNav"
                        Style="{StaticResource NavRadioButtonStyle}"
@@ -160,7 +160,7 @@
         <RowDefinition Height="28" />
       </Grid.RowDefinitions>
 
-      <!-- Компактная верхняя панель в стиле Optimizer 14.7 -->
+      <!-- Компактная верхняя панель: версия Windows, режим работы, системный диск -->
       <Border Grid.Row="0"
               Background="{DynamicResource SurfaceSidebarBrush}"
               BorderBrush="{DynamicResource CardBorderBrush}"
@@ -231,7 +231,7 @@
           Visibility="{Binding IsTimeMachineVisible, Converter={StaticResource BoolToVis}}" />
       </Grid>
 
-      <!-- Нижняя строка состояния и телеметрии ПК (как в CCleaner / WizTree) -->
+      <!-- Нижняя строка состояния: последнее действие и краткие сведения о компьютере -->
       <Border Grid.Row="2"
               Background="{DynamicResource SurfaceSidebarBrush}"
               BorderBrush="{DynamicResource CardBorderBrush}"

@@ -120,19 +120,6 @@ public sealed class MainViewModel : ObservableObject
             }
         });
 
-        JumpToDiskAnalyzerCommand = new AsyncRelayCommand(_ =>
-        {
-            SelectedDomain = SystemDomain.SmartCleaner;
-            CleanerStudio.SelectedSubTabIndex = 0;
-            return CleanerStudio.AnalyzeDiskSpaceAsync();
-        });
-
-        JumpToSpaceSaverCommand = new RelayCommand(_ =>
-        {
-            SelectedDomain = SystemDomain.SmartCleaner;
-            CleanerStudio.SelectedSubTabIndex = 3;
-        });
-
         RunOneClickSmartAuditCommand = new AsyncRelayCommand(_ => RunOneClickSmartAuditAsync());
         RestartAsAdminCommand = new RelayCommand(_ => RestartWithAdministratorRights(), _ => !IsAdmin);
         SaveQuotaPolicyCommand = new AsyncRelayCommand(_ => SaveQuotaPolicyAsync());
@@ -171,6 +158,23 @@ public sealed class MainViewModel : ObservableObject
 
         _smartAuditOrchestrator = new SmartSystemAuditOrchestrator(
             hardwareService, driverService, cleanerService, repairService, optimizerService, securityService);
+
+        // Команды переходов создаются после разделов, к которым они обращаются
+        JumpToDiskAnalyzerCommand = new AsyncRelayCommand(_ =>
+        {
+            SelectedDomain = SystemDomain.SmartCleaner;
+            CleanerStudio.SelectedSubTabIndex = 0;
+            return CleanerStudio.AnalyzeDiskSpaceAsync();
+        });
+
+        JumpToSpaceSaverCommand = new RelayCommand(_ =>
+        {
+            SelectedDomain = SystemDomain.SmartCleaner;
+            CleanerStudio.SelectedSubTabIndex = 3;
+        });
+
+        // Ошибка, которую команда не обработала сама, показывается в строке состояния, а не закрывает программу
+        AsyncRelayCommand.UnhandledError = ex => StatusNotification = $"Не удалось выполнить действие: {ex.Message}";
 
         RefreshSystemDriveTelemetry();
         _ = InitializeAsync();
@@ -410,9 +414,18 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task RollbackAsync(Guid sessionId)
     {
-        await _vaultService.RollbackTransactionAsync(sessionId);
-        OptimizerStudio.ReloadTweaksAndHosts();
-        StatusNotification = "Изменения успешно отменены — параметры возвращены назад.";
+        try
+        {
+            await Task.Run(() => _vaultService.RollbackTransactionAsync(sessionId));
+            StatusNotification = "Изменения отменены — параметры возвращены в прежнее состояние.";
+        }
+        catch (Exception ex)
+        {
+            // Запись остаётся неотменённой: откат можно повторить, например с правами администратора
+            StatusNotification = $"Отменить изменения удалось не полностью: {ex.Message}";
+        }
+
+        await OptimizerStudio.RefreshAfterRollbackAsync();
         await RefreshVaultStateAsync();
     }
 

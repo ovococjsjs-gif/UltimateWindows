@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 2,
+
+  "tweaks": [
+    {
+      "id": "update.disable-p2p",
+      "category": "WindowsUpdate",
+      "title": "Не раздавать обновления другим компьютерам",
+      "explanation": "Windows скачивает обновления только с серверов Microsoft и не раздаёт их другим компьютерам в локальной сети и интернете.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization", "name": "DODownloadMode", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "update.exclude-drivers",
+      "category": "WindowsUpdate",
+      "title": "Не устанавливать драйверы через Центр обновления",
+      "explanation": "Центр обновления перестаёт сам заменять драйверы. Полезно, если обновление ставит неудачный драйвер видеокарты или звука; обновлять драйверы придётся самостоятельно.",
+      "risk": "Low",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate", "name": "ExcludeWUDriversInQualityUpdate", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "update.defer-feature-updates",
+      "category": "WindowsUpdate",
+      "title": "Откладывать новые версии Windows на год",
+      "explanation": "Крупные обновления — новая версия Windows — приходят через 365 дней после выхода, когда основные ошибки уже исправлены. Обновления безопасности ставятся как обычно. В редакции Home не действует.",
+      "risk": "Low",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate", "name": "DeferFeatureUpdates", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate", "name": "DeferFeatureUpdatesPeriodInDays", "kind": "dword", "value": 365 }
+      ]
+    },
+    {
+      "id": "update.defer-quality-updates",
+      "category": "WindowsUpdate",
+      "title": "Откладывать ежемесячные обновления на 4 дня",
+      "explanation": "Ежемесячные обновления приходят через 4 дня после выхода. Это защищает от обновлений, которые Microsoft отзывает в первые дни; исправления уязвимостей тоже приходят на 4 дня позже. В редакции Home не действует.",
+      "risk": "Low",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate", "name": "DeferQualityUpdates", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate", "name": "DeferQualityUpdatesPeriodInDays", "kind": "dword", "value": 4 }
+      ]
+    },
+    {
+      "id": "update.notify-before-download",
+      "category": "WindowsUpdate",
+      "title": "Спрашивать перед загрузкой обновлений",
+      "explanation": "Windows сообщает о новых обновлениях, но не скачивает их, пока вы не разрешите. Если откладывать надолго, компьютер останется без исправлений уязвимостей. В редакции Home может не действовать.",
+      "risk": "Moderate",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU", "name": "AUOptions", "kind": "dword", "value": 2 }
+      ]
+    },
+    {
+      "id": "update.stay-on-windows10",
+      "category": "WindowsUpdate",
+      "title": "Остаться на Windows 10 версии 22H2",
+      "explanation": "Центр обновления перестаёт предлагать переход на Windows 11. Обновления Windows 10 продолжают приходить, пока Microsoft их выпускает.",
+      "risk": "Low",
+      "requirements": { "maxWindowsBuild": 19045 },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate", "name": "TargetReleaseVersion", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate", "name": "ProductVersion", "kind": "string", "value": "Windows 10" },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate", "name": "TargetReleaseVersionInfo", "kind": "string", "value": "22H2" }
+      ]
+    },
+    {
+      "id": "update.disable-store-auto-updates",
+      "category": "WindowsUpdate",
+      "title": "Не обновлять приложения Microsoft Store автоматически",
+      "explanation": "Приложения из Microsoft Store перестают обновляться сами. Обновить их можно вручную в разделе «Библиотека» магазина.",
+      "risk": "Low",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\WindowsStore", "name": "AutoDownload", "kind": "dword", "value": 2 }
+      ]
+    },
+    {
+      "id": "update.disable-windows-update",
+      "category": "WindowsUpdate",
+      "title": "Полностью отключить обновления Windows",
+      "explanation": "Отключает службы обновления. Компьютер перестаёт получать исправления уязвимостей и новые драйверы через Центр обновления, а Microsoft Store перестаёт устанавливать и обновлять приложения. При обслуживании Windows может сама включить службы обратно.",
+      "risk": "High",
+      "restart": "reboot",
+      "actions": [
+        { "type": "service", "name": "wuauserv", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "UsoSvc", "startup": "disabled", "default": "automaticDelayed" },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU", "name": "NoAutoUpdate", "kind": "dword", "value": 1 }
+      ]
+    }
+  ]
+}

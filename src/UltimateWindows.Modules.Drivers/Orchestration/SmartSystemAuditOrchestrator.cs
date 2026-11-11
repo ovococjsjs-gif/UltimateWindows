@@ -182,9 +182,28 @@ public sealed class SmartSystemAuditOrchestrator
 
         // 5. Оценка автозагрузки и фоновой тишины (вес 10%)
         var activeUnsignedStartups = startups.Count(s => s.IsEnabled && !s.IsSignedTrusted);
-        var unappliedSafeTweaks = tweaks.Count(t => !t.IsCurrentlyApplied && t.Rule.Risk == RiskLevel.Safe);
-        var optimizerPenalty = (activeUnsignedStartups * 6) + Math.Min(16, unappliedSafeTweaks * 2);
+
+        // Оценку снижают только невключённые настройки набора «Рекомендуемый»: остальные настройки каталога —
+        // дело вкуса, и их отсутствие не говорит о плохом состоянии системы.
+        var recommendedIds = new HashSet<string>(
+            _optimizerService.GetPresets().FirstOrDefault(p => p.Key == "recommended")?.TweakIds ?? [],
+            StringComparer.OrdinalIgnoreCase);
+        var recommendedStates = tweaks
+            .Where(t => recommendedIds.Contains(t.Rule.TweakId) && t.Applicability.IsApplicable)
+            .ToList();
+        var missingRecommended = recommendedStates.Count(t => !t.IsCurrentlyApplied);
+        var optimizerPenalty = (activeUnsignedStartups * 6) + Math.Min(12, missingRecommended);
         var optimizerScore = Math.Clamp(100 - optimizerPenalty, 60, 100);
+
+        if (missingRecommended >= 5)
+        {
+            actions.Add(new SmartAuditActionItem(
+                SystemDomain.Optimizer,
+                RiskLevel.Low,
+                $"Не включено рекомендуемых настроек Windows: {missingRecommended} из {recommendedStates.Count}",
+                "Набор «Рекомендуемый» убирает рекламу и лишнюю телеметрию. Применяется одной кнопкой и отменяется в «Машине времени».",
+                "⚡ Оптимизатор"));
+        }
 
         if (activeUnsignedStartups > 0)
         {

@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 2,
+
+  "tweaks": [
+    {
+      "id": "perf.no-startup-delay",
+      "category": "Performance",
+      "title": "Запускать автозагрузку без задержки",
+      "explanation": "Программы из автозагрузки начинают запускаться сразу после входа, а не через несколько секунд ожидания. На медленном диске рабочий стол в первые секунды может отзываться хуже.",
+      "risk": "Safe",
+      "restart": "signout",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Serialize", "name": "StartupDelayInMSec", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Serialize", "name": "WaitForIdleState", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "perf.faster-shutdown",
+      "category": "Performance",
+      "title": "Не ждать зависшие программы при выключении",
+      "explanation": "При выключении и перезагрузке Windows сама закрывает программы, которые не отвечают, и ждёт их меньше. Несохранённые данные в зависшей программе будут потеряны.",
+      "risk": "Low",
+      "restart": "signout",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Control Panel\\Desktop", "name": "AutoEndTasks", "kind": "string", "value": "1" },
+        { "type": "registry", "hive": "HKCU", "key": "Control Panel\\Desktop", "name": "WaitToKillAppTimeout", "kind": "string", "value": "5000" },
+        { "type": "registry", "hive": "HKCU", "key": "Control Panel\\Desktop", "name": "HungAppTimeout", "kind": "string", "value": "3000" }
+      ]
+    },
+    {
+      "id": "perf.disable-transparency",
+      "category": "Performance",
+      "title": "Отключить эффекты прозрачности",
+      "explanation": "Панель задач, меню «Пуск» и окна становятся непрозрачными. На слабой встроенной графике интерфейс отзывается чуть быстрее.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", "name": "EnableTransparency", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "perf.disable-animations",
+      "category": "Performance",
+      "title": "Отключить анимацию окон и панели задач",
+      "explanation": "Окна сворачиваются и разворачиваются мгновенно, значки на панели задач не анимируются.",
+      "risk": "Safe",
+      "restart": "signout",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Control Panel\\Desktop\\WindowMetrics", "name": "MinAnimate", "kind": "string", "value": "0", "default": "1" },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "TaskbarAnimations", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "perf.svchost-split",
+      "category": "Performance",
+      "title": "Объединять службы в общие процессы svchost",
+      "explanation": "Службы Windows снова работают группами в общих процессах, как до Windows 10 версии 1703: процессов становится меньше и экономится немного памяти. Зато сбой одной службы завершит всю группу, а найти службу, которая грузит компьютер, станет сложнее. Действует при объёме памяти до 64 ГБ.",
+      "risk": "Low",
+      "restart": "reboot",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control", "name": "SvcHostSplitThresholdInKB", "kind": "dword", "value": 67108864, "default": 3670016 }
+      ]
+    },
+    {
+      "id": "perf.disable-power-throttling",
+      "category": "Performance",
+      "title": "Не замедлять фоновые программы",
+      "explanation": "Windows перестаёт снижать частоту процессора для свёрнутых и фоновых программ. Фоновые задачи — сборка, рендеринг, загрузки — идут быстрее.",
+      "risk": "Low",
+      "restart": "reboot",
+      "requirements": { "batteryWarning": "Это устройство с батареей. Без замедления фоновых программ оно будет работать от батареи заметно меньше." },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling", "name": "PowerThrottlingOff", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "perf.disable-fast-startup",
+      "category": "Performance",
+      "title": "Отключить быстрый запуск",
+      "explanation": "При выключении Windows завершает работу полностью, а не сохраняет ядро на диск. Включение станет на несколько секунд дольше, зато уходят типичные проблемы быстрого запуска: не применяются обновления драйверов, из другой системы не видны диски, не сбрасывается время работы.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power", "name": "HiberbootEnabled", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "perf.show-bsod-details",
+      "category": "Performance",
+      "title": "Показывать параметры ошибки на синем экране",
+      "explanation": "На синем экране дополнительно выводятся четыре параметра ошибки. По ним причину сбоя найти проще, чем по одному названию.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\CrashControl", "name": "DisplayParameters", "kind": "dword", "value": 1, "default": 0 }
+      ]
+    },
+    {
+      "id": "perf.no-auto-restart-on-bsod",
+      "category": "Performance",
+      "title": "Не перезагружаться сразу после синего экрана",
+      "explanation": "После критической ошибки компьютер остаётся на синем экране, пока вы не выключите его сами: код ошибки можно прочитать и сфотографировать.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\CrashControl", "name": "AutoReboot", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "perf.disable-compat-assistant",
+      "category": "Performance",
+      "title": "Отключить помощник по совместимости программ",
+      "explanation": "Windows перестаёт следить за запуском старых программ и предлагать для них параметры совместимости. Если старая программа не запустится, совместимость придётся настроить вручную в её свойствах.",
+      "risk": "Low",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\AppCompat", "name": "DisablePCA", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "perf.no-maintenance-wakeup",
+      "category": "Performance",
+      "title": "Не будить компьютер для обслуживания",
+      "explanation": "Автоматическое обслуживание перестаёт выводить компьютер из сна по ночам. Оно выполнится, когда компьютер включён и простаивает.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Schedule\\Maintenance", "name": "WakeUp", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "perf.disable-winsat-task",
+      "category": "Performance",
+      "title": "Отключить плановую оценку производительности",
+      "explanation": "Windows перестаёт раз в неделю запускать тест WinSAT, который на несколько минут нагружает процессор и диск. Оценку можно запустить вручную.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "task", "path": "\\Microsoft\\Windows\\Maintenance\\WinSAT", "enabled": false }
+      ]
+    },
+    {
+      "id": "perf.disable-power-efficiency-task",
+      "category": "Performance",
+      "title": "Отключить плановый анализ энергопотребления",
+      "explanation": "Отключает задание, которое периодически собирает отчёт об энергоэффективности системы. Отчёт можно получить вручную командой powercfg /energy.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "task", "path": "\\Microsoft\\Windows\\Power Efficiency Diagnostics\\AnalyzeSystem", "enabled": false }
+      ]
+    }
+  ]
+}

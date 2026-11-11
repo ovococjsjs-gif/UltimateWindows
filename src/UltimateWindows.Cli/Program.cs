@@ -226,21 +226,78 @@ switch (command)
 
     case "tweak-list":
     {
-        Console.WriteLine("=== UltimateWindows Phase 4 — Обратимые твики ОС ===");
-        foreach (var st in optimizer.EvaluateAllTweaks())
+        // tweak-list [раздел] [--on | --off]
+        var onlyOn = HasFlag(args, "--on");
+        var onlyOff = HasFlag(args, "--off");
+        var categoryFilter = args.Skip(1).FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal));
+
+        var states = optimizer.EvaluateAllTweaks()
+            .Where(st => categoryFilter is null ||
+                         st.Rule.Category.ToString().Contains(categoryFilter, StringComparison.OrdinalIgnoreCase) ||
+                         st.Rule.CategoryDisplayName.Contains(categoryFilter, StringComparison.OrdinalIgnoreCase))
+            .Where(st => (!onlyOn || st.IsCurrentlyApplied) && (!onlyOff || !st.IsCurrentlyApplied))
+            .ToList();
+
+        Console.WriteLine($"=== Настройки Windows: {states.Count} (включено {states.Count(st => st.IsCurrentlyApplied)}) ===");
+        foreach (var group in states.GroupBy(st => st.Rule.Category).OrderBy(g => TweakCategoryInfo.GetOrder(g.Key)))
         {
-            var mark = st.IsCurrentlyApplied ? "[ВКЛ ]" : "[СТНД]";
-            Console.WriteLine($"  {mark} {st.Rule.TweakId,-42} | {st.Rule.FriendlyTitle}");
-            if (st.Rule.IsDangerous)
+            Console.WriteLine();
+            Console.WriteLine($"[{TweakCategoryInfo.GetTitle(group.Key)}]");
+            foreach (var st in group)
             {
-                Console.WriteLine("         ! Опасная настройка: включается только с ключом --force");
-            }
-            if (!st.Applicability.IsApplicable)
-            {
-                var kind = st.Applicability.Status == TweakApplicabilityStatus.NotApplicable ? "Не подходит" : "Не рекомендуется";
-                Console.WriteLine($"         ! {kind}: {st.Applicability.Reason}");
+                var mark = st.State switch
+                {
+                    TweakStateKind.Applied => "[ВКЛ ]",
+                    TweakStateKind.Partial => $"[{st.AppliedActionCount}/{st.PresentActionCount} ]",
+                    TweakStateKind.Unavailable => "[НЕТ ]",
+                    _ => "[    ]"
+                };
+
+                Console.WriteLine($"  {mark} {st.Rule.TweakId,-42} | {st.Rule.FriendlyTitle}");
+                if (st.Rule.IsDangerous)
+                {
+                    Console.WriteLine("         ! Опасная настройка: включается только с ключом --force");
+                }
+
+                if (!st.Applicability.IsApplicable)
+                {
+                    var kind = st.Applicability.Status == TweakApplicabilityStatus.NotApplicable ? "Не подходит" : "Не рекомендуется";
+                    Console.WriteLine($"         ! {kind}: {st.Applicability.Reason}");
+                }
             }
         }
+
+        break;
+    }
+
+    case "tweak-info":
+    {
+        var state = args.Length > 1 ? optimizer.EvaluateTweak(args[1]) : null;
+        if (state is null)
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli tweak-info <tweak-id>");
+            return 1;
+        }
+
+        var rule = state.Rule;
+        Console.WriteLine($"{rule.FriendlyTitle}  ({rule.TweakId})");
+        Console.WriteLine($"  Раздел : {rule.CategoryDisplayName}");
+        Console.WriteLine($"  Риск   : {rule.RiskDisplayName}");
+        Console.WriteLine($"  Права  : {(rule.RequiresAdministrator ? "нужны права администратора" : "обычный пользователь")}");
+        if (rule.Restart != TweakRestartKind.None)
+        {
+            Console.WriteLine($"  Вступает в силу {rule.RestartDisplayName}");
+        }
+
+        Console.WriteLine($"  {rule.FriendlyExplanation}");
+        Console.WriteLine();
+        foreach (var action in optimizer.DescribeTweakActions(rule.TweakId))
+        {
+            var mark = !action.TargetExists ? "нет " : action.IsInDesiredState ? "ВКЛ " : "    ";
+            Console.WriteLine($"  [{mark}] {action.KindLabel}: {action.TargetDisplay}");
+            Console.WriteLine($"         сейчас: {action.CurrentDisplay} | настройка: {action.DesiredDisplay} | стандарт Windows: {action.DefaultDisplay}");
+        }
+
         break;
     }
 
@@ -256,11 +313,10 @@ switch (command)
         var enable = command == "tweak-enable";
 
         // Ключ --force — явное согласие включить опасную или не рекомендуемую этому компьютеру настройку
-        var force = args.Skip(2).Any(a => string.Equals(a, "--force", StringComparison.OrdinalIgnoreCase));
         var res = await optimizer.SetTweakStateAsync(
             args[1],
             enable,
-            options: force ? TweakApplyOptions.AcceptAll : TweakApplyOptions.Default);
+            options: HasFlag(args, "--force") ? TweakApplyOptions.AcceptAll : TweakApplyOptions.Default);
 
         Console.WriteLine(res.UserFriendlyMessage);
         if (res.ConfirmationRequired != TweakConfirmationKind.None)
@@ -276,12 +332,60 @@ switch (command)
         break;
     }
 
+    case "preset-list":
+    {
+        var states = optimizer.EvaluateAllTweaks().ToDictionary(st => st.Rule.TweakId, StringComparer.OrdinalIgnoreCase);
+        Console.WriteLine("=== Готовые наборы настроек ===");
+        foreach (var preset in optimizer.GetPresets())
+        {
+            var applied = preset.TweakIds.Count(id => states.TryGetValue(id, out var st) && st.IsCurrentlyApplied);
+            Console.WriteLine();
+            Console.WriteLine($"{preset.Key,-12} | {preset.Title}: включено {applied} из {preset.TweakIds.Count}");
+            Console.WriteLine($"  {preset.Description}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("Применить: UltimateWindows.Cli preset-apply <набор> [--dry-run] [--force]");
+        break;
+    }
+
+    case "preset-apply":
+    {
+        // Тихий режим для сценариев: без вопросов; код возврата 0 — всё применено, 1 — были ошибки
+        var preset = args.Length > 1 ? optimizer.GetPresets().FirstOrDefault(p => string.Equals(p.Key, args[1], StringComparison.OrdinalIgnoreCase)) : null;
+        if (preset is null)
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli preset-apply <набор> [--dry-run] [--force]");
+            Console.WriteLine($"Наборы: {string.Join(", ", optimizer.GetPresets().Select(p => p.Key))}");
+            return 1;
+        }
+
+        if (HasFlag(args, "--dry-run"))
+        {
+            PrintBatchPlan(optimizer, preset.TweakIds, $"Набор «{preset.Title}»");
+            break;
+        }
+
+        var batch = await optimizer.ApplyTweakBatchAsync(
+            preset.TweakIds,
+            $"Набор «{preset.Title}»",
+            HasFlag(args, "--force") ? TweakApplyOptions.AcceptAll : TweakApplyOptions.Default);
+
+        PrintBatchResult(batch);
+        if (!batch.Succeeded)
+        {
+            return 1;
+        }
+
+        break;
+    }
+
     case "tweak-export":
     {
         var outPath = args.Length > 1 ? args[1] : "ultimatewindows-profile.yaml";
         var yaml = optimizer.ExportActiveTweaksToYaml(Path.GetFileNameWithoutExtension(outPath));
         await File.WriteAllTextAsync(outPath, yaml);
-        Console.WriteLine($"Профиль активных настроек сохранен в: {Path.GetFullPath(outPath)}");
+        Console.WriteLine($"Профиль включённых настроек сохранён в: {Path.GetFullPath(outPath)}");
         break;
     }
 
@@ -289,13 +393,149 @@ switch (command)
     {
         if (args.Length < 2 || !File.Exists(args[1]))
         {
-            Console.WriteLine("Использование: UltimateWindows.Cli tweak-import <путь-к-файлу.yaml>");
+            Console.WriteLine("Использование: UltimateWindows.Cli tweak-import <путь-к-файлу.yaml> [--dry-run] [--force]");
             return 1;
         }
 
         var yaml = await File.ReadAllTextAsync(args[1]);
-        var res = await optimizer.ImportAndApplyYamlProfileAsync(yaml);
+        var profile = optimizer.ReadProfile(yaml);
+        foreach (var unknown in profile.UnknownTweakIds)
+        {
+            Console.WriteLine($"  ? {unknown}: такой настройки нет в этой версии программы");
+        }
+
+        if (profile.KnownTweakIds.Count == 0)
+        {
+            Console.WriteLine("В профиле нет ни одной известной настройки.");
+            return 1;
+        }
+
+        if (HasFlag(args, "--dry-run"))
+        {
+            PrintBatchPlan(optimizer, profile.KnownTweakIds, $"Профиль «{profile.Name}»");
+            break;
+        }
+
+        var batch = await optimizer.ApplyTweakBatchAsync(
+            profile.KnownTweakIds,
+            $"Профиль «{profile.Name}»",
+            HasFlag(args, "--force") ? TweakApplyOptions.AcceptAll : TweakApplyOptions.Default);
+
+        PrintBatchResult(batch);
+        if (!batch.Succeeded)
+        {
+            return 1;
+        }
+
+        break;
+    }
+
+    case "service-list":
+    {
+        // service-list [--third-party] [--running]
+        var services = await optimizer.GetServicesAsync();
+        var shown = services
+            .Where(sv => !HasFlag(args, "--third-party") || !sv.IsMicrosoft)
+            .Where(sv => !HasFlag(args, "--running") || sv.IsRunning)
+            .ToList();
+
+        Console.WriteLine($"=== Службы Windows: {shown.Count} из {services.Count} ===");
+        foreach (var sv in shown)
+        {
+            var protection = optimizer.GetServiceProtection(sv.ServiceName) switch
+            {
+                SystemObjectProtection.Critical => " [защищена]",
+                SystemObjectProtection.WeakensProtection => " [защита Windows]",
+                _ => ""
+            };
+
+            Console.WriteLine($"  {sv.StateDisplay,-12} | {sv.StartupDisplay,-34} | {sv.ServiceName,-34} | {sv.DisplayName}{protection}");
+        }
+
+        break;
+    }
+
+    case "service-set":
+    {
+        ServiceStartupMode? mode = args.Length > 2
+            ? args[2].ToLowerInvariant() switch
+            {
+                "auto" or "automatic" => ServiceStartupMode.Automatic,
+                "delayed" => ServiceStartupMode.AutomaticDelayed,
+                "manual" => ServiceStartupMode.Manual,
+                "disabled" => ServiceStartupMode.Disabled,
+                _ => null
+            }
+            : null;
+
+        if (mode is null)
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli service-set <имя-службы> <auto|delayed|manual|disabled> [--force]");
+            return 1;
+        }
+
+        var res = await optimizer.SetServiceStartupAsync(args[1], mode.Value, acceptDangerous: HasFlag(args, "--force"));
         Console.WriteLine(res.UserFriendlyMessage);
+        if (res.ConfirmationRequired != TweakConfirmationKind.None)
+        {
+            Console.WriteLine("Чтобы всё равно изменить службу, повторите команду с ключом --force.");
+        }
+
+        if (!res.Succeeded)
+        {
+            return 1;
+        }
+
+        break;
+    }
+
+    case "task-list":
+    {
+        // task-list [--third-party] [--enabled]
+        var tasks = await optimizer.GetScheduledTasksAsync();
+        var shown = tasks
+            .Where(t => !HasFlag(args, "--third-party") || !t.IsMicrosoft)
+            .Where(t => !HasFlag(args, "--enabled") || t.Enabled)
+            .ToList();
+
+        Console.WriteLine($"=== Задания планировщика: {shown.Count} из {tasks.Count} ===");
+        foreach (var t in shown)
+        {
+            Console.WriteLine($"  {t.StateDisplay,-11} | {t.TaskPath}");
+            if (!string.IsNullOrWhiteSpace(t.ActionSummary))
+            {
+                Console.WriteLine($"              {t.ActionSummary}");
+            }
+        }
+
+        break;
+    }
+
+    case "task-enable":
+    case "task-disable":
+    {
+        if (args.Length < 2)
+        {
+            Console.WriteLine($"Использование: UltimateWindows.Cli {command} \"<путь задания>\" [--force]");
+            return 1;
+        }
+
+        var res = await optimizer.SetScheduledTaskEnabledAsync(
+            args[1],
+            enabled: command == "task-enable",
+            acceptDangerous: HasFlag(args, "--force"));
+
+        Console.WriteLine(res.UserFriendlyMessage);
+        if (res.ConfirmationRequired != TweakConfirmationKind.None)
+        {
+            Console.WriteLine("Чтобы всё равно изменить задание, повторите команду с ключом --force.");
+        }
+
+        if (!res.Succeeded)
+        {
+            return 1;
+        }
+
         break;
     }
 
@@ -466,8 +706,17 @@ switch (command)
             return 1;
         }
 
-        await vault.RollbackTransactionAsync(sessionId);
-        Console.WriteLine($"Транзакция {sessionId} успешно возвращена в исходное состояние.");
+        try
+        {
+            await vault.RollbackTransactionAsync(sessionId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Не удалось отменить изменения: {ex.Message}");
+            return 1;
+        }
+
+        Console.WriteLine($"Изменения записи {sessionId} отменены.");
         break;
     }
 
@@ -486,12 +735,54 @@ switch (command)
 
     default:
     {
-        Console.WriteLine("Доступные команды: status | smart-audit | hardware-audit | stress-test [сек] | drivers-audit [--online] | driver-backup <oemXX.inf> | clean-scan | clean-run | disk-map [путь] | pe-doctor <exe> | bsod-scan | bsod-file <dmp> | repair-list | repair-run <id> | tweak-list | tweak-enable <id> | tweak-disable <id> | tweak-export [yaml] | tweak-import <yaml> | startup-list | unlock-check <path> | miner-scan [--fast] | miner-heal-os | history | cleanup-blobs | rollback <id> | check-path <path>");
+        Console.WriteLine("Доступные команды: status | smart-audit | hardware-audit | stress-test [сек] | drivers-audit [--online] | driver-backup <oemXX.inf> | clean-scan | clean-run | disk-map [путь] | pe-doctor <exe> | bsod-scan | bsod-file <dmp> | repair-list | repair-run <id> | tweak-list [раздел] [--on|--off] | tweak-info <id> | tweak-enable <id> [--force] | tweak-disable <id> | preset-list | preset-apply <набор> [--dry-run] [--force] | tweak-export [yaml] | tweak-import <yaml> [--dry-run] [--force] | service-list [--third-party] [--running] | service-set <имя> <auto|delayed|manual|disabled> | task-list [--third-party] [--enabled] | task-enable <путь> | task-disable <путь> | startup-list | unlock-check <path> | miner-scan [--fast] | miner-heal-os | history | cleanup-blobs | rollback <id> | check-path <path>");
         break;
     }
 }
 
 return 0;
+
+static bool HasFlag(string[] arguments, string flag) =>
+    arguments.Any(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase));
+
+static void PrintBatchPlan(SmartOptimizerService optimizerService, IReadOnlyList<string> tweakIds, string title)
+{
+    Console.WriteLine($"{title}: что будет сделано (ничего не меняется)");
+    foreach (var id in tweakIds)
+    {
+        var state = optimizerService.EvaluateTweak(id);
+        if (state is null)
+        {
+            continue;
+        }
+
+        var plan = state.State == TweakStateKind.Applied
+            ? "уже включено"
+            : state.Applicability.Status switch
+            {
+                TweakApplicabilityStatus.NotApplicable => $"пропуск: {state.Applicability.Reason}",
+                TweakApplicabilityStatus.NotRecommended => $"пропуск без --force: {state.Applicability.Reason}",
+                _ => state.Rule.IsDangerous ? "пропуск без --force: опасная настройка" : "будет включено"
+            };
+
+        Console.WriteLine($"  {state.Rule.TweakId,-42} | {plan}");
+    }
+}
+
+static void PrintBatchResult(TweakBatchResult batch)
+{
+    foreach (var item in batch.Items.Where(i => i.Outcome is TweakBatchItemOutcome.Skipped or TweakBatchItemOutcome.Failed))
+    {
+        var mark = item.Outcome == TweakBatchItemOutcome.Failed ? "ОШИБКА " : "пропуск";
+        Console.WriteLine($"  [{mark}] {item.TweakId}: {item.Note}");
+    }
+
+    Console.WriteLine(batch.UserFriendlyMessage);
+    if (batch.RollbackSessionId is { } sessionId)
+    {
+        Console.WriteLine($"Отменить всё разом: UltimateWindows.Cli rollback {sessionId}");
+    }
+}
 
 static void PrintDumpReport(BsodMinidumpReport d)
 {

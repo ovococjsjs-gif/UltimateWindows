@@ -1,0 +1,211 @@
+{
+  "schemaVersion": 2,
+
+  "tweaks": [
+    {
+      "id": "app.edge-no-background",
+      "category": "Applications",
+      "title": "Microsoft Edge: не работать в фоне",
+      "explanation": "Edge перестаёт запускаться вместе с Windows «для ускорения» и не остаётся в памяти после закрытия последнего окна. Первое открытие Edge станет чуть медленнее. В браузере появится пометка «Управляется организацией».",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "StartupBoostEnabled", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "BackgroundModeEnabled", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "app.edge-no-telemetry",
+      "category": "Applications",
+      "title": "Microsoft Edge: отключить телеметрию",
+      "explanation": "Edge перестаёт отправлять необязательные диагностические данные, использовать историю просмотров для персонализации рекламы и предлагать оставить отзыв.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "DiagnosticData", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "PersonalizationReportingEnabled", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "UserFeedbackAllowed", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "app.edge-no-promotions",
+      "category": "Applications",
+      "title": "Microsoft Edge: убрать рекламу и навязчивые предложения",
+      "explanation": "Edge перестаёт показывать рекомендации, предложения покупок и купонов, Microsoft Rewards, просьбы сделать его браузером по умолчанию и экран первого запуска.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "ShowRecommendationsEnabled", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "SpotlightExperiencesAndRecommendationsEnabled", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "EdgeShoppingAssistantEnabled", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "ShowMicrosoftRewards", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "DefaultBrowserSettingEnabled", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "DefaultBrowserSettingsCampaignEnabled", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "HideFirstRunExperience", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "ShowAcrobatSubscriptionButton", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "app.edge-clean-new-tab",
+      "category": "Applications",
+      "title": "Microsoft Edge: чистая новая вкладка",
+      "explanation": "С новой вкладки Edge пропадают лента новостей MSN и предустановленные ссылки на сайты.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "NewTabPageContentEnabled", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "NewTabPageHideDefaultTopSites", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "app.chrome-no-telemetry",
+      "category": "Applications",
+      "title": "Google Chrome: отключить отправку статистики",
+      "explanation": "Chrome перестаёт отправлять в Google статистику использования и отчёты о сбоях и не предлагает отправить отзыв. В браузере появится пометка «Управляется организацией».",
+      "risk": "Safe",
+      "requirements": {
+        "installedAny": [
+          "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe",
+          "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe"
+        ],
+        "installedNote": "Google Chrome не установлен."
+      },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Google\\Chrome", "name": "MetricsReportingEnabled", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Google\\Chrome", "name": "UserFeedbackAllowed", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "app.chrome-no-background",
+      "category": "Applications",
+      "title": "Google Chrome: не работать в фоне",
+      "explanation": "Chrome полностью закрывается вместе с последним окном. Расширения и сайты перестают работать в фоне: уведомления сайтов не будут приходить, пока браузер закрыт.",
+      "risk": "Safe",
+      "requirements": {
+        "installedAny": [
+          "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe",
+          "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe"
+        ],
+        "installedNote": "Google Chrome не установлен."
+      },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Google\\Chrome", "name": "BackgroundModeEnabled", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "app.firefox-no-telemetry",
+      "category": "Applications",
+      "title": "Mozilla Firefox: отключить телеметрию",
+      "explanation": "Firefox перестаёт отправлять технические данные и данные о взаимодействии, не участвует в исследованиях и не запускает фоновую проверку браузера по умолчанию.",
+      "risk": "Safe",
+      "requirements": {
+        "installedAny": [
+          "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\firefox.exe",
+          "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\firefox.exe"
+        ],
+        "installedNote": "Mozilla Firefox не установлен."
+      },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Mozilla\\Firefox", "name": "DisableTelemetry", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Mozilla\\Firefox", "name": "DisableFirefoxStudies", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Mozilla\\Firefox", "name": "DisableDefaultBrowserAgent", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "app.office-no-telemetry",
+      "category": "Applications",
+      "title": "Microsoft Office: отключить телеметрию",
+      "explanation": "Office 2016–2024 и Microsoft 365 перестают вести журнал использования и отправлять его, участвовать в программе улучшения качества и предлагать оставить отзыв. Обязательные служебные данные подписки отправляются всё равно.",
+      "risk": "Safe",
+      "requirements": {
+        "installedAny": [
+          "HKLM\\SOFTWARE\\Microsoft\\Office\\ClickToRun\\Configuration",
+          "HKLM\\SOFTWARE\\Microsoft\\Office\\16.0\\Common\\InstallRoot",
+          "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Office\\16.0\\Common\\InstallRoot"
+        ],
+        "installedNote": "Microsoft Office не установлен."
+      },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Policies\\Microsoft\\Office\\16.0\\osm", "name": "Enablelogging", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Policies\\Microsoft\\Office\\16.0\\osm", "name": "EnableUpload", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Policies\\Microsoft\\Office\\Common\\ClientTelemetry", "name": "DisableTelemetry", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Policies\\Microsoft\\Office\\16.0\\Common", "name": "QMEnable", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Policies\\Microsoft\\Office\\16.0\\Common\\Feedback", "name": "Enabled", "kind": "dword", "value": 0 },
+        { "type": "task", "path": "\\Microsoft\\Office\\OfficeTelemetryAgentLogOn2016", "enabled": false },
+        { "type": "task", "path": "\\Microsoft\\Office\\OfficeTelemetryAgentFallBack2016", "enabled": false }
+      ]
+    },
+    {
+      "id": "app.vs-no-telemetry",
+      "category": "Applications",
+      "title": "Visual Studio: отключить телеметрию",
+      "explanation": "Visual Studio выходит из программы улучшения качества и перестаёт отправлять сведения об использовании среды.",
+      "risk": "Safe",
+      "requirements": {
+        "installedAny": [
+          "HKLM\\SOFTWARE\\Microsoft\\VisualStudio\\Setup",
+          "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\VisualStudio\\Setup",
+          "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\VisualStudio\\SxS\\VS7"
+        ],
+        "installedNote": "Visual Studio не установлена."
+      },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\VisualStudio\\SQM", "name": "OptIn", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\VisualStudio\\Telemetry", "name": "TurnOffSwitch", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "app.nvidia-no-telemetry",
+      "category": "Applications",
+      "title": "NVIDIA: отключить телеметрию драйвера",
+      "explanation": "Драйвер и панель управления NVIDIA перестают собирать и отправлять статистику использования. На игры, профили и сам драйвер настройка не влияет.",
+      "risk": "Safe",
+      "requirements": {
+        "installedAny": [
+          "HKLM\\SOFTWARE\\NVIDIA Corporation\\Global",
+          "HKLM\\SYSTEM\\CurrentControlSet\\Services\\nvlddmkm"
+        ],
+        "installedNote": "Драйвер видеокарты NVIDIA не установлен."
+      },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\NVIDIA Corporation\\NvControlPanel2\\Client", "name": "OptInOrOutPreference", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\NVIDIA Corporation\\Global\\FTS", "name": "EnableRID44231", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\NVIDIA Corporation\\Global\\FTS", "name": "EnableRID64640", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\NVIDIA Corporation\\Global\\FTS", "name": "EnableRID66610", "kind": "dword", "value": 0 },
+        { "type": "service", "name": "NvTelemetryContainer", "startup": "disabled", "default": "automatic" },
+        { "type": "task", "path": "\\NvTmMon_{B2FE1952-0186-46C3-BAEC-A80AA35AC5B8}", "enabled": false },
+        { "type": "task", "path": "\\NvTmRep_{B2FE1952-0186-46C3-BAEC-A80AA35AC5B8}", "enabled": false },
+        { "type": "task", "path": "\\NvTmRepOnLogon_{B2FE1952-0186-46C3-BAEC-A80AA35AC5B8}", "enabled": false }
+      ]
+    },
+    {
+      "id": "app.dotnet-no-telemetry",
+      "category": "Applications",
+      "title": ".NET SDK: отключить телеметрию",
+      "explanation": "Команда dotnet перестаёт отправлять в Microsoft статистику использования. Задаётся переменной среды для всех пользователей.",
+      "risk": "Safe",
+      "restart": "signout",
+      "requirements": {
+        "installedAny": [
+          "HKLM\\SOFTWARE\\dotnet\\Setup\\InstalledVersions\\x64\\sdk",
+          "HKLM\\SOFTWARE\\WOW6432Node\\dotnet\\Setup\\InstalledVersions\\x64\\sdk"
+        ],
+        "installedNote": ".NET SDK не установлен."
+      },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", "name": "DOTNET_CLI_TELEMETRY_OPTOUT", "kind": "string", "value": "1" }
+      ]
+    },
+    {
+      "id": "app.powershell-no-telemetry",
+      "category": "Applications",
+      "title": "PowerShell 7: отключить телеметрию",
+      "explanation": "PowerShell 7 перестаёт отправлять в Microsoft сведения о запусках. Задаётся переменной среды для всех пользователей; встроенный Windows PowerShell 5.1 телеметрию не отправляет.",
+      "risk": "Safe",
+      "restart": "signout",
+      "requirements": {
+        "installedAny": [ "HKLM\\SOFTWARE\\Microsoft\\PowerShellCore" ],
+        "installedNote": "PowerShell 7 не установлен."
+      },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", "name": "POWERSHELL_TELEMETRY_OPTOUT", "kind": "string", "value": "1" }
+      ]
+    }
+  ]
+}

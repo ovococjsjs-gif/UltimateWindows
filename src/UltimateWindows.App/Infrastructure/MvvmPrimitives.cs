@@ -66,6 +66,12 @@ public sealed class AsyncRelayCommand : ICommand
 
     public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 
+    /// <summary>
+    /// Куда сообщать об ошибке, которую команда не обработала сама. Без этого необработанное исключение
+    /// в асинхронной команде закрыло бы программу.
+    /// </summary>
+    public static Action<Exception>? UnhandledError { get; set; }
+
     public async void Execute(object? parameter)
     {
         if (!CanExecute(parameter))
@@ -79,11 +85,51 @@ public sealed class AsyncRelayCommand : ICommand
             CanExecuteChanged?.Invoke(this, EventArgs.Empty);
             await _executeAsync(parameter);
         }
+        catch (OperationCanceledException)
+        {
+            // Отмена — штатное завершение
+        }
+        catch (Exception ex)
+        {
+            var handler = UnhandledError;
+            if (handler is null)
+            {
+                throw;
+            }
+
+            handler(ex);
+        }
         finally
         {
             _isRunning = false;
             CanExecuteChanged?.Invoke(this, EventArgs.Empty);
         }
+    }
+}
+
+/// <summary>
+/// Вопрос пользователю с ответом «да / нет».
+/// </summary>
+public sealed record ConfirmationRequest(string Title, string Message, bool IsWarning = false);
+
+/// <summary>
+/// Диалоги программы. Модели представления обращаются к пользователю через эти функции,
+/// поэтому в автоматических проверках интерфейса диалоги можно подменить.
+/// </summary>
+public static class UserPrompts
+{
+    public static Func<ConfirmationRequest, bool> Confirm { get; set; } = ShowConfirmation;
+
+    private static bool ShowConfirmation(ConfirmationRequest request)
+    {
+        var answer = MessageBox.Show(
+            request.Message,
+            request.Title,
+            MessageBoxButton.YesNo,
+            request.IsWarning ? MessageBoxImage.Warning : MessageBoxImage.Question,
+            MessageBoxResult.No);
+
+        return answer == MessageBoxResult.Yes;
     }
 }
 

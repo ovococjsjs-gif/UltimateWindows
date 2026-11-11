@@ -1,0 +1,351 @@
+{
+  "schemaVersion": 2,
+
+  "tweaks": [
+    {
+      "id": "privacy.limit-diagnostic-data",
+      "category": "Privacy",
+      "title": "Ограничить диагностические данные Windows до обязательных",
+      "explanation": "Windows перестаёт отправлять необязательные диагностические данные: сведения об использовании приложений и сайтов, расширенные отчёты о сбоях. Обязательный минимум в редакциях Home и Pro отправляется всё равно. В «Параметрах» появится пометка, что настройкой управляет организация.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection", "name": "AllowTelemetry", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "privacy.disable-feedback-requests",
+      "category": "Privacy",
+      "title": "Не показывать просьбы оценить Windows",
+      "explanation": "Windows перестаёт показывать всплывающие просьбы оставить отзыв. «Центр отзывов» по-прежнему можно открыть вручную.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Siuf\\Rules", "name": "NumberOfSIUFInPeriod", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection", "name": "DoNotShowFeedbackNotifications", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "privacy.disable-advertising-id",
+      "category": "Privacy",
+      "title": "Отключить рекламный идентификатор",
+      "explanation": "Приложения из Microsoft Store перестают получать ваш рекламный идентификатор. Рекламы меньше не станет, но она перестанет подбираться по вашим действиям в других приложениях.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\AdvertisingInfo", "name": "Enabled", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "privacy.disable-tailored-experiences",
+      "category": "Privacy",
+      "title": "Не использовать диагностические данные для советов и рекламы",
+      "explanation": "Windows перестаёт подбирать советы, рекомендации и рекламу на основе собранных диагностических данных.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Privacy", "name": "TailoredExperiencesWithDiagnosticDataEnabled", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "privacy.disable-activity-history",
+      "category": "Privacy",
+      "title": "Отключить журнал действий",
+      "explanation": "Windows перестаёт запоминать, какие приложения и документы вы открывали, и отправлять этот журнал в учётную запись Microsoft. Продолжить работу с того же места на другом устройстве не получится.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\System", "name": "EnableActivityFeed", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\System", "name": "PublishUserActivities", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\System", "name": "UploadUserActivities", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "privacy.disable-app-launch-tracking",
+      "category": "Privacy",
+      "title": "Не отслеживать запуск приложений",
+      "explanation": "Windows перестаёт считать, какие приложения вы запускаете чаще. Список «Часто используемые» в меню «Пуск» опустеет, а подсказки в поиске станут менее точными.",
+      "risk": "Low",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "Start_TrackProgs", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "privacy.disable-recent-documents",
+      "category": "Privacy",
+      "title": "Не запоминать недавно открытые файлы",
+      "explanation": "Windows перестаёт вести список недавних документов. Опустеют «Недавние файлы» в Проводнике и списки переходов у значков на панели задач.",
+      "risk": "Low",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "Start_TrackDocs", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "privacy.hide-language-list-from-websites",
+      "category": "Privacy",
+      "title": "Не сообщать сайтам список языков Windows",
+      "explanation": "Сайты перестают получать список языков, установленных в Windows. Некоторые сайты могут открываться не на вашем языке, пока вы не выберете его вручную.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Control Panel\\International\\User Profile", "name": "HttpAcceptLanguageOptOut", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "privacy.disable-typing-personalization",
+      "category": "Privacy",
+      "title": "Отключить личный словарь набора и рукописного ввода",
+      "explanation": "Windows перестаёт собирать историю набора текста и рукописного ввода для личного словаря. Подсказки слов на сенсорной клавиатуре станут менее точными.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\InputPersonalization", "name": "RestrictImplicitInkCollection", "kind": "dword", "value": 1, "default": 0 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\InputPersonalization", "name": "RestrictImplicitTextCollection", "kind": "dword", "value": 1, "default": 0 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\InputPersonalization\\TrainedDataStore", "name": "HarvestContacts", "kind": "dword", "value": 0, "default": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Personalization\\Settings", "name": "AcceptedPrivacyPolicy", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "privacy.disable-typing-telemetry",
+      "category": "Privacy",
+      "title": "Не отправлять данные о наборе текста",
+      "explanation": "Windows перестаёт отправлять в Microsoft сведения о наборе и рукописном вводе, которые используются для улучшения распознавания.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Input\\TIPC", "name": "Enabled", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "privacy.disable-location",
+      "category": "Privacy",
+      "title": "Отключить определение местоположения",
+      "explanation": "Windows и приложения перестают определять, где находится компьютер. Не будут работать погода по месту, маршруты в картах, «Поиск устройства» и автоматический выбор часового пояса.",
+      "risk": "Low",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\location", "name": "Value", "kind": "string", "value": "Deny", "default": "Allow" }
+      ]
+    },
+    {
+      "id": "privacy.deny-apps-account-info",
+      "category": "Privacy",
+      "title": "Запретить приложениям доступ к имени и аватару учётной записи",
+      "explanation": "Приложения из Microsoft Store перестают получать имя, изображение и другие сведения вашей учётной записи. Некоторые из них попросят ввести имя вручную.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\userAccountInformation", "name": "Value", "kind": "string", "value": "Deny", "default": "Allow" }
+      ]
+    },
+    {
+      "id": "privacy.deny-apps-communications",
+      "category": "Privacy",
+      "title": "Запретить приложениям доступ к контактам, календарю, почте, звонкам и сообщениям",
+      "explanation": "Приложения из Microsoft Store теряют доступ к этим данным. «Почта», «Календарь», «Люди» и «Связь с телефоном» не смогут их показывать. Обычные программы — Outlook, мессенджеры — настройка не затрагивает.",
+      "risk": "Low",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\contacts", "name": "Value", "kind": "string", "value": "Deny", "default": "Allow" },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\appointments", "name": "Value", "kind": "string", "value": "Deny", "default": "Allow" },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\email", "name": "Value", "kind": "string", "value": "Deny", "default": "Allow" },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\phoneCallHistory", "name": "Value", "kind": "string", "value": "Deny", "default": "Allow" },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\chat", "name": "Value", "kind": "string", "value": "Deny", "default": "Allow" },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\userDataTasks", "name": "Value", "kind": "string", "value": "Deny", "default": "Allow" }
+      ]
+    },
+    {
+      "id": "privacy.deny-apps-diagnostics",
+      "category": "Privacy",
+      "title": "Запретить приложениям получать сведения о других приложениях",
+      "explanation": "Приложения из Microsoft Store перестают видеть список запущенных приложений и их диагностические сведения.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\appDiagnostics", "name": "Value", "kind": "string", "value": "Deny", "default": "Allow" }
+      ]
+    },
+    {
+      "id": "privacy.deny-apps-notification-access",
+      "category": "Privacy",
+      "title": "Запретить приложениям читать ваши уведомления",
+      "explanation": "Приложения из Microsoft Store перестают получать содержимое уведомлений других приложений. «Связь с телефоном» и приложения умных часов не смогут их дублировать.",
+      "risk": "Low",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\userNotificationListener", "name": "Value", "kind": "string", "value": "Deny", "default": "Allow" }
+      ]
+    },
+    {
+      "id": "privacy.disable-error-reporting",
+      "category": "Privacy",
+      "title": "Отключить отчёты об ошибках Windows",
+      "explanation": "Windows перестаёт собирать и отправлять в Microsoft отчёты о сбоях программ. Пропадут подсказки с решениями и локальные отчёты, по которым проще найти причину вылетов.",
+      "risk": "Low",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting", "name": "Disabled", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Error Reporting", "name": "Disabled", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "privacy.disable-ceip",
+      "category": "Privacy",
+      "title": "Выйти из программы улучшения качества (CEIP)",
+      "explanation": "Windows перестаёт участвовать в программе сбора статистики о том, как используется система.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\SQMClient\\Windows", "name": "CEIPEnable", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "privacy.disable-compat-telemetry",
+      "category": "Privacy",
+      "title": "Отключить сбор сведений о совместимости программ",
+      "explanation": "Windows перестаёт собирать и отправлять перечень установленных программ и сведения о том, как они запускаются.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\AppCompat", "name": "AITEnable", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\AppCompat", "name": "DisableInventory", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "privacy.disable-handwriting-sharing",
+      "category": "Privacy",
+      "title": "Не отправлять образцы рукописного ввода",
+      "explanation": "Windows перестаёт отправлять в Microsoft образцы почерка и отчёты об ошибках распознавания рукописного текста.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\TabletPC", "name": "PreventHandwritingDataSharing", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\HandwritingErrorReports", "name": "PreventHandwritingErrorReports", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "privacy.disable-device-metadata",
+      "category": "Privacy",
+      "title": "Не загружать сведения об устройствах из интернета",
+      "explanation": "Windows перестаёт загружать значки, описания и фирменные приложения для подключённых устройств. В «Устройствах и принтерах» останутся стандартные значки; драйверы настройка не затрагивает.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Device Metadata", "name": "PreventDeviceMetadataFromNetwork", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "privacy.disable-telemetry-services",
+      "category": "Privacy",
+      "title": "Отключить службы телеметрии",
+      "explanation": "Отключает службу «Функциональные возможности для подключённых пользователей и телеметрия» и службу маршрутизации push-сообщений WAP. Перестанут работать «Центр отзывов», получение предварительных сборок Windows и просмотр диагностических данных.",
+      "risk": "Low",
+      "restart": "reboot",
+      "actions": [
+        { "type": "service", "name": "DiagTrack", "startup": "disabled", "default": "automatic" },
+        { "type": "service", "name": "dmwappushservice", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "privacy.disable-compat-tasks",
+      "category": "Privacy",
+      "title": "Отключить задания оценки совместимости",
+      "explanation": "Отключает задания, которые по расписанию просматривают установленные программы и отправляют сведения о совместимости. На слабых компьютерах они заметно нагружают диск и процессор. Windows может дольше проверять готовность к новой версии.",
+      "risk": "Low",
+      "actions": [
+        { "type": "task", "path": "\\Microsoft\\Windows\\Application Experience\\Microsoft Compatibility Appraiser", "enabled": false },
+        { "type": "task", "path": "\\Microsoft\\Windows\\Application Experience\\Microsoft Compatibility Appraiser Exp", "enabled": false },
+        { "type": "task", "path": "\\Microsoft\\Windows\\Application Experience\\ProgramDataUpdater", "enabled": false },
+        { "type": "task", "path": "\\Microsoft\\Windows\\Application Experience\\PcaPatchDbTask", "enabled": false },
+        { "type": "task", "path": "\\Microsoft\\Windows\\Application Experience\\MareBackup", "enabled": false }
+      ]
+    },
+    {
+      "id": "privacy.disable-ceip-tasks",
+      "category": "Privacy",
+      "title": "Отключить задания программы улучшения качества",
+      "explanation": "Отключает задания, которые собирают и отправляют статистику программы улучшения качества: об использовании системы, USB-устройств и проверках диска.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "task", "path": "\\Microsoft\\Windows\\Customer Experience Improvement Program\\Consolidator", "enabled": false },
+        { "type": "task", "path": "\\Microsoft\\Windows\\Customer Experience Improvement Program\\UsbCeip", "enabled": false },
+        { "type": "task", "path": "\\Microsoft\\Windows\\Autochk\\Proxy", "enabled": false }
+      ]
+    },
+    {
+      "id": "privacy.disable-feedback-tasks",
+      "category": "Privacy",
+      "title": "Отключить задания сбора отзывов",
+      "explanation": "Отключает задания, которые загружают сценарии сбора отзывов о Windows.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "task", "path": "\\Microsoft\\Windows\\Feedback\\Siuf\\DmClient", "enabled": false },
+        { "type": "task", "path": "\\Microsoft\\Windows\\Feedback\\Siuf\\DmClientOnScenarioDownload", "enabled": false }
+      ]
+    },
+    {
+      "id": "privacy.disable-disk-diagnostic-task",
+      "category": "Privacy",
+      "title": "Отключить отправку сведений о дисках",
+      "explanation": "Отключает задание, которое отправляет в Microsoft общие сведения о дисках и системе. Проверка состояния дисков в самой Windows продолжает работать.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "task", "path": "\\Microsoft\\Windows\\DiskDiagnostic\\Microsoft-Windows-DiskDiagnosticDataCollector", "enabled": false }
+      ]
+    },
+    {
+      "id": "privacy.disable-error-report-queue-task",
+      "category": "Privacy",
+      "title": "Отключить досылку отчётов об ошибках",
+      "explanation": "Отключает задание, которое по расписанию отправляет накопленные отчёты о сбоях программ.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "task", "path": "\\Microsoft\\Windows\\Windows Error Reporting\\QueueReporting", "enabled": false }
+      ]
+    },
+    {
+      "id": "privacy.disable-find-my-device",
+      "category": "Privacy",
+      "title": "Отключить «Поиск устройства»",
+      "explanation": "Windows перестаёт периодически сохранять местоположение компьютера в учётной записи Microsoft. Найти потерянный ноутбук через сайт Microsoft станет нельзя.",
+      "risk": "Low",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\FindMyDevice", "name": "AllowFindMyDevice", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "privacy.disable-settings-sync",
+      "category": "Privacy",
+      "title": "Отключить синхронизацию параметров",
+      "explanation": "Тема, пароли сетей, языковые и другие параметры перестают синхронизироваться между вашими устройствами через учётную запись Microsoft.",
+      "risk": "Low",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\SettingSync", "name": "DisableSettingSync", "kind": "dword", "value": 2 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\SettingSync", "name": "DisableSettingSyncUserOverride", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "privacy.disable-clipboard-sync",
+      "category": "Privacy",
+      "title": "Не синхронизировать буфер обмена между устройствами",
+      "explanation": "Скопированное перестаёт отправляться в облако для вставки на других устройствах. Журнал буфера обмена на этом компьютере (Win+V) продолжает работать.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\System", "name": "AllowCrossDeviceClipboard", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "privacy.disable-lock-screen-camera",
+      "category": "Privacy",
+      "title": "Запретить камеру на экране блокировки",
+      "explanation": "Камеру нельзя включить с экрана блокировки, пока в Windows никто не вошёл.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Personalization", "name": "NoLockScreenCamera", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "privacy.disable-search-history",
+      "category": "Privacy",
+      "title": "Не хранить журнал поиска",
+      "explanation": "Поиск Windows перестаёт запоминать, что вы искали на этом компьютере, и предлагать прошлые запросы.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\SearchSettings", "name": "IsDeviceSearchHistoryEnabled", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "privacy.disable-cloud-search",
+      "category": "Privacy",
+      "title": "Не искать в облачных службах из меню «Пуск»",
+      "explanation": "Поиск в меню «Пуск» перестаёт искать в OneDrive, Outlook и других службах вашей учётной записи Microsoft, рабочей или учебной.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\SearchSettings", "name": "IsMSACloudSearchEnabled", "kind": "dword", "value": 0, "default": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\SearchSettings", "name": "IsAADCloudSearchEnabled", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    }
+  ]
+}
