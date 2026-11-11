@@ -99,6 +99,17 @@ public class DefaultCleanerPlatformBridge : ICleanerPlatformBridge
 
         return Task.FromResult(false);
     }
+
+    public virtual bool RegistryKeyExists(string keyPath) => false;
+
+    public virtual string? ReadRegistryString(string keyPath, string valueName) => null;
+
+    public virtual Task<DiskSpaceAnalysisReport?> TryAnalyzeNtfsVolumeViaMftAsync(
+        string rootPath,
+        int topDirectoryLimit = 12,
+        int largestFilesLimit = 15,
+        CancellationToken ct = default)
+        => Task.FromResult<DiskSpaceAnalysisReport?>(null);
 }
 
 /// <summary>
