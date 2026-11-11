@@ -1,0 +1,10 @@
+# Снимки интерфейса, которые сборочная машина передаёт в аннотациях запуска (файлы она не выгружает).
+# По одному имени в строке, в порядке важности: передаётся столько, сколько помещается в один запуск.
+# Имена задаются в проверках вызовом surface.Save("имя"). В PNG их превращает scripts/read-ui-shots.py.
+# Пустой список — снимки не делаются и не передаются.
+optimizer-tweaks
+optimizer-preset-preview
+optimizer-services
+optimizer-tasks
+optimizer-tweaks-details
+optimizer-apps-windows

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Проверка изменения: сборка всего решения, модульные тесты и пробная сборка портативной версии.
+    Проверка изменения: сборка всего решения, тесты и пробная сборка портативной версии.
 
 .DESCRIPTION
     Скрипт ничего не публикует и не трогает релизы. Его вызывает GitHub Actions
@@ -13,6 +13,12 @@
 
     В GitHub Actions итог каждого шага дублируется в аннотации запуска и в сводку задания,
     чтобы причину сбоя было видно без чтения полного журнала.
+
+    Тесты лежат в двух проектах: UltimateWindows.UnitTests (логика, без обращения к системе) и
+    UltimateWindows.WindowsTests (интерфейс WPF и работа с настоящей Windows). Вторые пишут короткие
+    отчёты, которые попадают в аннотацию «Проверки на Windows». Снимки интерфейса, перечисленные в
+    tests/UltimateWindows.WindowsTests/ui-snapshots.txt, передаются аннотациями «uwshot …»:
+    сборочная машина файлы не выгружает. В PNG их превращает scripts/read-ui-shots.py.
 #>
 [CmdletBinding()]
 param(
@@ -28,7 +34,16 @@ Set-StrictMode -Version Latest
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Solution = Join-Path $RepoRoot "UltimateWindows.sln"
 $ResultsDir = Join-Path $RepoRoot "TestResults"
+$ReportsDir = Join-Path $ResultsDir "reports"
+$UiShotsDir = Join-Path $ResultsDir "ui-shots"
+$UiShotRequestFile = Join-Path $RepoRoot "tests/UltimateWindows.WindowsTests/ui-snapshots.txt"
 $InActions = ($env:GITHUB_ACTIONS -eq "true")
+
+# Аннотация вмещает 4096 знаков, а шаг — десять аннотаций одного вида.
+# Снимки идут в шаге тестов и в шаге пробной сборки, где свободны 8 и 9 аннотаций.
+$UiShotChunkChars = 4000
+$UiShotNoticesInTestStep = 8
+$UiShotNoticesInPublishStep = 9
 
 # ---------------------------------------------------------------------------------------------
 # Вывод: аннотации GitHub Actions, сводка задания, журнал
@@ -158,14 +173,22 @@ function Get-DistinctDiagnostics {
     return $result.ToArray()
 }
 
-function Write-StepFailure {
-    param([string]$Title, [string[]]$Lines)
+function Get-FailureLines {
+    param([string[]]$Lines)
 
     $errors = @(Get-DistinctDiagnostics -Lines $Lines -Kind "error")
     if ($errors.Count -eq 0) {
         # Строк вида "error XX0000:" нет — показываем хвост журнала
         $errors = @($Lines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 40)
     }
+
+    return $errors
+}
+
+function Write-StepFailure {
+    param([string]$Title, [string[]]$Lines)
+
+    $errors = @(Get-FailureLines -Lines $Lines)
 
     Write-ChunkedAnnotations -Level "error" -Title $Title -Lines $errors
 
@@ -258,63 +281,204 @@ function Read-TrxSummary {
     }
 }
 
+# ---------------------------------------------------------------------------------------------
+# Отчёты и снимки интерфейса от проверок на Windows
+# ---------------------------------------------------------------------------------------------
+
+function Get-RequestedUiShots {
+    if (-not (Test-Path -LiteralPath $UiShotRequestFile)) { return @() }
+
+    $names = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($raw in @(Get-Content -LiteralPath $UiShotRequestFile -Encoding utf8)) {
+        $line = ([string]$raw).Trim()
+        if ($line.Length -eq 0 -or $line.StartsWith("#")) { continue }
+        if (-not $names.Contains($line)) { $names.Add($line) }
+    }
+
+    return $names.ToArray()
+}
+
+function New-UiShotQueue {
+    # Делит запрошенные снимки на части по размеру аннотации. В очередь попадают только снимки,
+    # которые помещаются целиком: от половины снимка пользы нет.
+    param([string[]]$Names)
+
+    $budget = $UiShotNoticesInTestStep + $UiShotNoticesInPublishStep
+    $queue = New-Object 'System.Collections.Generic.List[string]'
+    $report = New-Object 'System.Collections.Generic.List[string]'
+
+    foreach ($name in @($Names)) {
+        $path = Join-Path $UiShotsDir "$name.txt"
+        if (-not (Test-Path -LiteralPath $path)) {
+            $report.Add("${name}: снимок не сделан")
+            continue
+        }
+
+        $text = ([string](Get-Content -LiteralPath $path -Raw -Encoding utf8)).Trim()
+        $parts = [int][Math]::Ceiling($text.Length / [double]$UiShotChunkChars)
+        if ($parts -gt ($budget - $queue.Count)) {
+            $report.Add("${name}: не поместился ($parts частей)")
+            continue
+        }
+
+        for ($i = 0; $i -lt $parts; $i++) {
+            $start = $i * $UiShotChunkChars
+            $length = [Math]::Min($UiShotChunkChars, $text.Length - $start)
+            $queue.Add(("uwshot {0} {1}/{2}`t{3}" -f $name, ($i + 1), $parts, $text.Substring($start, $length)))
+        }
+
+        $report.Add("${name}: передан, частей $parts")
+    }
+
+    if (-not (Test-Path -LiteralPath $UiShotsDir)) { New-Item -ItemType Directory -Path $UiShotsDir -Force | Out-Null }
+    Set-Content -LiteralPath (Join-Path $UiShotsDir "queue.tsv") -Value $queue.ToArray() -Encoding utf8
+
+    if (-not (Test-Path -LiteralPath $ReportsDir)) { New-Item -ItemType Directory -Path $ReportsDir -Force | Out-Null }
+    Set-Content -LiteralPath (Join-Path $ReportsDir "ui-shots.txt") -Value $report.ToArray() -Encoding utf8
+}
+
+function Send-UiShotQueue {
+    # Отправляет очередные части снимков аннотациями и запоминает, на чём остановился
+    param([int]$MaxNotices)
+
+    $queuePath = Join-Path $UiShotsDir "queue.tsv"
+    if (-not $InActions -or -not (Test-Path -LiteralPath $queuePath)) { return }
+
+    $entries = @(Get-Content -LiteralPath $queuePath -Encoding utf8 | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    $cursorPath = Join-Path $UiShotsDir "queue.sent"
+    $sent = 0
+    if (Test-Path -LiteralPath $cursorPath) {
+        $sent = [int](([string](Get-Content -LiteralPath $cursorPath -Raw)).Trim())
+    }
+
+    $count = [Math]::Min($MaxNotices, $entries.Count - $sent)
+    for ($i = 0; $i -lt $count; $i++) {
+        $parts = ([string]$entries[$sent + $i]) -split "`t", 2
+        Write-Annotation -Level "notice" -Title $parts[0] -Message $parts[1]
+    }
+
+    if ($count -gt 0) {
+        Set-Content -LiteralPath $cursorPath -Value ([string]($sent + $count))
+    }
+}
+
+function Write-WindowsTestReports {
+    if (-not (Test-Path -LiteralPath $ReportsDir)) { return }
+
+    $lines = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($file in @(Get-ChildItem -LiteralPath $ReportsDir -Filter "*.txt" | Sort-Object Name)) {
+        $lines.Add("[$($file.BaseName)]")
+        foreach ($line in @(Get-Content -LiteralPath $file.FullName -Encoding utf8)) {
+            $text = [string]$line
+            if ($text.Length -gt 600) { $text = $text.Substring(0, 600) + " ..." }
+            $lines.Add("  " + $text)
+        }
+    }
+
+    if ($lines.Count -eq 0) { return }
+
+    Write-ChunkedAnnotations -Level "notice" -Title "Проверки на Windows" -Lines $lines.ToArray() -MaxAnnotations 1 -MaxChars 3800
+    Write-LogGroup -Title "Проверки на Windows: отчёты" -Lines $lines.ToArray()
+}
+
 function Invoke-TestStep {
-    Write-Host "== Модульные тесты ($Configuration) =="
+    Write-Host "== Тесты ($Configuration) =="
 
     if (Test-Path -LiteralPath $ResultsDir) {
         Remove-Item -LiteralPath $ResultsDir -Recurse -Force
     }
 
-    $test = Invoke-Dotnet -Arguments @(
-        "test", $Solution,
-        "-c", $Configuration,
-        "--nologo",
-        "--logger", "trx;LogFileName=unit-tests.trx",
-        "--logger", "console;verbosity=normal",
-        "--results-directory", $ResultsDir
-    )
-
-    $summary = Read-TrxSummary -Path (Join-Path $ResultsDir "unit-tests.trx")
-
-    if ($test.ExitCode -ne 0) {
-        if ($null -ne $summary -and $summary.Failed -gt 0) {
-            $title = "Тесты не прошли: $($summary.Failed) из $($summary.Total)"
-            Write-ChunkedAnnotations -Level "error" -Title $title -Lines $summary.FailedLines
-
-            $md = New-Object 'System.Collections.Generic.List[string]'
-            $md.Add("### ❌ $title")
-            $md.Add("")
-            $md.Add('```text')
-            foreach ($l in ($summary.FailedLines | Select-Object -First 120)) { $md.Add([string]$l) }
-            $md.Add('```')
-            $md.Add("")
-            Add-JobSummary -MarkdownLines $md.ToArray()
-        }
-        else {
-            Write-StepFailure -Title "dotnet test завершился с ошибкой" -Lines $test.Lines
-        }
-
-        Write-LogGroup -Title "dotnet test: полный журнал" -Lines $test.Lines
-        throw "dotnet test завершился с кодом $($test.ExitCode)."
+    # Проверки на Windows пишут сюда отчёты; снимки интерфейса делаются, только если они запрошены
+    $env:UW_TEST_REPORT_DIR = $ReportsDir
+    $requestedShots = @(Get-RequestedUiShots)
+    if ($requestedShots.Count -gt 0) {
+        $env:UW_UI_SHOT_DIR = $UiShotsDir
+        $env:UW_UI_SHOTS = ($requestedShots -join ";")
     }
 
-    if ($null -eq $summary) {
-        $message = "dotnet test завершился успешно, но отчёт unit-tests.trx не найден."
-        Write-Annotation -Level "warning" -Title "Тесты: нет отчёта" -Message $message
-        Add-JobSummary -MarkdownLines @("### ⚠️ Тесты: нет отчёта", "", $message, "")
+    $projects = @(Get-ChildItem -LiteralPath (Join-Path $RepoRoot "tests") -Filter "*.csproj" -Recurse | Sort-Object Name)
+    if ($projects.Count -eq 0) {
+        throw "В каталоге tests нет проектов с тестами."
     }
-    elseif ($summary.Total -eq 0) {
-        Write-Annotation -Level "error" -Title "Тесты не найдены" -Message "В решении не выполнено ни одного теста."
-        Write-LogGroup -Title "dotnet test: полный журнал" -Lines $test.Lines
+
+    $logLines = New-Object 'System.Collections.Generic.List[string]'
+    $failedLines = New-Object 'System.Collections.Generic.List[string]'
+    $perProject = New-Object 'System.Collections.Generic.List[string]'
+    $total = 0
+    $passed = 0
+    $failed = 0
+    $exitCode = 0
+
+    # Проекты запускаются по очереди: у каждого свой отчёт, а проверки на Windows не мешают остальным
+    foreach ($project in $projects) {
+        $name = $project.BaseName
+        $run = Invoke-Dotnet -Arguments @(
+            "test", $project.FullName,
+            "-c", $Configuration,
+            "--nologo",
+            "--logger", "trx;LogFileName=$name.trx",
+            "--logger", "console;verbosity=normal",
+            "--results-directory", $ResultsDir
+        )
+
+        $logLines.Add("===== $name =====")
+        foreach ($line in @($run.Lines)) { $logLines.Add([string]$line) }
+        if ($run.ExitCode -ne 0) { $exitCode = $run.ExitCode }
+
+        $summary = Read-TrxSummary -Path (Join-Path $ResultsDir "$name.trx")
+        if ($null -ne $summary) {
+            $total += $summary.Total
+            $passed += $summary.Passed
+            $failed += $summary.Failed
+            $perProject.Add("$name $($summary.Passed)/$($summary.Total)")
+            foreach ($line in @($summary.FailedLines)) { $failedLines.Add([string]$line) }
+        }
+
+        if ($run.ExitCode -ne 0 -and ($null -eq $summary -or $summary.Failed -eq 0)) {
+            # Тесты не дошли до результата: ошибка сборки или падение процесса. Причина — в журнале
+            $failedLines.Add("[$name] dotnet test завершился с кодом $($run.ExitCode)")
+            foreach ($line in @(Get-FailureLines -Lines $run.Lines)) { $failedLines.Add("  " + [string]$line) }
+        }
+    }
+
+    if ($requestedShots.Count -gt 0) {
+        New-UiShotQueue -Names $requestedShots
+    }
+
+    Write-WindowsTestReports
+    Send-UiShotQueue -MaxNotices $UiShotNoticesInTestStep
+
+    $counts = "всего: $total • пройдено: $passed • не пройдено: $failed"
+    $breakdown = ($perProject.ToArray() -join "; ")
+
+    if ($exitCode -ne 0) {
+        $title = "Тесты не прошли: $failed из $total"
+        Write-ChunkedAnnotations -Level "error" -Title $title -Lines $failedLines.ToArray()
+
+        $md = New-Object 'System.Collections.Generic.List[string]'
+        $md.Add("### ❌ $title")
+        $md.Add("")
+        $md.Add('```text')
+        foreach ($line in ($failedLines.ToArray() | Select-Object -First 120)) { $md.Add([string]$line) }
+        $md.Add('```')
+        $md.Add("")
+        Add-JobSummary -MarkdownLines $md.ToArray()
+
+        Write-LogGroup -Title "dotnet test: полный журнал" -Lines $logLines.ToArray()
+        throw "dotnet test завершился с кодом $exitCode."
+    }
+
+    if ($total -eq 0) {
+        Write-Annotation -Level "error" -Title "Тесты не найдены" -Message "Не выполнено ни одного теста."
+        Write-LogGroup -Title "dotnet test: полный журнал" -Lines $logLines.ToArray()
         throw "Не выполнено ни одного теста."
     }
-    else {
-        $message = "всего: $($summary.Total) • пройдено: $($summary.Passed) • не пройдено: $($summary.Failed)"
-        Write-Annotation -Level "notice" -Title "Тесты прошли" -Message $message
-        Add-JobSummary -MarkdownLines @("### ✅ Тесты прошли", "", $message, "")
-    }
 
-    Write-LogGroup -Title "dotnet test: полный журнал" -Lines $test.Lines
+    $message = "$counts ($breakdown)"
+    Write-Annotation -Level "notice" -Title "Тесты прошли" -Message $message
+    Add-JobSummary -MarkdownLines @("### ✅ Тесты прошли", "", $message, "")
+
+    Write-LogGroup -Title "dotnet test: полный журнал" -Lines $logLines.ToArray()
 }
 
 function Invoke-PublishStep {
@@ -332,6 +496,9 @@ function Invoke-PublishStep {
     $message = "архив собран, размер $sizeMb МБ (никуда не выгружен)"
     Write-Annotation -Level "notice" -Title "Портативная сборка прошла" -Message $message
     Add-JobSummary -MarkdownLines @("### ✅ Портативная сборка прошла", "", $message, "")
+
+    # Части снимков интерфейса, которые не поместились в шаг тестов
+    Send-UiShotQueue -MaxNotices $UiShotNoticesInPublishStep
 }
 
 # ---------------------------------------------------------------------------------------------
