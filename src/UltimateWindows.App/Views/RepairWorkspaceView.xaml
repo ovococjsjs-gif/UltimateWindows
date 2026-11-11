@@ -169,18 +169,23 @@
       <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="14,9" Margin="0,0,0,8">
         <DockPanel>
           <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButtonStyle}"
-                  Command="{Binding ScanBsodAndCrashesCommand}" Content="Проверить минидампы и журнал" />
-          <TextBlock Text="{Binding BsodScanHeadline}" FontSize="12.5" VerticalAlignment="Center" />
+                  Command="{Binding ScanBsodAndCrashesCommand}" Content="Проверить дампы и журнал" />
+          <Button DockPanel.Dock="Right" Style="{StaticResource CompactButtonStyle}" Margin="0,0,8,0"
+                  Command="{Binding OpenDumpFileCommand}" Content="Открыть файл дампа…"
+                  ToolTip="Разобрать один файл .dmp, например принесённый с другого компьютера" />
+          <TextBlock Text="{Binding BsodScanHeadline}" FontSize="12.5" VerticalAlignment="Center"
+                     TextWrapping="Wrap" />
         </DockPanel>
       </Border>
 
       <DataGrid Grid.Row="1" ItemsSource="{Binding Minidumps}" Margin="0,0,0,8">
         <DataGrid.Columns>
-          <DataGridTextColumn Header="Дата BSOD" Binding="{Binding CrashLocalDisplay}" Width="135" />
-          <DataGridTextColumn Header="Код BugCheck" Binding="{Binding BugCheckHex}" Width="115" />
-          <DataGridTextColumn Header="Имя ошибки" Binding="{Binding BugCheckName}" Width="210" />
-          <DataGridTextColumn Header="Подозреваемый драйвер" Binding="{Binding CulpritBadge}" Width="190" />
-          <DataGridTextColumn Header="Рекомендация" Binding="{Binding RecommendedUserAction}" Width="*" />
+          <DataGridTextColumn Header="Время сбоя" Binding="{Binding CrashLocalDisplay}" Width="130" />
+          <DataGridTextColumn Header="Код" Binding="{Binding BugCheckHex}" Width="95" />
+          <DataGridTextColumn Header="Имя ошибки" Binding="{Binding BugCheckName}" Width="230" />
+          <DataGridTextColumn Header="Источник сбоя" Binding="{Binding CulpritBadge}" Width="190" />
+          <DataGridTextColumn Header="Что произошло" Binding="{Binding SimpleHumanExplanation}" Width="*" />
+          <DataGridTextColumn Header="Что делать" Binding="{Binding RecommendedUserAction}" Width="*" />
         </DataGrid.Columns>
       </DataGrid>
 

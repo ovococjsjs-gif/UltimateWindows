@@ -31,6 +31,14 @@
                        Foreground="{DynamicResource TextMutedBrush}"
                        TextWrapping="Wrap"
                        Margin="0,1,0,0" />
+            <!-- Предупреждение: твик опасен, не рекомендуется этому компьютеру или не подходит этой версии Windows -->
+            <TextBlock Text="{Binding AdvisoryNote}"
+                       Visibility="{Binding HasAdvisoryNote, Converter={StaticResource BoolToVis}}"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource CautionAmberBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,2,0,0" />
           </StackPanel>
 
           <Border Grid.Column="2"

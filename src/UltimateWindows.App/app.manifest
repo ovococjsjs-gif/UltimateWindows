@@ -5,7 +5,9 @@
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-        <!-- Запуск без навязчивого UAC-окна при старте: права запрашиваются только для системного ремонта -->
+        <!-- Права администратора программа запрашивает сама при запуске (см. App.xaml.cs).
+             Уровень asInvoker оставлен, чтобы при отказе в UAC она продолжила работу в ограниченном режиме,
+             а не закрылась. Ключ командной строки «no-elevate» (с двумя дефисами) отключает запрос. -->
         <requestedExecutionLevel level="asInvoker" uiAccess="false" />
       </requestedPrivileges>
     </security>

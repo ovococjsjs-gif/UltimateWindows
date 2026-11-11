@@ -5,6 +5,7 @@ using UltimateWindows.Modules.Cleaner.Services;
 using UltimateWindows.Modules.Drivers.Orchestration;
 using UltimateWindows.Modules.Drivers.Services;
 using UltimateWindows.Modules.Hardware.Services;
+using UltimateWindows.Modules.Optimizer.Models;
 using UltimateWindows.Modules.Optimizer.Services;
 using UltimateWindows.Modules.Repair.Models;
 using UltimateWindows.Modules.Repair.Services;
@@ -159,19 +160,40 @@ switch (command)
 
     case "bsod-scan":
     {
-        var (dumps, events) = await repair.ScanBsodAndCrashHistoryAsync(15);
-        Console.WriteLine("=== UltimateWindows Phase 3 — Анализатор синих экранов (BSOD) и сбоев ===");
-        Console.WriteLine($"Найдено минидампов: {dumps.Count} | Событий в журнале: {events.Count}");
-        foreach (var d in dumps)
+        var scan = await repair.ScanCrashHistoryDetailedAsync(15);
+        Console.WriteLine("=== UltimateWindows — анализ дампов синих экранов и журнала сбоев ===");
+        Console.WriteLine($"Найдено дампов: {scan.Minidumps.Count} | Событий в журнале: {scan.CrashEvents.Count}");
+        if (scan.FolderNote is not null)
         {
-            Console.WriteLine($"  [BSOD {d.CrashLocalDisplay}] {d.BugCheckName} ({d.BugCheckHex}) | {d.CulpritBadge}");
-            Console.WriteLine($"    Причина : {d.SimpleHumanExplanation}");
-            Console.WriteLine($"    Решение : {d.RecommendedUserAction}");
+            Console.WriteLine($"Внимание: {scan.FolderNote}");
         }
-        foreach (var ev in events)
+        foreach (var d in scan.Minidumps)
+        {
+            PrintDumpReport(d);
+        }
+        foreach (var ev in scan.CrashEvents)
         {
             Console.WriteLine($"  [{ev.TimeLocalDisplay}] {ev.EventBadge}: {ev.SimpleSummary}");
         }
+        break;
+    }
+
+    case "bsod-file":
+    {
+        if (args.Length < 2)
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli bsod-file \"<путь к файлу .dmp>\"");
+            return 1;
+        }
+
+        var report = await repair.AnalyzeDumpFileAsync(args[1]);
+        if (report is null)
+        {
+            Console.WriteLine("Файл не найден либо это не дамп ядра Windows и не дамп программы.");
+            return 1;
+        }
+
+        PrintDumpReport(report);
         break;
     }
 
@@ -209,6 +231,15 @@ switch (command)
         {
             var mark = st.IsCurrentlyApplied ? "[ВКЛ ]" : "[СТНД]";
             Console.WriteLine($"  {mark} {st.Rule.TweakId,-42} | {st.Rule.FriendlyTitle}");
+            if (st.Rule.IsDangerous)
+            {
+                Console.WriteLine("         ! Опасная настройка: включается только с ключом --force");
+            }
+            if (!st.Applicability.IsApplicable)
+            {
+                var kind = st.Applicability.Status == TweakApplicabilityStatus.NotApplicable ? "Не подходит" : "Не рекомендуется";
+                Console.WriteLine($"         ! {kind}: {st.Applicability.Reason}");
+            }
         }
         break;
     }
@@ -218,13 +249,30 @@ switch (command)
     {
         if (args.Length < 2)
         {
-            Console.WriteLine($"Использование: UltimateWindows.Cli {command} <tweak-id>");
+            Console.WriteLine($"Использование: UltimateWindows.Cli {command} <tweak-id> [--force]");
             return 1;
         }
 
         var enable = command == "tweak-enable";
-        var res = await optimizer.SetTweakStateAsync(args[1], enable);
+
+        // Ключ --force — явное согласие включить опасную или не рекомендуемую этому компьютеру настройку
+        var force = args.Skip(2).Any(a => string.Equals(a, "--force", StringComparison.OrdinalIgnoreCase));
+        var res = await optimizer.SetTweakStateAsync(
+            args[1],
+            enable,
+            options: force ? TweakApplyOptions.AcceptAll : TweakApplyOptions.Default);
+
         Console.WriteLine(res.UserFriendlyMessage);
+        if (res.ConfirmationRequired != TweakConfirmationKind.None)
+        {
+            Console.WriteLine("Чтобы всё равно включить настройку, повторите команду с ключом --force.");
+        }
+
+        if (!res.Succeeded)
+        {
+            return 1;
+        }
+
         break;
     }
 
@@ -438,9 +486,26 @@ switch (command)
 
     default:
     {
-        Console.WriteLine("Доступные команды: status | smart-audit | hardware-audit | stress-test [сек] | drivers-audit [--online] | driver-backup <oemXX.inf> | clean-scan | clean-run | disk-map [путь] | pe-doctor <exe> | bsod-scan | repair-list | repair-run <id> | tweak-list | tweak-enable <id> | tweak-disable <id> | tweak-export [yaml] | tweak-import <yaml> | startup-list | unlock-check <path> | miner-scan [--fast] | miner-heal-os | history | cleanup-blobs | rollback <id> | check-path <path>");
+        Console.WriteLine("Доступные команды: status | smart-audit | hardware-audit | stress-test [сек] | drivers-audit [--online] | driver-backup <oemXX.inf> | clean-scan | clean-run | disk-map [путь] | pe-doctor <exe> | bsod-scan | bsod-file <dmp> | repair-list | repair-run <id> | tweak-list | tweak-enable <id> | tweak-disable <id> | tweak-export [yaml] | tweak-import <yaml> | startup-list | unlock-check <path> | miner-scan [--fast] | miner-heal-os | history | cleanup-blobs | rollback <id> | check-path <path>");
         break;
     }
 }
 
 return 0;
+
+static void PrintDumpReport(BsodMinidumpReport d)
+{
+    Console.WriteLine($"  [{d.CrashLocalDisplay}] {d.BugCheckName} ({d.BugCheckHex}) | {d.CulpritBadge}");
+    Console.WriteLine($"    Файл     : {d.DumpFilePath}");
+    Console.WriteLine($"    Система  : {d.OsBuildSummary}");
+    if (d.ParametersDisplay.Length > 0)
+    {
+        Console.WriteLine($"    Параметры: {d.ParametersDisplay}");
+    }
+    Console.WriteLine($"    Причина  : {d.SimpleHumanExplanation}");
+    Console.WriteLine($"    Решение  : {d.RecommendedUserAction}");
+    if (!string.IsNullOrEmpty(d.TechnicalEvidence))
+    {
+        Console.WriteLine($"    Основание: {d.TechnicalEvidence}");
+    }
+}

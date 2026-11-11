@@ -75,7 +75,7 @@ public sealed class RepairStudioViewModel : ObservableObject
     private string _targetExecutablePath = @"C:\Windows\System32\notepad.exe";
     private string _peDiagnosisHeadline = "Выберите проблемный .exe файл игры или программы — Доктор проверит разрядность всех импортируемых DLL (0xC000007B) и подберет официальный пакет Microsoft.";
     private string _targetArchitectureBadge = "Готов к анализу";
-    private string _bsodScanHeadline = "Нажмите «Проверить синие экраны и сбои», чтобы расшифровать минидампы C:\\Windows\\Minidump и журнал событий.";
+    private string _bsodScanHeadline = "Нажмите «Проверить дампы и журнал», чтобы разобрать дампы синих экранов из C:\\Windows\\Minidump и журнал событий.";
     private string _lastRepairActionBanner = "";
     private string _lastRepairTechnicalLog = "";
 
@@ -99,6 +99,7 @@ public sealed class RepairStudioViewModel : ObservableObject
         BrowseExecutableCommand = new RelayCommand(_ => BrowseForExecutable());
         DiagnoseExecutableCommand = new RelayCommand(_ => RunExecutableDiagnosis());
         ScanBsodAndCrashesCommand = new AsyncRelayCommand(_ => ScanBsodAndCrashLogsAsync());
+        OpenDumpFileCommand = new AsyncRelayCommand(_ => OpenAndAnalyzeDumpFileAsync());
 
         foreach (var pkg in _repairService.GetOfficialRuntimeCatalog())
         {
@@ -166,6 +167,7 @@ public sealed class RepairStudioViewModel : ObservableObject
     public ICommand BrowseExecutableCommand { get; }
     public ICommand DiagnoseExecutableCommand { get; }
     public ICommand ScanBsodAndCrashesCommand { get; }
+    public ICommand OpenDumpFileCommand { get; }
 
     public void RunExecutableDiagnosis()
     {
@@ -200,10 +202,12 @@ public sealed class RepairStudioViewModel : ObservableObject
 
     public async Task ScanBsodAndCrashLogsAsync()
     {
-        BsodScanHeadline = "Анализ системных минидампов C:\\Windows\\Minidump и критических событий Windows...";
+        BsodScanHeadline = "Разбор дампов из C:\\Windows\\Minidump и журнала событий Windows...";
         try
         {
-            var (dumps, events) = await _repairService.ScanBsodAndCrashHistoryAsync(maxItems: 20);
+            var scan = await _repairService.ScanCrashHistoryDetailedAsync(maxItems: 20);
+            var dumps = scan.Minidumps;
+            var events = scan.CrashEvents;
 
             Minidumps.Clear();
             foreach (var d in dumps) Minidumps.Add(d);
@@ -214,15 +218,56 @@ public sealed class RepairStudioViewModel : ObservableObject
             OnPropertyChanged(nameof(HasMinidumps));
             OnPropertyChanged(nameof(HasCrashEvents));
 
-            BsodScanHeadline = dumps.Count == 0 && events.Count == 0
-                ? "Синих экранов (BSOD) и критических падений программ за последнее время не обнаружено."
-                : $"Найдено минидампов BSOD: {dumps.Count} • Записей сбоев в журнале: {events.Count}.";
+            var headline = dumps.Count == 0 && events.Count == 0
+                ? "Дампов синих экранов и записей о критических сбоях не найдено."
+                : $"Найдено дампов: {dumps.Count} • Записей сбоев в журнале: {events.Count}.";
+
+            // Не выдаём «дампов нет» за «сбоев не было», если папку с дампами прочитать не удалось
+            if (scan.FolderNote is not null)
+            {
+                headline = $"{headline} {scan.FolderNote}";
+            }
+
+            BsodScanHeadline = headline;
 
             await _onActionCompletedAsync(BsodScanHeadline);
         }
         catch (Exception ex)
         {
             BsodScanHeadline = $"Ошибка чтения журналов сбоев: {ex.Message}";
+        }
+    }
+
+    private async Task OpenAndAnalyzeDumpFileAsync()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Выберите файл дампа синего экрана (.dmp)",
+            Filter = "Файлы дампов (*.dmp)|*.dmp|Все файлы (*.*)|*.*",
+            CheckFileExists = true
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var report = await _repairService.AnalyzeDumpFileAsync(dialog.FileName);
+            if (report is null)
+            {
+                BsodScanHeadline = $"Файл «{Path.GetFileName(dialog.FileName)}» не является дампом ядра Windows или дампом программы.";
+                return;
+            }
+
+            Minidumps.Insert(0, report);
+            OnPropertyChanged(nameof(HasMinidumps));
+            BsodScanHeadline = $"{report.BugCheckName} ({report.BugCheckHex}) • {report.CulpritBadge}. {report.SimpleHumanExplanation}";
+        }
+        catch (Exception ex)
+        {
+            BsodScanHeadline = $"Не удалось прочитать файл дампа: {ex.Message}";
         }
     }
 

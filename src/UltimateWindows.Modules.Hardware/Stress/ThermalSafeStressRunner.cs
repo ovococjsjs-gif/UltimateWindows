@@ -6,7 +6,12 @@ using UltimateWindows.Modules.Hardware.Models;
 namespace UltimateWindows.Modules.Hardware.Stress;
 
 /// <summary>
-/// Многопоточный стресс-тест стабильности FPU/SIMD и памяти с автоматическим тепловым предохранителем (Thermal Cutoff).
+/// Многопоточная вычислительная нагрузка на процессор с тепловым предохранителем.
+///
+/// Ограничения, о которых тест честно сообщает в итоговом сообщении:
+/// 1) предохранитель срабатывает только по тем датчикам, которые удалось прочитать; если температура процессора
+///    недоступна, защита для процессора не работает;
+/// 2) тест нагружает процессор, но не сверяет результаты вычислений, поэтому ошибок счёта он не находит.
 /// </summary>
 public sealed class ThermalSafeStressRunner
 {
@@ -84,7 +89,7 @@ public sealed class ThermalSafeStressRunner
                     PeakCpuTempC: peakCpu,
                     PeakGpuTempC: peakGpu,
                     WasAbortedByThermalCutoff: false,
-                    StatusMessage: $"Стресс-тест выполняется ({workerCount} потоков): {mops:F1} млн опер./сек"));
+                    StatusMessage: $"Стресс-тест выполняется ({workerCount} потоков): {mops:F1} млн опер./сек{DescribeSensorCoverage(peakCpu, peakGpu)}"));
             }
         }
         catch (OperationCanceledException) when (!externalCt.IsCancellationRequested)
@@ -104,7 +109,7 @@ public sealed class ThermalSafeStressRunner
 
         var finalMsg = thermalAborted
             ? $"Сработал тепловой предохранитель (пик CPU {peakCpu?.ToString("F0") ?? "-"}°C / GPU {peakGpu?.ToString("F0") ?? "-"}°C) — нагрузка безопасно остановлена!"
-            : $"Тест стабильности успешно пройден за {sw.Elapsed.TotalSeconds:F1} сек ({finalMops:F1} млн векторных опер./сек, без ошибок FPU/ОЗУ).";
+            : $"Нагрузочный прогон завершён за {sw.Elapsed.TotalSeconds:F1} сек ({finalMops:F1} млн векторных опер./сек). Ошибки вычислений этот тест не проверяет.{DescribeSensorCoverage(peakCpu, peakGpu)}";
 
         var finalResult = new StressTestProgress(
             Elapsed: sw.Elapsed,
@@ -117,6 +122,22 @@ public sealed class ThermalSafeStressRunner
 
         progress?.Report(finalResult);
         return finalResult;
+    }
+
+    /// <summary>
+    /// Предупреждение о том, за какими датчиками тепловая защита на самом деле следила.
+    /// Пустая строка, если температура процессора читается.
+    /// </summary>
+    private static string DescribeSensorCoverage(double? peakCpuTempC, double? peakGpuTempC)
+    {
+        if (peakCpuTempC.HasValue)
+        {
+            return "";
+        }
+
+        return peakGpuTempC.HasValue
+            ? " Температура процессора недоступна: тепловая защита следит только за видеокартой."
+            : " Датчики температуры недоступны: тепловая защита не работает, следите за температурой сами.";
     }
 
     private static void ExecuteVectorKernel(int workerSeed, ref long sharedOpsCounter, CancellationToken ct)

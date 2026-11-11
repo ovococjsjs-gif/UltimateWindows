@@ -21,12 +21,44 @@ public sealed class TweakItemViewModel : ObservableObject
         Func<TweakItemViewModel, bool, Task> onUserToggleAsync)
     {
         Rule = state.Rule;
+        Applicability = state.Applicability;
         _isApplied = state.IsCurrentlyApplied;
         _onUserToggleAsync = onUserToggleAsync;
         ToggleCommand = new AsyncRelayCommand(_ => _onUserToggleAsync(this, !IsApplied));
     }
 
     public DeclarativeTweakRule Rule { get; }
+
+    public TweakApplicability Applicability { get; }
+
+    /// <summary>
+    /// Предупреждение под названием твика: опасен, не рекомендуется этому компьютеру или не подходит этой версии Windows.
+    /// Пустая строка, если предупреждать не о чем.
+    /// </summary>
+    public string AdvisoryNote
+    {
+        get
+        {
+            if (Applicability.Status == TweakApplicabilityStatus.NotApplicable)
+            {
+                return $"Не подходит этому компьютеру. {Applicability.Reason}";
+            }
+
+            if (Rule.IsDangerous)
+            {
+                return "Опасно: ослабляет защиту или устойчивость Windows. Включается только после отдельного подтверждения.";
+            }
+
+            if (Applicability.Status == TweakApplicabilityStatus.NotRecommended)
+            {
+                return $"Не рекомендуется для этого компьютера. {Applicability.Reason}";
+            }
+
+            return "";
+        }
+    }
+
+    public bool HasAdvisoryNote => AdvisoryNote.Length > 0;
 
     public bool IsApplied
     {
@@ -565,6 +597,23 @@ public sealed class OptimizerStudioViewModel : ObservableObject
     private async Task HandleTweakSwitchAsync(TweakItemViewModel item, bool targetState)
     {
         var res = await _optimizerService.SetTweakStateAsync(item.Rule.TweakId, enableTweak: targetState);
+
+        // Опасный или не рекомендуемый этому компьютеру твик включается только после явного согласия
+        if (!res.Succeeded && res.ConfirmationRequired != TweakConfirmationKind.None)
+        {
+            if (AskUserToConfirmTweak(res))
+            {
+                res = await _optimizerService.SetTweakStateAsync(
+                    item.Rule.TweakId,
+                    enableTweak: targetState,
+                    options: TweakApplyOptions.AcceptAll);
+            }
+            else
+            {
+                res = res with { UserFriendlyMessage = $"Настройка «{item.FriendlyTitle}» оставлена без изменений." };
+            }
+        }
+
         ActionStatusBanner = res.UserFriendlyMessage;
 
         if (!res.Succeeded)
@@ -575,6 +624,19 @@ public sealed class OptimizerStudioViewModel : ObservableObject
 
         OnPropertyChanged(nameof(ActiveTweaksCount));
         await _onActionCompletedAsync(res.UserFriendlyMessage);
+    }
+
+    private static bool AskUserToConfirmTweak(OptimizerOperationResult pending)
+    {
+        var isDangerous = pending.ConfirmationRequired == TweakConfirmationKind.DangerousTweak;
+        var answer = System.Windows.MessageBox.Show(
+            $"{pending.UserFriendlyMessage}\n\nВсё равно включить? Изменение можно отменить в разделе «Машина времени».",
+            isDangerous ? "Опасная настройка" : "Настройка не рекомендуется",
+            System.Windows.MessageBoxButton.YesNo,
+            isDangerous ? System.Windows.MessageBoxImage.Warning : System.Windows.MessageBoxImage.Question,
+            System.Windows.MessageBoxResult.No);
+
+        return answer == System.Windows.MessageBoxResult.Yes;
     }
 
     private async Task ApplyNamedPresetAsync(string presetKey)
