@@ -4,14 +4,14 @@
 # Знак «+» после имени — снимок со сглаженным текстом (в несколько раз крупнее обычного).
 # Пустой список — снимки не делаются и не передаются.
 optimizer-tweaks-details
-main-Optimizer
-optimizer-startup
-optimizer-tools
 optimizer-network
 optimizer-services
 optimizer-tasks
+main-Optimizer
 optimizer-apps-programs
-optimizer-tweaks-light
 optimizer-tweaks
 optimizer-preset-preview
+optimizer-startup
+optimizer-tools
 optimizer-apps-windows
+optimizer-tweaks-light

@@ -129,8 +129,12 @@ public sealed class OptimizerUiSmokeTests : IDisposable
             Assert.Equal(ServiceStartupMode.Disabled, bridge.StartupOf("dmwappushservice"));
             Assert.Equal(2, telemetry.Details.Count);
             Assert.Single(completedActions);
+            // Раскрытая строка должна попасть в кадр: на время снимка в списке остаётся только она
+            tweaks.SearchText = telemetry.Title;
             await surface.SettleAsync();
             surface.Save("optimizer-tweaks-details");
+            tweaks.SearchText = "";
+            await surface.SettleAsync();
 
             // Опасная настройка без согласия не включается, и переключатель возвращается назад
             reached = "опасная настройка";

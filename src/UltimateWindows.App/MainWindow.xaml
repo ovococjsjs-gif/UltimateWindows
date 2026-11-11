@@ -79,20 +79,18 @@
                     Padding="10,8"
                     Margin="0,0,0,8">
               <StackPanel>
-                <DockPanel>
-                  <TextBlock DockPanel.Dock="Right"
-                             Text="{Binding VaultUsageText}"
-                             FontSize="11"
-                             FontWeight="Bold"
-                             Foreground="{DynamicResource SafeEmeraldBrush}" />
-                  <TextBlock Text="Zero-Bloat Vault"
-                             FontSize="11"
-                             FontWeight="SemiBold" />
-                </DockPanel>
-                <TextBlock Text="{Binding ActiveCheckpointsCount, StringFormat=Активных точек отката: {0}}"
+                <TextBlock Text="Машина времени"
+                           FontSize="11"
+                           FontWeight="SemiBold" />
+                <TextBlock Text="{Binding ActiveCheckpointsCount, StringFormat=Точек отката: {0}}"
                            FontSize="10.5"
                            Foreground="{DynamicResource TextMutedBrush}"
                            Margin="0,3,0,0" />
+                <TextBlock Text="{Binding VaultUsageText, StringFormat=Занято: {0}}"
+                           FontSize="10.5"
+                           Foreground="{DynamicResource SafeEmeraldBrush}"
+                           TextTrimming="CharacterEllipsis"
+                           Margin="0,2,0,0" />
               </StackPanel>
             </Border>
 
@@ -197,8 +195,11 @@
           </StackPanel>
 
           <TextBlock Text="{Binding OsDisplayHeader}"
+                     ToolTip="{Binding OsDisplayHeader}"
                      FontSize="12.5"
                      FontWeight="SemiBold"
+                     TextTrimming="CharacterEllipsis"
+                     Margin="0,0,12,0"
                      VerticalAlignment="Center" />
         </DockPanel>
       </Border>

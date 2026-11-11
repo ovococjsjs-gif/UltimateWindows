@@ -198,7 +198,7 @@ public sealed class OptimizerStudioViewModel : ObservableObject
     // Win32 Uninstaller & Unlocker
     private string _appSearchFilter = "";
     private string _lockedTargetPath = "";
-    private string _lockHunterHeadline = "Укажите файл или папку, которую не дает удалить открытый процесс.";
+    private string _lockHunterHeadline = "Укажите файл или папку, которую не даёт удалить открытый процесс.";
 
     // Pinger & Hosts
     private string _pingTargetHost = "1.1.1.1";
