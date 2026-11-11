@@ -10,11 +10,11 @@
 
 | Слой | Технология | Обоснование выбора |
 |---|---|---|
-| **Язык и рантайм** | **C# 13 / .NET 8 LTS (с готовностью к .NET 9)** | Высокая скорость работы, строгая типизация, встроенный `Span<T>` для парсинга бинарных структур (PE, Minidump, `$MFT`, SMBIOS), прямая интеграция с `LibreHardwareMonitorLib`, возможность сборки **Self-Contained Portable** (работает даже на «голой» сломанной Windows без установленного .NET!). |
-| **Графический интерфейс (UI)** | **WPF + `WPF-UI` (Fluent Design 2, Mica / Acrylic) + MVVM (`CommunityToolkit.Mvvm`)** | В отличие от WinUI 3, который имеет известные ограничения при запуске от имени Администратора в портативном (Unpackaged) режиме и на Windows 10, связка `.NET 8 + WPF-UI` дает современный дизайн Windows 11, аппаратное ускорение DirectX, мгновенный запуск с флешки и 100% стабильность под `RunAs Administrator` как на Windows 10 (19045+), так и на Windows 11 (22H2–25H2+). |
-| **Системные вызовы Win32 / Native** | **`Microsoft.Windows.CsWin32` (Source Generators) + C++20 Native Helper (`UltimateWindows.Native.dll`)** | Автогенерация типобезопасных P/Invoke без ручных ошибок маршалинга для `SetupAPI`, `CfgMgr32`, `Advapi32`, `Iphlpapi`, `RestartManager`, `Wevtapi`, `WinTrust`; тонкая C++20 библиотека для низкоуровневых инструкций `CPUID`, быстрого обхода `$MFT` и парсинга минидампов (`DbgHelp`). |
+| **Язык и рантайм** | **C# 14 / .NET 10 LTS (поддержка до ноября 2028)** | Высокая скорость работы, строгая типизация, встроенный `Span<T>` для парсинга бинарных структур (PE, Minidump, `$MFT`, SMBIOS), прямая интеграция с `LibreHardwareMonitorLib`, возможность сборки **Self-Contained Portable** (работает даже на «голой» сломанной Windows без установленного .NET!). |
+| **Графический интерфейс (UI)** | **WPF + собственные Fluent-темы и стили + собственные примитивы MVVM** | В отличие от WinUI 3, который имеет известные ограничения при запуске от имени Администратора в портативном (Unpackaged) режиме и на Windows 10, связка `.NET 10 + WPF` с собственными Fluent-темами дает современный дизайн Windows 11, аппаратное ускорение DirectX, мгновенный запуск с флешки и 100% стабильность под `RunAs Administrator` как на Windows 10 (19045+), так и на Windows 11 (22H2–25H2+). |
+| **Системные вызовы Win32 / Native** | **Ручные `DllImport`-обёртки в `UltimateWindows.NativeInterop` (без сторонних генераторов и без собственной C++-DLL)** | Обёртки для `SetupAPI`, `CfgMgr32`, `Advapi32`, `Iphlpapi`, `RestartManager`, `Wevtapi`, `WinTrust`, `IOCTL`; разбор PE, дампов ядра (`PAGEDU64`) и структур SMBIOS написан на C# со `Span<byte>`, поэтому отдельная нативная библиотека не нужна. |
 | **Хранение журналов откатов и баз знаний** | **`Microsoft.Data.Sqlite` + подписанные JSON/YAML-манифесты** | Атомарное хранение истории транзакций отката, кэша сканирования и версионируемых правил очистки, оптимизации и сигнатур майнеров. |
-| **Пакетный и CLI-режим** | **`System.CommandLine` + YAML-профили (`YamlDotNet`)** | Поддержка безголового запуска (`ultimatewindows.exe --audit --profile gaming-safe.yaml`) для системных администраторов и быстрой настройки ПК после переустановки ОС. |
+| **Пакетный и CLI-режим** | **Собственный разбор аргументов в `UltimateWindows.Cli` + YAML-профили (собственный сериализатор)** | Поддержка безголового запуска (`ultimatewindows.exe --audit --profile gaming-safe.yaml`) для системных администраторов и быстрой настройки ПК после переустановки ОС. |
 
 ---
 
@@ -74,7 +74,7 @@ UltimateWindows/
 │   └── repair-playbooks/               # Сценарии лечения типовых кодов ошибок ОС и BSOD
 ├── src/
 │   ├── UltimateWindows.Core/           # Базовые контракты, журнал транзакций, движок откатов, криптопроверка
-│   ├── UltimateWindows.NativeInterop/  # CsWin32 P/Invoke обертки (SetupAPI, CfgMgr32, RestartMgr, Wevtapi, IOCTL)
+│   ├── UltimateWindows.NativeInterop/  # P/Invoke обертки (SetupAPI, CfgMgr32, RestartMgr, Wevtapi, IOCTL)
 │   ├── UltimateWindows.Modules.Safety/         # VSS точки восстановления, карантин .uwq, откат состояния
 │   ├── UltimateWindows.Modules.Optimizer/      # Твики приватности/производительности, службы, UWP, Hosts, DNS/DoH
 │   ├── UltimateWindows.Modules.Cleaner/        # Очистка диска, браузеров (Vault-Safe), гигиена реестра, MFT-карта диска
