@@ -25,6 +25,8 @@ public sealed class WindowsOptimizerPlatformBridge : DefaultOptimizerPlatformBri
 
     public override bool IsRunningAsAdministrator() => ElevationChecker.IsRunningAsAdministrator();
 
+    public override SystemFacts GetSystemFacts() => WindowsSystemFactsProbe.Collect();
+
     public override (bool Exists, int ValueKindCode, string? SerializedValue) ReadRegistryValue(
         string hive,
         string subKeyPath,

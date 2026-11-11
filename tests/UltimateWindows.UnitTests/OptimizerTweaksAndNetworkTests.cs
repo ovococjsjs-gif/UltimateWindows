@@ -54,6 +54,150 @@ public sealed class OptimizerTweaksAndNetworkTests : IDisposable
     }
 
     [Fact]
+    public void TweakSafetyGuard_AllowsProtectionWeakeningOnlyInRulesMarkedDangerous_AndAlwaysBlocksLicensing()
+    {
+        var defenderMutation = new TweakRegistryMutation(
+            "HKLM", @"SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection", "DisableRealtimeMonitoring", RegistryTweakValueKind.DWord, "1", "0");
+
+        Assert.True(TweakSafetyGuard.WeakensSystemProtection(defenderMutation));
+        Assert.False(TweakSafetyGuard.IsAlwaysForbidden(defenderMutation));
+
+        // Под видом безопасной настройки ослабить защиту Windows нельзя
+        var disguised = BuildTestRule("test.disguised-defender", RiskLevel.Safe, defenderMutation);
+        Assert.False(disguised.IsDangerous);
+        Assert.Throws<InvalidOperationException>(() => TweakSafetyGuard.ThrowIfUnsafeRule(disguised));
+
+        // Правило, честно помеченное как опасное, допустимо
+        var honest = BuildTestRule("test.honest-defender", RiskLevel.High, defenderMutation);
+        Assert.True(honest.IsDangerous);
+        TweakSafetyGuard.ThrowIfUnsafeRule(honest);
+
+        // Вмешательство в лицензирование запрещено даже в опасном правиле
+        var licensingMutation = new TweakRegistryMutation(
+            "HKLM", @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform", "SkipRearm", RegistryTweakValueKind.DWord, "1", "0");
+
+        Assert.True(TweakSafetyGuard.IsAlwaysForbidden(licensingMutation));
+        Assert.False(TweakSafetyGuard.IsSafeAllowedMutation(licensingMutation));
+        Assert.Throws<InvalidOperationException>(
+            () => TweakSafetyGuard.ThrowIfUnsafeRule(BuildTestRule("test.licensing", RiskLevel.Critical, licensingMutation)));
+    }
+
+    [Fact]
+    public void TweakRequirements_EvaluateAgainstSystemFacts_AndNeverBlockOnUnknownFacts()
+    {
+        var windows11Only = new TweakRequirements(MinWindowsBuild: 22000);
+        var onWindows10 = windows11Only.Evaluate(new SystemFacts(WindowsBuildNumber: 19045));
+        Assert.Equal(TweakApplicabilityStatus.NotApplicable, onWindows10.Status);
+        Assert.Contains("Windows 11", onWindows10.Reason);
+        Assert.True(windows11Only.Evaluate(new SystemFacts(WindowsBuildNumber: 26100)).IsApplicable);
+        Assert.True(windows11Only.Evaluate(SystemFacts.Unknown).IsApplicable);
+
+        var windows10Only = new TweakRequirements(MaxWindowsBuild: 19045);
+        Assert.Equal(TweakApplicabilityStatus.NotApplicable, windows10Only.Evaluate(new SystemFacts(WindowsBuildNumber: 22631)).Status);
+        Assert.True(windows10Only.Evaluate(new SystemFacts(WindowsBuildNumber: 19045)).IsApplicable);
+
+        var solidStateOnly = new TweakRequirements(BestOnSolidStateSystemDrive: true);
+        Assert.Equal(TweakApplicabilityStatus.NotRecommended, solidStateOnly.Evaluate(new SystemFacts(SystemDriveIsSolidState: false)).Status);
+        Assert.True(solidStateOnly.Evaluate(new SystemFacts(SystemDriveIsSolidState: true)).IsApplicable);
+        Assert.True(solidStateOnly.Evaluate(SystemFacts.Unknown).IsApplicable);
+
+        var desktopOnly = new TweakRequirements(BatteryWarning: "Это устройство с батареей.");
+        var onLaptop = desktopOnly.Evaluate(new SystemFacts(HasBattery: true));
+        Assert.Equal(TweakApplicabilityStatus.NotRecommended, onLaptop.Status);
+        Assert.Equal("Это устройство с батареей.", onLaptop.Reason);
+        Assert.True(desktopOnly.Evaluate(new SystemFacts(HasBattery: false)).IsApplicable);
+
+        Assert.True(TweakRequirements.None.Evaluate(new SystemFacts(19045, false, true, 4L * 1024 * 1024 * 1024)).IsApplicable);
+    }
+
+    [Fact]
+    public async Task SmartOptimizerService_RespectsApplicability_AndAsksBeforeNotRecommendedTweaks()
+    {
+        // Ноутбук с Windows 10 и системным жёстким диском
+        var bridge = new FakeOptimizerBridge
+        {
+            Facts = new SystemFacts(WindowsBuildNumber: 19045, SystemDriveIsSolidState: false, HasBattery: true)
+        };
+        var vault = new ZeroBloatVaultService(Path.Combine(_sandboxDir, "VaultFacts"));
+        var service = new SmartOptimizerService(vault, bridge);
+
+        var states = service.EvaluateAllTweaks();
+        Assert.Equal(
+            TweakApplicabilityStatus.NotApplicable,
+            states.Single(s => s.Rule.TweakId == "ui.win11-classic-full-context-menu").Applicability.Status);
+        Assert.Equal(
+            TweakApplicabilityStatus.NotRecommended,
+            states.Single(s => s.Rule.TweakId == "disk.disable-superfetch-sysmain").Applicability.Status);
+        Assert.Equal(
+            TweakApplicabilityStatus.NotRecommended,
+            states.Single(s => s.Rule.TweakId == "disk.disable-hibernation-boot-files").Applicability.Status);
+        Assert.True(states.Single(s => s.Rule.TweakId == "ui.fast-menu-response").Applicability.IsApplicable);
+
+        // Твик только для Windows 11 нельзя включить на Windows 10 даже с явным согласием
+        var notApplicable = await service.SetTweakStateAsync(
+            "ui.win11-classic-full-context-menu", enableTweak: true, options: TweakApplyOptions.AcceptAll);
+        Assert.False(notApplicable.Succeeded);
+        Assert.Equal(TweakConfirmationKind.None, notApplicable.ConfirmationRequired);
+        Assert.Empty(bridge.Store);
+
+        // Не рекомендуемый твик без согласия не применяется и просит подтверждение
+        var needsConsent = await service.SetTweakStateAsync("disk.disable-superfetch-sysmain", enableTweak: true);
+        Assert.False(needsConsent.Succeeded);
+        Assert.Equal(TweakConfirmationKind.NotRecommendedForThisPc, needsConsent.ConfirmationRequired);
+        Assert.Contains("HDD", needsConsent.UserFriendlyMessage);
+        Assert.Empty(bridge.Store);
+
+        // С явным согласием пользователя твик применяется
+        var consented = await service.SetTweakStateAsync(
+            "disk.disable-superfetch-sysmain", enableTweak: true, options: new TweakApplyOptions(AcceptNotRecommended: true));
+        Assert.True(consented.Succeeded);
+        Assert.Equal("4", bridge.Store[@"HKLM\SYSTEM\CurrentControlSet\Services\SysMain::Start"].Val);
+
+        // Возврат к стандарту Windows разрешён всегда и подтверждений не требует
+        var restored = await service.SetTweakStateAsync("disk.disable-superfetch-sysmain", enableTweak: false);
+        Assert.True(restored.Succeeded);
+        Assert.Equal("2", bridge.Store[@"HKLM\SYSTEM\CurrentControlSet\Services\SysMain::Start"].Val);
+    }
+
+    [Fact]
+    public void BuiltInCatalog_HasNoDangerousRulesInPresets_AndRestoresCorrectWindowsDefaults()
+    {
+        var rules = DeclarativeTweakCatalog.GetAllRules();
+
+        // Идентификаторы уникальны
+        Assert.Equal(rules.Count, rules.Select(r => r.TweakId).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+
+        // В готовые наборы не попадает ничего опасного и ничего с условиями применимости
+        foreach (var presetKey in new[] { "recommended", "gaming", "privacy" })
+        {
+            foreach (var id in DeclarativeTweakCatalog.GetPresetIds(presetKey))
+            {
+                var rule = DeclarativeTweakCatalog.FindById(id);
+                Assert.NotNull(rule);
+                Assert.False(rule!.IsDangerous);
+                Assert.Same(TweakRequirements.None, rule.EffectiveRequirements);
+            }
+        }
+
+        // Стандартный порог разделения svchost в Windows — 0x380000 КБ
+        var svchost = DeclarativeTweakCatalog.FindById("sys.svchost-split-threshold-ram");
+        Assert.NotNull(svchost);
+        Assert.Equal("3670016", svchost!.Mutations[0].DefaultRestoreSerializedValue);
+    }
+
+    private static DeclarativeTweakRule BuildTestRule(string id, RiskLevel risk, TweakRegistryMutation mutation) =>
+        new(
+            id,
+            TweakCategory.SecurityAndClarity,
+            "TST",
+            "Тестовое правило",
+            "Правило только для проверки защитного фильтра.",
+            "—",
+            risk,
+            RequiresAdministrator: true,
+            Mutations: [mutation]);
+
+    [Fact]
     public async Task SmartOptimizerService_TogglesTweaks_ExportsImportsYaml_AndRecordsVaultRollback()
     {
         var bridge1 = new FakeOptimizerBridge();
@@ -170,6 +314,9 @@ public sealed class OptimizerTweaksAndNetworkTests : IDisposable
     private sealed class FakeOptimizerBridge : DefaultOptimizerPlatformBridge
     {
         public string? CustomHostsPath { get; set; }
+        public SystemFacts Facts { get; set; } = SystemFacts.Unknown;
+
+        public override SystemFacts GetSystemFacts() => Facts;
         public Dictionary<string, (int Kind, string Val)> Store { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public override string GetHostsFilePath() => CustomHostsPath ?? base.GetHostsFilePath();

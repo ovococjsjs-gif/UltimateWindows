@@ -33,6 +33,131 @@ public enum DnsPresetId
     YandexBasic = 6
 }
 
+/// <summary>
+/// Подходит ли твик этому компьютеру.
+/// </summary>
+public enum TweakApplicabilityStatus
+{
+    /// <summary>Твик можно применять.</summary>
+    Applicable = 0,
+
+    /// <summary>Твик сработает, но на этом компьютере скорее навредит. Нужно явное согласие пользователя.</summary>
+    NotRecommended = 1,
+
+    /// <summary>Твик не имеет смысла на этой версии Windows. Включить его нельзя.</summary>
+    NotApplicable = 2
+}
+
+/// <summary>
+/// Какое подтверждение нужно от пользователя, прежде чем твик будет применён.
+/// </summary>
+public enum TweakConfirmationKind
+{
+    None = 0,
+    NotRecommendedForThisPc = 1,
+    DangerousTweak = 2
+}
+
+/// <summary>
+/// Сведения о компьютере, от которых зависит применимость твиков. Значение null означает «неизвестно»:
+/// неизвестный факт никогда не запрещает твик.
+/// </summary>
+public sealed record SystemFacts(
+    int? WindowsBuildNumber = null,
+    bool? SystemDriveIsSolidState = null,
+    bool? HasBattery = null,
+    long? TotalMemoryBytes = null)
+{
+    public static SystemFacts Unknown { get; } = new();
+}
+
+/// <summary>
+/// Вывод о применимости твика и пояснение для пользователя.
+/// </summary>
+public sealed record TweakApplicability(
+    TweakApplicabilityStatus Status,
+    string? Reason = null)
+{
+    public static TweakApplicability Applicable { get; } = new(TweakApplicabilityStatus.Applicable);
+
+    public bool IsApplicable => Status == TweakApplicabilityStatus.Applicable;
+}
+
+/// <summary>
+/// Условия, при которых твик имеет смысл. Пустые условия означают «подходит любой системе».
+/// </summary>
+/// <param name="MinWindowsBuild">Наименьшая сборка Windows, на которой параметр существует.</param>
+/// <param name="MaxWindowsBuild">Наибольшая сборка Windows, на которой параметр ещё действует.</param>
+/// <param name="BestOnSolidStateSystemDrive">Твик рассчитан на системный диск SSD; на жёстком диске он вредит.</param>
+/// <param name="BatteryWarning">Если задано, на устройствах с батареей твик не рекомендуется; текст объясняет почему.</param>
+public sealed record TweakRequirements(
+    int? MinWindowsBuild = null,
+    int? MaxWindowsBuild = null,
+    bool BestOnSolidStateSystemDrive = false,
+    string? BatteryWarning = null)
+{
+    public static TweakRequirements None { get; } = new();
+
+    public TweakApplicability Evaluate(SystemFacts facts)
+    {
+        ArgumentNullException.ThrowIfNull(facts);
+
+        if (facts.WindowsBuildNumber is { } build)
+        {
+            if (MinWindowsBuild is { } min && build < min)
+            {
+                return new TweakApplicability(
+                    TweakApplicabilityStatus.NotApplicable,
+                    $"Нужна {DescribeWindowsBuild(min)} или новее.");
+            }
+
+            if (MaxWindowsBuild is { } max && build > max)
+            {
+                return new TweakApplicability(
+                    TweakApplicabilityStatus.NotApplicable,
+                    $"Параметр действует только до {DescribeWindowsBuild(max)}.");
+            }
+        }
+
+        if (BestOnSolidStateSystemDrive && facts.SystemDriveIsSolidState == false)
+        {
+            return new TweakApplicability(
+                TweakApplicabilityStatus.NotRecommended,
+                "Системный диск — жёсткий (HDD). На нём эта настройка замедлит запуск Windows и программ.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(BatteryWarning) && facts.HasBattery == true)
+        {
+            return new TweakApplicability(TweakApplicabilityStatus.NotRecommended, BatteryWarning);
+        }
+
+        return TweakApplicability.Applicable;
+    }
+
+    public static string DescribeWindowsBuild(int build) => build switch
+    {
+        >= 26100 => $"Windows 11 24H2 (сборка {build})",
+        >= 22631 => $"Windows 11 23H2 (сборка {build})",
+        >= 22621 => $"Windows 11 22H2 (сборка {build})",
+        >= 22000 => $"Windows 11 (сборка {build})",
+        >= 19045 => $"Windows 10 22H2 (сборка {build})",
+        >= 19041 => $"Windows 10 версии 2004 (сборка {build})",
+        >= 10240 => $"Windows 10 (сборка {build})",
+        _ => $"Windows (сборка {build})"
+    };
+}
+
+/// <summary>
+/// Что пользователь явно разрешил при включении твика.
+/// </summary>
+public sealed record TweakApplyOptions(
+    bool AcceptNotRecommended = false,
+    bool AcceptDangerous = false)
+{
+    public static TweakApplyOptions Default { get; } = new();
+    public static TweakApplyOptions AcceptAll { get; } = new(AcceptNotRecommended: true, AcceptDangerous: true);
+}
+
 public sealed record TweakRegistryMutation(
     string Hive,
     string SubKeyPath,
@@ -51,8 +176,18 @@ public sealed record DeclarativeTweakRule(
     string ImpactBadge,
     RiskLevel Risk,
     bool RequiresAdministrator,
-    IReadOnlyList<TweakRegistryMutation> Mutations)
+    IReadOnlyList<TweakRegistryMutation> Mutations,
+    TweakRequirements? Requirements = null)
 {
+    /// <summary>Условия применимости; если не заданы, твик подходит любой системе.</summary>
+    public TweakRequirements EffectiveRequirements => Requirements ?? TweakRequirements.None;
+
+    /// <summary>
+    /// Опасный твик ослабляет защиту или устойчивость Windows. Он никогда не входит в наборы
+    /// и применяется только после отдельного подтверждения.
+    /// </summary>
+    public bool IsDangerous => Risk >= RiskLevel.High;
+
     public string ExpertMutationsPreview => string.Join(
         "  •  ",
         Mutations.Select(m => $@"{m.Hive}\{m.SubKeyPath} :: {(string.IsNullOrEmpty(m.ValueName) ? "(Default)" : m.ValueName)} = {m.DesiredSerializedValue}"));
@@ -72,7 +207,8 @@ public sealed record DeclarativeTweakRule(
 
 public sealed record EvaluatedTweakState(
     DeclarativeTweakRule Rule,
-    bool IsCurrentlyApplied);
+    bool IsCurrentlyApplied,
+    TweakApplicability Applicability);
 
 public sealed record StartupEntryInfo(
     string EntryId,
@@ -207,4 +343,5 @@ public sealed record OptimizerOperationResult(
     bool Succeeded,
     string UserFriendlyMessage,
     string TechnicalDetails = "",
-    Guid? RollbackSessionId = null);
+    Guid? RollbackSessionId = null,
+    TweakConfirmationKind ConfirmationRequired = TweakConfirmationKind.None);
