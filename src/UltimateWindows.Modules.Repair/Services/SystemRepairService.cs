@@ -169,18 +169,40 @@ public sealed class SystemRepairService
     }
 
     /// <summary>
+    /// Разбирает один файл дампа, выбранный пользователем (например, принесённый с другого компьютера).
+    /// Возвращает null, если файл не является дампом ядра или дампом программы.
+    /// </summary>
+    public Task<BsodMinidumpReport?> AnalyzeDumpFileAsync(string dumpFilePath, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(dumpFilePath);
+        return Task.Run(() => MinidumpBinaryAnalyzer.AnalyzeDumpFile(dumpFilePath), ct);
+    }
+
+    /// <summary>
+    /// Разбирает дампы синих экранов и последние критические сбои из журнала событий Windows
+    /// и сообщает, удалось ли прочитать папку с дампами.
+    /// </summary>
+    public async Task<CrashHistoryScanResult> ScanCrashHistoryDetailedAsync(
+        int maxItems = 15,
+        CancellationToken ct = default)
+    {
+        var scan = await Task.Run(
+            () => _minidumpAnalyzer.ScanMinidumpDirectoryDetailed(_platformBridge.GetMinidumpDirectory(), maxItems),
+            ct).ConfigureAwait(false);
+
+        var events = await _platformBridge.ReadRecentCrashEventsAsync(maxItems, ct).ConfigureAwait(false);
+        return new CrashHistoryScanResult(scan.Reports, events, scan.FolderStatus, scan.UnreadableFileCount);
+    }
+
+    /// <summary>
     /// Сканирует минидампы синих экранов (BSOD) и последние критические сбои из Журнала событий Windows.
     /// </summary>
     public async Task<(IReadOnlyList<BsodMinidumpReport> Minidumps, IReadOnlyList<SystemCrashEventEntry> CrashEvents)> ScanBsodAndCrashHistoryAsync(
         int maxItems = 15,
         CancellationToken ct = default)
     {
-        var dumps = await Task.Run(
-            () => _minidumpAnalyzer.ScanMinidumpDirectory(_platformBridge.GetMinidumpDirectory(), maxItems),
-            ct).ConfigureAwait(false);
-
-        var events = await _platformBridge.ReadRecentCrashEventsAsync(maxItems, ct).ConfigureAwait(false);
-        return (dumps, events);
+        var result = await ScanCrashHistoryDetailedAsync(maxItems, ct).ConfigureAwait(false);
+        return (result.Minidumps, result.CrashEvents);
     }
 
     /// <summary>
@@ -200,11 +222,14 @@ public sealed class SystemRepairService
         }
 
         var (ok, log) = await _platformBridge.ExecutePlaybookNativeStepsAsync(playbookId, ct).ConfigureAwait(false);
+        var verdict = ExtractVerdictLine(log);
         if (!ok)
         {
             return new RepairOperationResult(
                 Succeeded: false,
-                UserFriendlySummary: $"Рецепт «{descriptor.FriendlyTitle}» завершился с предупреждением. Откройте технические детали для просмотра отчета.",
+                UserFriendlySummary: verdict is null
+                    ? $"Рецепт «{descriptor.FriendlyTitle}» не выполнен полностью. Откройте технические детали, чтобы увидеть, на каком шаге он остановился."
+                    : $"Рецепт «{descriptor.FriendlyTitle}» не выполнен полностью. {verdict}",
                 TechnicalLogOutput: log);
         }
 
@@ -224,9 +249,36 @@ public sealed class SystemRepairService
 
         return new RepairOperationResult(
             Succeeded: true,
-            UserFriendlySummary: $"✅ Рецепт «{descriptor.FriendlyTitle}» успешно выполнен!",
+            UserFriendlySummary: verdict is null
+                ? $"✅ Рецепт «{descriptor.FriendlyTitle}» успешно выполнен!"
+                : $"✅ Рецепт «{descriptor.FriendlyTitle}» выполнен. {verdict}",
             TechnicalLogOutput: log,
             RollbackSessionId: committed.SessionId);
+    }
+
+    /// <summary>
+    /// Рецепт может завершить журнал строкой «Итог: …» — её показываем пользователю как главный вывод.
+    /// </summary>
+    private static string? ExtractVerdictLine(string? log)
+    {
+        if (string.IsNullOrWhiteSpace(log))
+        {
+            return null;
+        }
+
+        const string marker = "Итог:";
+        var lines = log.Split('\n');
+        for (var i = lines.Length - 1; i >= 0; i--)
+        {
+            var trimmed = lines[i].Trim();
+            if (trimmed.StartsWith(marker, StringComparison.Ordinal))
+            {
+                var verdict = trimmed[marker.Length..].Trim();
+                return verdict.Length > 0 ? verdict : null;
+            }
+        }
+
+        return null;
     }
 
     private bool IsInsideProtectedWindowsDirectory(string fullFilePath)

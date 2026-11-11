@@ -4,6 +4,7 @@ using UltimateWindows.Modules.Repair.Bsod;
 using UltimateWindows.Modules.Repair.Contracts;
 using UltimateWindows.Modules.Repair.Models;
 using UltimateWindows.Modules.Repair.PeDoctor;
+using UltimateWindows.Modules.Repair.Playbooks;
 using UltimateWindows.Modules.Repair.Services;
 using UltimateWindows.Modules.Safety.Services;
 using Xunit;
@@ -126,29 +127,38 @@ public sealed class PeDoctorBsodAndRepairTests : IDisposable
     }
 
     [Fact]
-    public void MinidumpBinaryAnalyzer_ParsesMdmpStreams_AndPinpointsNvidiaTdrDriver()
+    public void MinidumpBinaryAnalyzer_TreatsMdmpAsProgramCrash_NotAsBlueScreen()
     {
+        // MDMP — формат дампов упавших программ. Синие экраны пишут дампы ядра (PAGEDU64),
+        // поэтому код исключения из MDMP нельзя выдавать за код остановки.
         var mdmpBytes = BuildSyntheticMinidump(
-            bugCheckCode: 0x00000116u,
+            exceptionCode: 0xC0000005u,
+            exceptionAddress: 0x00007FF712345678UL,
             osMajor: 10,
             osMinor: 0,
             osBuild: 22631,
-            modulePaths:
+            modules:
             [
-                @"\SystemRoot\system32\ntoskrnl.exe",
-                @"\SystemRoot\system32\hal.dll",
-                @"\SystemRoot\System32\drivers\nvlddmkm.sys"
+                (@"C:\Games\Hero\hero.exe", 0x00007FF600000000UL, 0x00200000u),
+                (@"C:\Games\Hero\physics.dll", 0x00007FF712000000UL, 0x00800000u),
+                (@"C:\Windows\System32\ntdll.dll", 0x00007FFA00000000UL, 0x001F0000u)
             ]);
 
-        var report = MinidumpBinaryAnalyzer.ParseMinidumpBytes(mdmpBytes, @"C:\Windows\Minidump\111026-01.dmp");
+        var report = MinidumpBinaryAnalyzer.ParseMinidumpBytes(mdmpBytes, @"C:\Users\User\AppData\Local\CrashDumps\hero.exe.1234.dmp");
 
         Assert.NotNull(report);
-        Assert.Equal(0x00000116u, report!.BugCheckCode);
-        Assert.Equal("VIDEO_TDR_FAILURE", report.BugCheckName);
+        Assert.Equal(CrashDumpKind.UserModeProcess, report!.DumpKind);
+        Assert.Null(report.BugCheckCode);
+        Assert.Equal(0xC0000005u, report.ExceptionCode);
+        Assert.Equal("ACCESS_VIOLATION", report.BugCheckName);
+        Assert.Equal("0xC0000005", report.BugCheckHex);
         Assert.Equal(PeArchitecture.X64, report.ProcessorArchitecture);
         Assert.Contains("22631", report.OsBuildSummary);
-        Assert.Equal("nvlddmkm.sys", report.SuspectedThirdPartyDriver);
-        Assert.Contains("NVIDIA", report.SimpleHumanExplanation);
+        Assert.Null(report.SuspectedThirdPartyDriver);
+        Assert.Equal("physics.dll", report.FaultingModule);
+        Assert.Contains("hero.exe", report.SimpleHumanExplanation);
+        Assert.Contains("не синего экрана", report.SimpleHumanExplanation);
+        Assert.Equal("Модуль: physics.dll", report.CulpritBadge);
     }
 
     [Fact]
@@ -172,6 +182,37 @@ public sealed class PeDoctorBsodAndRepairTests : IDisposable
         var iconOk = await service.ExecutePlaybookAsync(RepairPlaybookId.IconAndThumbnailCacheRebuild);
         Assert.True(iconOk.Succeeded);
         Assert.NotNull(iconOk.RollbackSessionId);
+    }
+
+    [Fact]
+    public async Task SystemRepairService_ShowsPlaybookVerdict_AndDoesNotReportFailureAsSuccess()
+    {
+        var vault = new ZeroBloatVaultService(Path.Combine(_sandboxDir, "VaultVerdict"));
+
+        // Рецепт сообщил о неудаче: сервис не должен выдавать её за успех и создавать точку отката
+        var failing = new SystemRepairService(vault, new ScriptedPlaybookBridge(
+            succeeded: false,
+            log: "[1/4] Остановка служб обновления\nИтог: кэш обновлений занят другим процессом. Перезагрузите компьютер и повторите сброс.\n"));
+
+        var failed = await failing.ExecutePlaybookAsync(RepairPlaybookId.WindowsUpdateReset);
+        Assert.False(failed.Succeeded);
+        Assert.Null(failed.RollbackSessionId);
+        Assert.Contains("кэш обновлений занят", failed.UserFriendlySummary);
+
+        var passing = new SystemRepairService(vault, new ScriptedPlaybookBridge(
+            succeeded: true,
+            log: "[4/4] Запуск служб\nИтог: компоненты Центра обновления сброшены.\n"));
+
+        var ok = await passing.ExecutePlaybookAsync(RepairPlaybookId.WindowsUpdateReset);
+        Assert.True(ok.Succeeded);
+        Assert.NotNull(ok.RollbackSessionId);
+        Assert.Contains("компоненты Центра обновления сброшены", ok.UserFriendlySummary);
+
+        // Описание рецепта должно соответствовать тому, что он делает на самом деле
+        var descriptor = SystemRepairPlaybookCatalog.GetById(RepairPlaybookId.WindowsUpdateReset);
+        Assert.True(descriptor.RequiresAdministrator);
+        Assert.Contains("SoftwareDistribution", descriptor.ExpertCommandsPreview);
+        Assert.Contains("catroot2", descriptor.ExpertCommandsPreview);
     }
 
     // ==================== ГЕНЕРАТОРЫ СПЕЦИФИКАЦИОННЫХ БИНАРНЫХ СТРУКТУР PE И MDMP ====================
@@ -244,11 +285,12 @@ public sealed class PeDoctorBsodAndRepairTests : IDisposable
     }
 
     private static byte[] BuildSyntheticMinidump(
-        uint bugCheckCode,
+        uint exceptionCode,
+        ulong exceptionAddress,
         uint osMajor,
         uint osMinor,
         uint osBuild,
-        IReadOnlyList<string> modulePaths)
+        IReadOnlyList<(string Path, ulong BaseOfImage, uint SizeOfImage)> modules)
     {
         var buf = new byte[4096];
 
@@ -270,7 +312,7 @@ public sealed class PeDoctorBsodAndRepairTests : IDisposable
         BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(52, 4), 200);
 
         // Directory Entry 2: ModuleListStream (Type 4) at RVA 400
-        uint modListSize = (uint)(4 + (modulePaths.Count * 108));
+        uint modListSize = (uint)(4 + (modules.Count * 108));
         BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(56, 4), 4);
         BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(60, 4), modListSize);
         BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(64, 4), 400);
@@ -281,24 +323,37 @@ public sealed class PeDoctorBsodAndRepairTests : IDisposable
         BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(140, 4), osMinor);
         BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(144, 4), osBuild);
 
-        // ExceptionStream @ 200 (ExceptionCode at +8)
-        BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(208, 4), bugCheckCode);
+        // ExceptionStream @ 200: ExceptionCode at +8, ExceptionAddress at +24
+        BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(208, 4), exceptionCode);
+        BinaryPrimitives.WriteUInt64LittleEndian(buf.AsSpan(224, 8), exceptionAddress);
 
         // ModuleListStream @ 400 + UTF-16LE MINIDUMP_STRINGs starting @ 1600
-        BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(400, 4), (uint)modulePaths.Count);
+        BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(400, 4), (uint)modules.Count);
         int strOffset = 1600;
-        for (int i = 0; i < modulePaths.Count; i++)
+        for (int i = 0; i < modules.Count; i++)
         {
             int modPos = 404 + (i * 108);
+            BinaryPrimitives.WriteUInt64LittleEndian(buf.AsSpan(modPos, 8), modules[i].BaseOfImage);
+            BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(modPos + 8, 4), modules[i].SizeOfImage);
             BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(modPos + 20, 4), (uint)strOffset);
 
-            var utf16 = Encoding.Unicode.GetBytes(modulePaths[i]);
+            var utf16 = Encoding.Unicode.GetBytes(modules[i].Path);
             BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(strOffset, 4), (uint)utf16.Length);
             utf16.CopyTo(buf.AsSpan(strOffset + 4, utf16.Length));
             strOffset += 4 + utf16.Length + 2;
         }
 
         return buf;
+    }
+
+    private sealed class ScriptedPlaybookBridge(bool succeeded, string log) : DefaultRepairPlatformBridge
+    {
+        public override bool IsRunningAsAdministrator() => true;
+
+        public override Task<(bool Succeeded, string OutputLog)> ExecutePlaybookNativeStepsAsync(
+            RepairPlaybookId playbookId,
+            CancellationToken ct = default)
+            => Task.FromResult((succeeded, log));
     }
 
     private sealed class FakeRepairBridge(
