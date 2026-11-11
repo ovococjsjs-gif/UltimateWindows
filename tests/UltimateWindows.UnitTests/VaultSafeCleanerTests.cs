@@ -276,6 +276,43 @@ public sealed class VaultSafeCleanerTests : IDisposable
         Assert.Equal(3, report.LargestFiles.Count);
         Assert.Equal("archive01.ba2", report.LargestFiles[0].Name);
         Assert.Equal("capture.mp4", report.LargestFiles[1].Name);
+
+        // v2.0 WizTree hierarchical tree + extension stats verification
+        Assert.NotEmpty(report.SafeTreeNodes);
+        var rootNode = report.SafeTreeNodes[0];
+        Assert.True(rootNode.IsDirectory);
+        Assert.Equal("Games", rootNode.Children[0].Name);
+        Assert.Contains(report.SafeExtensionStats, e => e.Extension == ".ba2" && e.SizeBytes == 30_000);
+        Assert.Contains(report.SafeExtensionStats, e => e.Extension == ".mp4" && e.SizeBytes == 15_000);
+    }
+
+    [Fact]
+    public async Task DuplicateFileFinder_GroupsIdenticalSha256Files_AndPreservesOldestAsSuggestedOriginal()
+    {
+        var dupRoot = Path.Combine(_sandboxDir, "DupRoot");
+        var payloadA = new string('X', 20_480);
+        var payloadB = new string('Y', 20_480);
+
+        var orig = WriteFakeFile(Path.Combine(dupRoot, "Docs", "report_final.pdf"), payloadA);
+        File.SetLastWriteTimeUtc(orig, DateTime.UtcNow.AddDays(-10));
+
+        var copy1 = WriteFakeFile(Path.Combine(dupRoot, "Downloads", "report_final (1).pdf"), payloadA);
+        File.SetLastWriteTimeUtc(copy1, DateTime.UtcNow.AddDays(-2));
+
+        var copy2 = WriteFakeFile(Path.Combine(dupRoot, "Desktop", "copy_report.pdf"), payloadA);
+        File.SetLastWriteTimeUtc(copy2, DateTime.UtcNow.AddHours(-3));
+
+        // Same size (20_480 bytes), different content -> must NOT be grouped as duplicate!
+        WriteFakeFile(Path.Combine(dupRoot, "Other", "different_file.bin"), payloadB);
+
+        var finder = new DuplicateFileFinder();
+        var dupReport = await finder.FindExactDuplicatesAsync(dupRoot, minFileSizeBytes: 4096);
+
+        var grp = Assert.Single(dupReport.Groups);
+        Assert.Equal(3, grp.Entries.Count);
+        Assert.Equal(40_960, dupReport.TotalReclaimableBytes);
+        Assert.Equal(1, grp.Entries.Count(e => e.IsOriginalKeepSuggested));
+        Assert.Equal(orig, grp.Entries.Single(e => e.IsOriginalKeepSuggested).FullPath);
     }
 
     private SystemJunkPathsConfig CreateEmptySystemPaths() => new(

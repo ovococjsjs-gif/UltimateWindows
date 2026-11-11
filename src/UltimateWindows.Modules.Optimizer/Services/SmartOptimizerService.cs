@@ -1,3 +1,5 @@
+using System.Net;
+using System.Text;
 using System.Text.Json;
 using UltimateWindows.Core.Contracts;
 using UltimateWindows.Core.Enums;
@@ -53,17 +55,31 @@ public class DefaultOptimizerPlatformBridge : IOptimizerPlatformBridge
         CancellationToken ct = default) =>
         Task.FromResult((false, "", ""));
 
+    public virtual Task<bool> FlushDnsCacheAsync(CancellationToken ct = default) =>
+        Task.FromResult(false);
+
     public virtual string GetHostsFilePath() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "drivers", "etc", "hosts");
 
     public virtual Task<IReadOnlyList<InstalledApplicationInfo>> GetInstalledApplicationsAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<InstalledApplicationInfo>>(Array.Empty<InstalledApplicationInfo>());
+
+    public virtual Task<bool> LaunchApplicationUninstallerAsync(InstalledApplicationInfo app, CancellationToken ct = default) =>
+        Task.FromResult(false);
+
+    public virtual Task<IReadOnlyList<UwpPackageInfo>> GetInstalledUwpPackagesAsync(CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<UwpPackageInfo>>(Array.Empty<UwpPackageInfo>());
+
+    public virtual Task<(int RemovedCount, string ErrorSummary)> RemoveUwpPackagesAsync(
+        IReadOnlyList<UwpPackageInfo> packages,
+        CancellationToken ct = default) =>
+        Task.FromResult((0, "Доступно только на Windows 10/11."));
 }
 
 /// <summary>
-/// Центральный сервис Фазы 4: обратимые декларативные твики ОС (с экспортом/импортом YAML-профилей),
-/// управление автозагрузкой и контекстным меню Проводника (ShellEx), разблокировка занятых файлов (File Lock Hunter),
-/// переключение проверенных DNS и инспекция файла hosts.
+/// Центральный сервис Фазы 4: 39 обратимых декларативных твиков ОС, готовые пресеты, YAML-профили,
+/// удаление UWP-приложений, деинсталлятор Win32-программ, автозагрузка, контекстное меню Проводника (ShellEx),
+/// разблокировка занятых файлов (Restart Manager), переключение DNS и полноценный редактор hosts с бекапом.
 /// </summary>
 public sealed class SmartOptimizerService
 {
@@ -86,9 +102,6 @@ public sealed class SmartOptimizerService
 
     public IReadOnlyList<DnsPresetDescriptor> GetDnsPresets() => NetworkAndHostsInspector.GetDnsPresets();
 
-    /// <summary>
-    /// Проверяет текущее состояние всех встроенных твиков на ПК пользователя.
-    /// </summary>
     public IReadOnlyList<EvaluatedTweakState> EvaluateAllTweaks()
     {
         var rules = DeclarativeTweakCatalog.GetAllRules();
@@ -104,10 +117,6 @@ public sealed class SmartOptimizerService
         return states;
     }
 
-    /// <summary>
-    /// Применяет или возвращает к штатному значению выбранный твик ОС с автоматической записью
-    /// исходных параметров реестра в компактный журнал Машины времени.
-    /// </summary>
     public async Task<OptimizerOperationResult> SetTweakStateAsync(
         string tweakId,
         bool enableTweak,
@@ -125,10 +134,10 @@ public sealed class SmartOptimizerService
         {
             return new OptimizerOperationResult(
                 false,
-                $"Для настройки «{rule.FriendlyTitle}» требуются права Администратора.");
+                $"Для настройки «{rule.FriendlyTitle}» запустите программу от имени Администратора.");
         }
 
-        var actionVerb = enableTweak ? "Включена настройка" : "Возвращена к стандарту настройка";
+        var actionVerb = enableTweak ? "Включен твик" : "Возвращен стандарт";
         await using var tx = _vaultService.BeginTransaction(
             SystemDomain.Optimizer,
             friendlyTitle: $"{actionVerb}: {rule.FriendlyTitle}",
@@ -140,7 +149,6 @@ public sealed class SmartOptimizerService
         {
             var (existedBefore, prevKind, prevData) = _platformBridge.ReadRegistryValue(m.Hive, m.SubKeyPath, m.ValueName);
 
-            // Формат полностью совместим с RegistryValueSnapshot в WindowsSystemStateApplier!
             var snapshotJson = JsonSerializer.Serialize(new
             {
                 Hive = m.Hive,
@@ -179,17 +187,40 @@ public sealed class SmartOptimizerService
 
         if (appliedCount == 0)
         {
-            return new OptimizerOperationResult(false, $"Не удалось изменить параметры реестра для «{rule.FriendlyTitle}».");
+            return new OptimizerOperationResult(false, $"Не удалось записать параметры реестра для «{rule.FriendlyTitle}».");
         }
 
         var committed = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
         return new OptimizerOperationResult(
             Succeeded: true,
             UserFriendlyMessage: enableTweak
-                ? $"✅ Включено: «{rule.FriendlyTitle}» (сохранена точка отката в Машину времени)."
-                : $"↩️ Возвращено к стандарту Windows: «{rule.FriendlyTitle}».",
+                ? $"Включено: «{rule.FriendlyTitle}» (точка отката сохранена)."
+                : $"Возвращен стандарт Windows: «{rule.FriendlyTitle}».",
             TechnicalDetails: rule.ExpertMutationsPreview,
             RollbackSessionId: committed.SessionId);
+    }
+
+    public async Task<OptimizerOperationResult> ApplyPresetBatchAsync(
+        string presetKey,
+        string presetDisplayTitle,
+        CancellationToken ct = default)
+    {
+        var ids = DeclarativeTweakCatalog.GetPresetIds(presetKey);
+        int applied = 0;
+        int skippedAdmin = 0;
+
+        foreach (var id in ids)
+        {
+            ct.ThrowIfCancellationRequested();
+            var res = await SetTweakStateAsync(id, enableTweak: true, ct).ConfigureAwait(false);
+            if (res.Succeeded) applied++;
+            else skippedAdmin++;
+        }
+
+        var note = skippedAdmin > 0 ? $" (пропущено требующих прав Админа: {skippedAdmin})" : "";
+        return new OptimizerOperationResult(
+            Succeeded: applied > 0,
+            UserFriendlyMessage: $"Пресет «{presetDisplayTitle}»: применено твиков — {applied}{note}.");
     }
 
     public string ExportActiveTweaksToYaml(string profileName = "Мой профиль UltimateWindows")
@@ -216,14 +247,8 @@ public sealed class SmartOptimizerService
         {
             ct.ThrowIfCancellationRequested();
             var res = await SetTweakStateAsync(id, enableTweak: true, ct).ConfigureAwait(false);
-            if (res.Succeeded)
-            {
-                applied++;
-            }
-            else
-            {
-                skipped++;
-            }
+            if (res.Succeeded) applied++;
+            else skipped++;
         }
 
         return new OptimizerOperationResult(
@@ -255,7 +280,7 @@ public sealed class SmartOptimizerService
         await using var tx = _vaultService.BeginTransaction(
             SystemDomain.Optimizer,
             friendlyTitle: $"{(enable ? "Включена" : "Отключена")} автозагрузка: {entry.DisplayName}",
-            friendlySummary: $"Управление флагом StartupApproved для «{entry.DisplayName}» без удаления самой программы.",
+            friendlySummary: $"Управление флагом StartupApproved для «{entry.DisplayName}».",
             technicalDetails: entry.CommandOrTarget);
 
         if (!string.IsNullOrEmpty(prevApprovedBase64))
@@ -268,7 +293,7 @@ public sealed class SmartOptimizerService
                 SubKey = subKey,
                 ValueName = entry.DisplayName,
                 ExistedBefore = true,
-                ValueKind = 3, // RegistryValueKind.Binary
+                ValueKind = 3,
                 SerializedData = prevApprovedBase64
             });
 
@@ -279,8 +304,8 @@ public sealed class SmartOptimizerService
         return new OptimizerOperationResult(
             Succeeded: true,
             UserFriendlyMessage: enable
-                ? $"⚡ Программа «{entry.DisplayName}» снова включена в автозагрузку."
-                : $"💤 Программа «{entry.DisplayName}» убрана из автозагрузки (вход в систему станет быстрее).",
+                ? $"Программа «{entry.DisplayName}» включена в автозагрузку."
+                : $"Программа «{entry.DisplayName}» убрана из автозагрузки.",
             RollbackSessionId: committed.SessionId);
     }
 
@@ -297,7 +322,7 @@ public sealed class SmartOptimizerService
         {
             return new OptimizerOperationResult(
                 false,
-                "Для управления политикой контекстного меню Shell Extensions\\Blocked требуются права Администратора.");
+                "Для управления политикой контекстного меню требуются права Администратора.");
         }
 
         const string blockedSubKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Blocked";
@@ -311,8 +336,8 @@ public sealed class SmartOptimizerService
 
         await using var tx = _vaultService.BeginTransaction(
             SystemDomain.Optimizer,
-            friendlyTitle: $"{(blockInContextMenu ? "Скрыто из контекстного меню" : "Возвращено в контекстное меню")}: {handler.HandlerName}",
-            friendlySummary: "Безопасное переключение через штатную политику Shell Extensions\\Blocked без удаления классов CLSID.",
+            friendlyTitle: $"{(blockInContextMenu ? "Скрыто из контекстного меню" : "Возвращено в меню")}: {handler.HandlerName}",
+            friendlySummary: "Безопасное переключение через политику Shell Extensions\\Blocked.",
             technicalDetails: $"{handler.Clsid} ({handler.DllPath})");
 
         var snapJson = JsonSerializer.Serialize(new
@@ -331,8 +356,8 @@ public sealed class SmartOptimizerService
         return new OptimizerOperationResult(
             Succeeded: true,
             UserFriendlyMessage: blockInContextMenu
-                ? $"✅ Пункт «{handler.HandlerName}» аккуратно скрыт из правого клика Проводника (без удаления программы)."
-                : $"↩️ Пункт «{handler.HandlerName}» снова активен в контекстном меню.",
+                ? $"Пункт «{handler.HandlerName}» скрыт из правого клика Проводника."
+                : $"Пункт «{handler.HandlerName}» возвращен в контекстное меню.",
             RollbackSessionId: committed.SessionId);
     }
 
@@ -352,13 +377,13 @@ public sealed class SmartOptimizerService
         {
             return new OptimizerOperationResult(
                 false,
-                $"Защитный барьер: системный процесс «{processInfo.ApplicationName}» нельзя завершать принудительно во избежание сбоя Windows.");
+                $"Защитный барьер: системный процесс «{processInfo.ApplicationName}» нельзя завершать.");
         }
 
         var closed = await _platformBridge.TryPoliteCloseProcessAsync(processInfo.ProcessId, ct).ConfigureAwait(false);
         return closed
-            ? new OptimizerOperationResult(true, $"✅ Отправлен корректный запрос закрытия процессу «{processInfo.ApplicationName}» (PID {processInfo.ProcessId}) — файл освобожден.")
-            : new OptimizerOperationResult(false, $"Процесс «{processInfo.ApplicationName}» ожидает сохранения несохраненных данных пользователем — закройте его окно вручную.");
+            ? new OptimizerOperationResult(true, $"Отправлен запрос закрытия процессу «{processInfo.ApplicationName}» (PID {processInfo.ProcessId}) — файл освобожден.")
+            : new OptimizerOperationResult(false, $"Процесс «{processInfo.ApplicationName}» ожидает сохранения данных — закройте его окно вручную.");
     }
 
     public async Task<OptimizerOperationResult> ApplyDnsPresetAsync(
@@ -367,7 +392,7 @@ public sealed class SmartOptimizerService
     {
         if (!_platformBridge.IsRunningAsAdministrator())
         {
-            return new OptimizerOperationResult(false, "Для изменения системных DNS-серверов сетевого адаптера требуются права Администратора.");
+            return new OptimizerOperationResult(false, "Для изменения DNS-серверов сетевого адаптера требуются права Администратора.");
         }
 
         var preset = NetworkAndHostsInspector.GetPresetById(presetId);
@@ -392,9 +417,21 @@ public sealed class SmartOptimizerService
         var committed = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
         return new OptimizerOperationResult(
             Succeeded: true,
-            UserFriendlyMessage: $"✅ Применен DNS «{preset.FriendlyName}» для адаптера «{adapterName}».",
+            UserFriendlyMessage: $"Применен DNS «{preset.FriendlyName}» для адаптера «{adapterName}».",
             RollbackSessionId: committed.SessionId);
     }
+
+    public async Task<OptimizerOperationResult> FlushDnsCacheAsync(CancellationToken ct = default)
+    {
+        var ok = await _platformBridge.FlushDnsCacheAsync(ct).ConfigureAwait(false);
+        return ok
+            ? new OptimizerOperationResult(true, "Кэш DNS-резолвера Windows успешно очищен (ipconfig /flushdns).")
+            : new OptimizerOperationResult(false, "Не удалось очистить кэш DNS.");
+    }
+
+    // ==================== HOSTS FILE EDITOR (С БЕКАПОМ В VAULT) ====================
+
+    public string GetHostsFilePath() => _platformBridge.GetHostsFilePath();
 
     public IReadOnlyList<HostsRedirectEntry> InspectHostsFile()
     {
@@ -414,8 +451,169 @@ public sealed class SmartOptimizerService
         }
     }
 
+    public async Task<OptimizerOperationResult> AddHostsEntryAsync(
+        string redirectIp,
+        string domainHost,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(redirectIp) || !IPAddress.TryParse(redirectIp.Trim(), out _))
+        {
+            return new OptimizerOperationResult(false, "Укажите корректный IP-адрес (например, 0.0.0.0 или 127.0.0.1).");
+        }
+
+        var cleanDomain = (domainHost ?? "").Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(cleanDomain) || cleanDomain.Contains(' ') || !cleanDomain.Contains('.'))
+        {
+            return new OptimizerOperationResult(false, "Укажите корректное доменное имя (например, telemetry.example.com).");
+        }
+
+        if (NetworkAndHostsInspector.IsProtectedSecurityDomain(cleanDomain))
+        {
+            return new OptimizerOperationResult(
+                false,
+                $"Защитный фильтр заблокировал попытку перенаправить домен безопасности или обновлений «{cleanDomain}».");
+        }
+
+        var hostsPath = _platformBridge.GetHostsFilePath();
+        try
+        {
+            var prevText = File.Exists(hostsPath) ? await File.ReadAllTextAsync(hostsPath, ct).ConfigureAwait(false) : "";
+            var nextText = NetworkAndHostsInspector.AppendRuleToHostsText(prevText, redirectIp.Trim(), cleanDomain);
+
+            await using var tx = _vaultService.BeginTransaction(
+                SystemDomain.Optimizer,
+                friendlyTitle: $"Добавлено правило hosts: {redirectIp.Trim()} -> {cleanDomain}",
+                friendlySummary: "Изменение системного файла hosts с полной копией предыдущей версии в Машине времени.",
+                technicalDetails: hostsPath);
+
+            tx.RecordStateDelta(
+                StateTargetKind.SystemSetting,
+                "HostsSabotageCleanup",
+                previousStateJson: JsonSerializer.Serialize(new { Path = hostsPath, Content = prevText }),
+                newStateJson: JsonSerializer.Serialize(new { Path = hostsPath, Added = $"{redirectIp.Trim()} {cleanDomain}" }));
+
+            await File.WriteAllTextAsync(hostsPath, nextText, new UTF8Encoding(false), ct).ConfigureAwait(false);
+            var committed = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
+            _ = await _platformBridge.FlushDnsCacheAsync(ct).ConfigureAwait(false);
+
+            return new OptimizerOperationResult(
+                true,
+                $"Добавлена запись hosts: {redirectIp.Trim()} → {cleanDomain} (бекап сохранен).",
+                RollbackSessionId: committed.SessionId);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return new OptimizerOperationResult(false, "Для редактирования системного файла hosts запустите программу от имени Администратора.");
+        }
+        catch (Exception ex)
+        {
+            return new OptimizerOperationResult(false, $"Ошибка записи файла hosts: {ex.Message}");
+        }
+    }
+
+    public async Task<OptimizerOperationResult> RemoveHostsEntryAsync(
+        HostsRedirectEntry entry,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        var hostsPath = _platformBridge.GetHostsFilePath();
+        if (!File.Exists(hostsPath))
+        {
+            return new OptimizerOperationResult(false, "Файл hosts не найден.");
+        }
+
+        try
+        {
+            var prevText = await File.ReadAllTextAsync(hostsPath, ct).ConfigureAwait(false);
+            var nextText = NetworkAndHostsInspector.RemoveDomainFromHostsText(prevText, entry.RedirectIp, entry.DomainHost);
+
+            await using var tx = _vaultService.BeginTransaction(
+                SystemDomain.Optimizer,
+                friendlyTitle: $"Удалено правило hosts: {entry.RedirectIp} -> {entry.DomainHost}",
+                friendlySummary: "Очистка правила перенаправления в файле hosts.",
+                technicalDetails: hostsPath);
+
+            tx.RecordStateDelta(
+                StateTargetKind.SystemSetting,
+                "HostsSabotageCleanup",
+                previousStateJson: JsonSerializer.Serialize(new { Path = hostsPath, Content = prevText }),
+                newStateJson: JsonSerializer.Serialize(new { Path = hostsPath, Removed = $"{entry.RedirectIp} {entry.DomainHost}" }));
+
+            await File.WriteAllTextAsync(hostsPath, nextText, new UTF8Encoding(false), ct).ConfigureAwait(false);
+            var committed = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
+            _ = await _platformBridge.FlushDnsCacheAsync(ct).ConfigureAwait(false);
+
+            return new OptimizerOperationResult(
+                true,
+                $"Удалена запись hosts: {entry.RedirectIp} → {entry.DomainHost}.",
+                RollbackSessionId: committed.SessionId);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return new OptimizerOperationResult(false, "Для изменения системного файла hosts требуются права Администратора.");
+        }
+        catch (Exception ex)
+        {
+            return new OptimizerOperationResult(false, $"Ошибка изменения файла hosts: {ex.Message}");
+        }
+    }
+
+    // ==================== ДЕИНСТАЛЛЯТОР WIN32 И МЕНЕДЖЕР UWP ПРИЛОЖЕНИЙ ====================
+
     public Task<IReadOnlyList<InstalledApplicationInfo>> GetInstalledApplicationsAsync(CancellationToken ct = default) =>
         _platformBridge.GetInstalledApplicationsAsync(ct);
+
+    public async Task<OptimizerOperationResult> LaunchApplicationUninstallerAsync(
+        InstalledApplicationInfo app,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+        if (string.IsNullOrWhiteSpace(app.UninstallString))
+        {
+            return new OptimizerOperationResult(false, $"У программы «{app.DisplayName}» не указана команда удаления.");
+        }
+
+        var ok = await _platformBridge.LaunchApplicationUninstallerAsync(app, ct).ConfigureAwait(false);
+        return ok
+            ? new OptimizerOperationResult(true, $"Запущен штатный деинсталлятор «{app.DisplayName}».")
+            : new OptimizerOperationResult(false, $"Не удалось запустить деинсталлятор «{app.DisplayName}» (проверьте права Администратора).");
+    }
+
+    public async Task<IReadOnlyList<UwpPackageInfo>> GetInstalledUwpPackagesAsync(
+        bool includeFrameworks = false,
+        CancellationToken ct = default)
+    {
+        var all = await _platformBridge.GetInstalledUwpPackagesAsync(ct).ConfigureAwait(false);
+        return includeFrameworks
+            ? all
+            : all.Where(p => !p.IsFrameworkOrSystem).ToList();
+    }
+
+    public async Task<OptimizerOperationResult> RemoveSelectedUwpPackagesAsync(
+        IReadOnlyList<UwpPackageInfo> selectedPackages,
+        CancellationToken ct = default)
+    {
+        if (selectedPackages.Count == 0)
+        {
+            return new OptimizerOperationResult(false, "Отметьте галочками хотя бы одно UWP-приложение для удаления.");
+        }
+
+        var removable = selectedPackages.Where(p => p.CanRemoveSafely).ToList();
+        if (removable.Count == 0)
+        {
+            return new OptimizerOperationResult(
+                false,
+                "Выбранные пакеты являются системными библиотеками (VCLibs / .NET Native / Store) и защищены от удаления.");
+        }
+
+        var (removed, err) = await _platformBridge.RemoveUwpPackagesAsync(removable, ct).ConfigureAwait(false);
+        var errNote = !string.IsNullOrWhiteSpace(err) ? $" ({err})" : "";
+        return new OptimizerOperationResult(
+            removed > 0,
+            removed > 0
+                ? $"Удалено встроенных UWP-приложений: {removed} из {removable.Count}{errNote}."
+                : $"Не удалось удалить выбранные UWP-приложения{errNote}.");
+    }
 
     private bool IsMutationCurrentlyActive(TweakRegistryMutation m)
     {

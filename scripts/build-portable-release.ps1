@@ -10,9 +10,9 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Version = "1.0.0",
+    [string]$Version = "2.0.0",
     [string]$Runtime = "win-x64",
-    [string]$ReleaseTag = "v1.0.0",
+    [string]$ReleaseTag = "v2.0.0",
     [switch]$SkipTests,
     [switch]$UploadToGitHubRelease
 )
@@ -123,22 +123,23 @@ try {
     Set-Content -Path (Join-Path $StagingDir ".portable") -Value "UltimateWindows Portable Mode Enabled" -Encoding UTF8
 
     $PortableReadme = @"
-UltimateWindows v$Version — Портативная версия ($Runtime)
+UltimateWindows v$Version PRO — Портативная версия ($Runtime)
 ============================================================
 Автономная сборка (не требует установки .NET 8 или сторонних библиотек).
 
-Файлы в комплекте:
-  1. UltimateWindows.exe     — Графический интерфейс (Windows 10 / 11 Fluent GUI, режимы Простой / Эксперт)
-  2. UltimateWindows.Cli.exe — Консольная утилита автоматизации (smart-audit, miner-scan, clean-scan, pe-doctor и др.)
-  3. .portable               — Маркер портативного режима: все компактные точки отката и карантин (.uwq)
-                               сохраняются строго внутри локальной папки .\Data\Vault\ рядом с программой,
-                               не засоряя системный диск C:\!
+Что нового в версии 2.0 PRO:
+  • Анализатор пространства диска уровня WizTree: дерево папок с полосами %, таблица типов файлов с цветами
+    и интерактивная карта блоков диска Squarified Treemap (клик / 2×клик / отправка в Корзину).
+  • Поиск дубликатов файлов по SHA-256 и освобождение системных резервов C:\ (hiberfil.sys, WinSxS, Windows.old).
+  • Системный Оптимизатор (39 живых переключателей системы, диска, телеметрии Office/Chrome/Firefox/Edge/NVIDIA и игр),
+    удаление UWP-приложений, деинсталлятор программ Win32, интерактивный Пингер, DNS и редактор файла Hosts.
+  • Очистка кэша браузеров с броней паролей/автозаполнения + гранулярная чистка 10 категорий реестра с откатом.
+  • Полностью новый плотный Desktop-интерфейс (Pro Dark Obsidian & Light Slate) без стандартных контролов Windows 7.
 
-Быстрый запуск:
-  • Обычный запуск (просмотр железа, умный аудит, бережная очистка кэша без потери паролей):
-    дважды откройте UltimateWindows.exe
-  • Полный режим ремонта ОС, разблокировки после майнеров и установки WHQL-драйверов:
-    запустите UltimateWindows.exe от имени Администратора.
+Файлы в комплекте:
+  1. UltimateWindows.exe     — Графический интерфейс (Windows 10 / 11 Pro Desktop GUI)
+  2. UltimateWindows.Cli.exe — Консольная утилита автоматизации (smart-audit, miner-scan, clean-scan, pe-doctor)
+  3. .portable               — Маркер портативного режима: все компактные точки отката сохраняются внутри .\Data\Vault\
 "@
     Set-Content -Path (Join-Path $StagingDir "PORTABLE-README.txt") -Value $PortableReadme -Encoding UTF8
 

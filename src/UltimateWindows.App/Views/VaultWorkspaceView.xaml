@@ -1,0 +1,62 @@
+<UserControl x:Class="UltimateWindows.App.Views.VaultWorkspaceView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid Margin="14,12">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*" />
+      <ColumnDefinition Width="12" />
+      <ColumnDefinition Width="320" />
+    </Grid.ColumnDefinitions>
+
+    <!-- Левая таблица всех точек отката (Zero-Bloat Time Machine) -->
+    <DataGrid Grid.Column="0" ItemsSource="{Binding Transactions}">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="Время" Binding="{Binding CreatedDisplay}" Width="135" />
+        <DataGridTextColumn Header="Изменение" Binding="{Binding FriendlyTitle}" Width="*" />
+        <DataGridTextColumn Header="Размер" Binding="{Binding StoredSizeText}" Width="82" />
+        <DataGridTextColumn Header="Статус" Binding="{Binding StatusBadge}" Width="95" />
+        <DataGridTemplateColumn Header="Управление" Width="175">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <StackPanel Orientation="Horizontal">
+                <Button Style="{StaticResource PrimaryButtonStyle}" Padding="8,2" FontSize="11"
+                        IsEnabled="{Binding CanRollback}"
+                        Command="{Binding RollbackCommand}" Content="Откатить" Margin="0,0,5,0" />
+                <Button Style="{StaticResource CompactButtonStyle}" Padding="8,2" FontSize="11"
+                        Command="{Binding TogglePinCommand}" Content="{Binding PinButtonText}" />
+              </StackPanel>
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+      </DataGrid.Columns>
+    </DataGrid>
+
+    <!-- Правая панель управления квотой хранилища и тестером защиты паролей -->
+    <StackPanel Grid.Column="2">
+      <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,10">
+        <StackPanel>
+          <TextBlock Text="Квота Zero-Bloat Хранилища" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,8" />
+          <TextBlock Text="{Binding VaultUsageText}" FontSize="12.5" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold" Margin="0,0,0,10" />
+
+          <TextBlock Text="Лимит хранилища (МБ):" FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4" />
+          <TextBox Text="{Binding MaxBudgetMb, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+
+          <TextBlock Text="Срок хранения архивов (дней):" FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4" />
+          <TextBox Text="{Binding RetentionDays, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+
+          <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding SaveQuotaPolicyCommand}" Content="Сохранить квоту" Margin="0,0,0,6" />
+          <Button Style="{StaticResource CompactButtonStyle}" Command="{Binding PurgeBlobsCommand}" Content="Очистить незакрепленный карантин" />
+        </StackPanel>
+      </Border>
+
+      <Border Style="{StaticResource CardBorderStyle}">
+        <StackPanel>
+          <TextBlock Text="Проверка защиты файла (VaultGuard)" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,6" />
+          <TextBox Text="{Binding TestPathInput, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+          <Button Style="{StaticResource CompactButtonStyle}" Command="{Binding EvaluatePathCommand}" Content="Проверить вердикт ядра" Margin="0,0,0,8" />
+          <TextBlock Text="{Binding TestPathVerdict}" FontSize="11.5" Foreground="{DynamicResource SafeEmeraldBrush}" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </Grid>
+</UserControl>

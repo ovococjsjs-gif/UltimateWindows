@@ -112,6 +112,16 @@ public static class BrowserVaultGuard
     }
 
     /// <summary>
+    /// Возвращает true, если путь указывает на защищенные пароли, ключи шифрования, формы автозаполнения, сессии или расширения.
+    /// </summary>
+    public static bool IsProtectedPersonalData(string? candidatePath)
+    {
+        var decision = EvaluatePath(candidatePath);
+        return decision is VaultPathDecision.ProtectedCredentialsOrAutofill
+            or VaultPathDecision.ProtectedSessionOrExtension;
+    }
+
+    /// <summary>
     /// Возвращает true только если путь гарантированно не затрагивает пароли, формы, сессии и расширения.
     /// </summary>
     public static bool CanDeleteDuringStandardCleanup(string? candidatePath)

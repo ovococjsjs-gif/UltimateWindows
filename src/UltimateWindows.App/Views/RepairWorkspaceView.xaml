@@ -1,0 +1,196 @@
+<UserControl x:Class="UltimateWindows.App.Views.RepairWorkspaceView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- Верхние вкладки раздела Ремонта -->
+    <Border Grid.Row="0"
+            Background="{DynamicResource SurfaceSidebarBrush}"
+            BorderBrush="{DynamicResource CardBorderBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="14,0">
+      <StackPanel Orientation="Horizontal">
+        <RadioButton GroupName="RepairSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=0}"
+                     Content="Рецепты ремонта Windows (DISM / SFC / Сеть)" />
+        <RadioButton GroupName="RepairSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=1}"
+                     Content="PE-Доктор (0xC000007B) и Пакеты VC++ / DirectX" />
+        <RadioButton GroupName="RepairSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=2}"
+                     Content="Синие экраны (BSOD) и Журнал сбоев" />
+      </StackPanel>
+    </Border>
+
+    <Border Grid.Row="1"
+            Visibility="{Binding HasRepairActionBanner, Converter={StaticResource BoolToVis}}"
+            Background="{DynamicResource AccentSubtleBrush}"
+            Padding="16,6">
+      <TextBlock Text="{Binding LastRepairActionBanner}" FontSize="12" TextTrimming="CharacterEllipsis" />
+    </Border>
+
+    <!-- ВКЛАДКА 0: РЕЦЕПТЫ РЕМОНТА ОС -->
+    <ScrollViewer Grid.Row="2"
+                  VerticalScrollBarVisibility="Auto"
+                  Padding="14,12"
+                  Visibility="{Binding IsPlaybooksTab, Converter={StaticResource BoolToVis}}">
+      <ItemsControl ItemsSource="{Binding Playbooks}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <UniformGrid Columns="2" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,10,10">
+              <DockPanel>
+                <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                  <TextBlock DockPanel.Dock="Right" Text="{Binding AccessBadge}" FontSize="11"
+                             Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                  <Button HorizontalAlignment="Left" Style="{StaticResource PrimaryButtonStyle}"
+                          Padding="12,5" FontSize="12"
+                          Command="{Binding RunPlaybookCommand}" Content="Выполнить рецепт" />
+                </DockPanel>
+                <StackPanel>
+                  <TextBlock Text="{Binding FriendlyTitle}" FontSize="13.5" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding FriendlyDescription}" FontSize="12"
+                             Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,6" />
+                  <TextBlock Text="{Binding ExpertCommandsPreview}" FontFamily="Consolas" FontSize="10.5"
+                             Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+              </DockPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <!-- ВКЛАДКА 1: PE DOCTOR + ОФИЦИАЛЬНЫЕ ПАКЕТЫ MICROSOFT -->
+    <Grid Grid.Row="2"
+          Margin="12,10"
+          Visibility="{Binding IsPeDoctorTab, Converter={StaticResource BoolToVis}}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="1.2*" />
+        <ColumnDefinition Width="12" />
+        <ColumnDefinition Width="1*" />
+      </Grid.ColumnDefinitions>
+
+      <Grid Grid.Column="0">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="12,10" Margin="0,0,0,8">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox Grid.Column="0" Text="{Binding TargetExecutablePath, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,6,0" />
+            <Button Grid.Column="1" Style="{StaticResource CompactButtonStyle}" Command="{Binding BrowseExecutableCommand}" Content="Обзор .exe" Margin="0,0,6,0" />
+            <Button Grid.Column="2" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding DiagnoseExecutableCommand}" Content="Проверить DLL" />
+          </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="12,8" Margin="0,0,0,8">
+          <DockPanel>
+            <Border DockPanel.Dock="Right" Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="4" Padding="8,3" Margin="8,0,0,0">
+              <TextBlock Text="{Binding TargetArchitectureBadge}" FontSize="11" Foreground="{DynamicResource AccentBrush}" />
+            </Border>
+            <TextBlock Text="{Binding PeDiagnosisHeadline}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
+          </DockPanel>
+        </Border>
+
+        <DataGrid Grid.Row="2" ItemsSource="{Binding DependencyIssues}">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="Библиотека DLL" Binding="{Binding ImportedDllName}" Width="155" />
+            <DataGridTextColumn Header="Диагноз" Binding="{Binding SimpleExplanation}" Width="*" />
+            <DataGridTemplateColumn Header="Лечение" Width="165">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <StackPanel Orientation="Horizontal">
+                    <Button Style="{StaticResource CompactButtonStyle}" Padding="7,2" FontSize="11"
+                            Visibility="{Binding CanQuarantineConflictingLocalDll, Converter={StaticResource BoolToVis}}"
+                            Command="{Binding QuarantineCommand}" Content="В карантин" Margin="0,0,4,0" />
+                    <Button Style="{StaticResource PrimaryButtonStyle}" Padding="7,2" FontSize="11"
+                            Visibility="{Binding CanInstallOfficialRuntime, Converter={StaticResource BoolToVis}}"
+                            Command="{Binding InstallPackageCommand}" Content="Пакет" />
+                  </StackPanel>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+          </DataGrid.Columns>
+        </DataGrid>
+      </Grid>
+
+      <!-- Правая таблица официальных пакетов VC++ / DirectX / .NET -->
+      <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="Официальные пакеты Microsoft (WinGet)" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,8" />
+          <DataGrid ItemsSource="{Binding OfficialRuntimes}">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Пакет" Binding="{Binding FriendlyName}" Width="*" />
+              <DataGridTextColumn Header="Разрядность" Binding="{Binding ArchitectureBadge}" Width="120" />
+              <DataGridTemplateColumn Header="" Width="100">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <Button Style="{StaticResource CompactButtonStyle}" Padding="8,2" FontSize="11"
+                            Command="{Binding InstallCommand}" Content="Установить" />
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+      </Border>
+    </Grid>
+
+    <!-- ВКЛАДКА 2: АНАЛИЗАТОР СИНИХ ЭКРАНОВ BSOD -->
+    <Grid Grid.Row="2"
+          Margin="12,10"
+          Visibility="{Binding IsBsodTab, Converter={StaticResource BoolToVis}}">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+
+      <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="14,9" Margin="0,0,0,8">
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButtonStyle}"
+                  Command="{Binding ScanBsodAndCrashesCommand}" Content="Проверить минидампы и журнал" />
+          <TextBlock Text="{Binding BsodScanHeadline}" FontSize="12.5" VerticalAlignment="Center" />
+        </DockPanel>
+      </Border>
+
+      <DataGrid Grid.Row="1" ItemsSource="{Binding Minidumps}" Margin="0,0,0,8">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Дата BSOD" Binding="{Binding CrashLocalDisplay}" Width="135" />
+          <DataGridTextColumn Header="Код BugCheck" Binding="{Binding BugCheckHex}" Width="115" />
+          <DataGridTextColumn Header="Имя ошибки" Binding="{Binding BugCheckName}" Width="210" />
+          <DataGridTextColumn Header="Подозреваемый драйвер" Binding="{Binding CulpritBadge}" Width="190" />
+          <DataGridTextColumn Header="Рекомендация" Binding="{Binding RecommendedUserAction}" Width="*" />
+        </DataGrid.Columns>
+      </DataGrid>
+
+      <DataGrid Grid.Row="2" ItemsSource="{Binding CrashEvents}">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Время" Binding="{Binding TimeLocalDisplay}" Width="135" />
+          <DataGridTextColumn Header="Источник" Binding="{Binding EventBadge}" Width="215" />
+          <DataGridTextColumn Header="Описание критического сбоя" Binding="{Binding SimpleSummary}" Width="*" />
+        </DataGrid.Columns>
+      </DataGrid>
+    </Grid>
+  </Grid>
+</UserControl>

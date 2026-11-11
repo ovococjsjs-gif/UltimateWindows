@@ -5,7 +5,7 @@ namespace UltimateWindows.Modules.Optimizer.Contracts;
 /// <summary>
 /// Платформенный мост Фазы 4 для безопасного чтения/записи реестра твиков,
 /// управления флагами StartupApproved и Shell Extensions\Blocked, разблокировки файлов через Restart Manager,
-/// настройки DNS и чтения списка установленных программ.
+/// настройки DNS, редактирования hosts, управления UWP-приложениями и деинсталляции программ.
 /// </summary>
 public interface IOptimizerPlatformBridge
 {
@@ -48,7 +48,17 @@ public interface IOptimizerPlatformBridge
         DnsPresetDescriptor preset,
         CancellationToken ct = default);
 
+    Task<bool> FlushDnsCacheAsync(CancellationToken ct = default);
+
     string GetHostsFilePath();
 
     Task<IReadOnlyList<InstalledApplicationInfo>> GetInstalledApplicationsAsync(CancellationToken ct = default);
+
+    Task<bool> LaunchApplicationUninstallerAsync(InstalledApplicationInfo app, CancellationToken ct = default);
+
+    Task<IReadOnlyList<UwpPackageInfo>> GetInstalledUwpPackagesAsync(CancellationToken ct = default);
+
+    Task<(int RemovedCount, string ErrorSummary)> RemoveUwpPackagesAsync(
+        IReadOnlyList<UwpPackageInfo> packages,
+        CancellationToken ct = default);
 }
