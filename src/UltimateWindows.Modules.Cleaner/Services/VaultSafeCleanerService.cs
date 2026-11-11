@@ -151,11 +151,7 @@ public sealed class VaultSafeCleanerService
 
         if (options.CleanSystemTempAndShaders || options.IncludeDeveloperCaches)
         {
-            var sysFiles = await Task.Run(() => _systemJunkScanner.ScanSystemJunk(
-                includeSystemTempAndShaders: options.CleanSystemTempAndShaders,
-                includeDeveloperCaches: options.IncludeDeveloperCaches,
-                minimumTempAgeHours: options.MinimumTempFileAgeHours,
-                ct: ct), ct).ConfigureAwait(false);
+            var sysFiles = await Task.Run(() => _systemJunkScanner.ScanSystemJunk(options, ct), ct).ConfigureAwait(false);
             allFiles.AddRange(sysFiles);
         }
 
