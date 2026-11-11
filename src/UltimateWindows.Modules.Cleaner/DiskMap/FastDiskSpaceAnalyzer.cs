@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using UltimateWindows.Modules.Cleaner.Contracts;
 using UltimateWindows.Modules.Cleaner.Models;
 
 namespace UltimateWindows.Modules.Cleaner.DiskMap;
@@ -12,6 +13,12 @@ namespace UltimateWindows.Modules.Cleaner.DiskMap;
 public sealed class FastDiskSpaceAnalyzer
 {
     private const int PrebuiltTreeDepth = 3;
+    private readonly ICleanerPlatformBridge? _platformBridge;
+
+    public FastDiskSpaceAnalyzer(ICleanerPlatformBridge? platformBridge = null)
+    {
+        _platformBridge = platformBridge;
+    }
 
     public static IReadOnlyList<DiskVolumeSummary> GetReadyVolumes()
     {
@@ -78,6 +85,18 @@ public sealed class FastDiskSpaceAnalyzer
         if (!Directory.Exists(fullRoot))
         {
             throw new DirectoryNotFoundException($"Путь '{fullRoot}' не найден.");
+        }
+
+        // Быстрый путь: прямое чтение NTFS $MFT, если том локальный NTFS и есть права администратора
+        if (_platformBridge is not null)
+        {
+            var mftReport = await _platformBridge
+                .TryAnalyzeNtfsVolumeViaMftAsync(fullRoot, topDirectoryLimit, largestFilesLimit, ct)
+                .ConfigureAwait(false);
+            if (mftReport is not null)
+            {
+                return mftReport;
+            }
         }
 
         var sw = Stopwatch.StartNew();

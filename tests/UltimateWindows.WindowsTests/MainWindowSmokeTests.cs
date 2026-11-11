@@ -1,3 +1,4 @@
+using System.IO;
 using UltimateWindows.App;
 using UltimateWindows.App.ViewModels;
 using UltimateWindows.Core.Enums;
@@ -76,6 +77,32 @@ public sealed class MainWindowSmokeTests
             notes.Add($"автозагрузка: {studio.StartupEntries.Count}, программ: {studio.FilteredInstalledApps.Count}, расширений меню: {studio.ShellExtensions.Count}");
             studio.SelectedSubTabIndex = 0;
             await surface.SettleAsync();
+
+            reached = "очистка 2.0: все вкладки и каталог программ";
+            main.SelectedDomain = SystemDomain.SmartCleaner;
+            var cleanerVm = main.CleanerStudio;
+            await cleanerVm.RefreshSystemReservesAsync();
+            for (var ctab = 0; ctab <= 4; ctab++)
+            {
+                cleanerVm.SelectedSubTabIndex = ctab;
+                await surface.SettleAsync();
+                surface.Save($"cleaner-tab-{ctab}");
+            }
+
+            cleanerVm.SelectedSubTabIndex = 4;
+            await cleanerVm.ScanAppRulesAsync();
+            await surface.SettleAsync();
+            surface.Save("cleaner-app-rules");
+
+            // Быстрая проверка прямого чтения NTFS $MFT на настоящем системном томе C:\
+            cleanerVm.SelectedSubTabIndex = 0;
+            cleanerVm.DiskMapTargetPath = Path.GetPathRoot(Environment.SystemDirectory) ?? @"C:\";
+            await cleanerVm.AnalyzeDiskSpaceAsync();
+            await surface.SettleAsync();
+            surface.Save("cleaner-mft-disk");
+            notes.Add($"очистка-каталог: {cleanerVm.AppRulesStatusText}");
+            notes.Add($"карта-диска: {cleanerVm.DiskMapStatusText}");
+
             reached = "конец";
         }
         finally

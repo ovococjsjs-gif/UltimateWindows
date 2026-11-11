@@ -25,7 +25,10 @@ public enum RegistryOrphanKind
     BrokenAppPath = 6,
     MissingHelpFile = 7,
     BrokenSoundEvent = 8,
-    StaleExplorerHistory = 9
+    StaleExplorerHistory = 9,
+    MissingFontReference = 10,
+    MissingWindowsInstallerFolder = 11,
+    BrokenStartupApprovedEntry = 12
 }
 
 /// <summary>
@@ -42,6 +45,17 @@ public sealed record CleanupOptions
     public bool IncludeDeveloperCaches { get; init; } = false;
     public int MinimumTempFileAgeHours { get; init; } = 24;
     public IReadOnlySet<RegistryOrphanKind>? EnabledRegistryCategories { get; init; }
+
+    // Выборочные пункты браузеров (по умолчанию выключены — чистится только кэш)
+    public bool CleanBrowserHistory { get; init; } = false;
+    public bool CleanBrowserDownloads { get; init; } = false;
+    public bool CleanBrowserCookies { get; init; } = false;
+    public bool CleanBrowserSessions { get; init; } = false;
+    public IReadOnlyList<string> KeepCookieDomains { get; init; } = [];
+
+    // Набор идентификаторов или ключей правил каталога программ (null = правила, выбранные по умолчанию)
+    public IReadOnlySet<string>? EnabledRuleKeys { get; init; }
+    public bool IncludeRuleEngine { get; init; } = false;
 }
 
 public sealed record DiscoveredBrowserProfile(
@@ -85,6 +99,9 @@ public sealed record RegistryOrphanCandidate(
         RegistryOrphanKind.BrokenFirewallRule => "Правила брандмауэра",
         RegistryOrphanKind.BrokenSoundEvent => "Звуковые события",
         RegistryOrphanKind.StaleExplorerHistory => "Удаленные пути истории",
+        RegistryOrphanKind.MissingFontReference => "Отсутствующие шрифты",
+        RegistryOrphanKind.MissingWindowsInstallerFolder => "Папки установщика MSI",
+        RegistryOrphanKind.BrokenStartupApprovedEntry => "Одобренная автозагрузка",
         _ => "Реестр"
     };
 }
@@ -261,7 +278,9 @@ public enum SystemReserveKind
     WinSxSComponentStore = 2,
     WindowsUpdateDownloadCache = 3,
     DeliveryOptimizationCache = 4,
-    PageFileInfo = 5
+    PageFileInfo = 5,
+    SystemMemoryDumps = 6,
+    WindowsSetupAndCbsLogs = 7
 }
 
 public sealed record SystemSpaceReserveItem(

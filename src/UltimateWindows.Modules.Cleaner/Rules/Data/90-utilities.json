@@ -1,0 +1,552 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "util.java.cache",
+      "section": "Utilities",
+      "app": "Java",
+      "title": "Кэш и журналы",
+      "explanation": "Кэш и журналы устаревших веб-компонентов Java.",
+      "kind": "Cache",
+      "default": true,
+      "files": [
+        {
+          "path": "%LocalLow%\\Sun\\Java\\Deployment\\cache"
+        },
+        {
+          "path": "%LocalLow%\\Sun\\Java\\Deployment\\log"
+        }
+      ]
+    },
+    {
+      "id": "util.qbittorrent.logs",
+      "section": "Utilities",
+      "app": "qBittorrent",
+      "title": "Журналы",
+      "explanation": "Журналы работы программы. Нужны только при поиске причин неполадок.",
+      "kind": "Logs",
+      "default": true,
+      "files": [
+        {
+          "path": "%LocalAppData%\\qBittorrent\\logs"
+        }
+      ]
+    },
+    {
+      "id": "util.anydesk.logs",
+      "section": "Utilities",
+      "app": "AnyDesk",
+      "title": "Журналы",
+      "explanation": "Журналы работы программы. Нужны только при поиске причин неполадок.",
+      "kind": "Logs",
+      "default": true,
+      "files": [
+        {
+          "path": "%AppData%\\AnyDesk",
+          "match": [
+            "*.trace"
+          ],
+          "recurse": false
+        }
+      ]
+    },
+    {
+      "id": "util.powertoys.logs",
+      "section": "Utilities",
+      "app": "PowerToys",
+      "title": "Журналы",
+      "explanation": "Журналы работы программы. Нужны только при поиске причин неполадок.",
+      "kind": "Logs",
+      "default": true,
+      "files": [
+        {
+          "path": "%LocalAppData%\\Microsoft\\PowerToys\\Logs"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\PowerToys\\*\\Logs"
+        }
+      ]
+    },
+    {
+      "id": "util.google-drive.logs",
+      "section": "Utilities",
+      "app": "Google Диск",
+      "title": "Журналы",
+      "explanation": "Журналы синхронизации. Файлы в облаке и на диске не затрагиваются.",
+      "kind": "Logs",
+      "default": true,
+      "minAgeHours": 24,
+      "files": [
+        {
+          "path": "%LocalAppData%\\Google\\DriveFS\\Logs"
+        }
+      ]
+    },
+    {
+      "id": "util.chocolatey.logs",
+      "section": "Utilities",
+      "app": "Chocolatey",
+      "title": "Журналы",
+      "explanation": "Журналы работы программы. Нужны только при поиске причин неполадок.",
+      "kind": "Logs",
+      "default": true,
+      "minAgeHours": 24,
+      "files": [
+        {
+          "path": "%ProgramData%\\chocolatey\\logs",
+          "match": [
+            "*.log"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "util.scoop.cache",
+      "section": "Utilities",
+      "app": "Scoop",
+      "title": "Скачанные установщики",
+      "explanation": "Установщики программ, которые Scoop уже установил. При переустановке скачаются заново.",
+      "kind": "Cache",
+      "default": false,
+      "files": [
+        {
+          "path": "%UserProfile%\\scoop\\cache"
+        }
+      ]
+    },
+    {
+      "id": "app.embedded-browser-cache",
+      "section": "Utilities",
+      "app": "Программы со встроенным браузером",
+      "title": "Кэш",
+      "explanation": "Многие программы — мессенджеры, редакторы, лаунчеры — построены на движке браузера и хранят такой же кэш страниц и картинок. Программа создаст его заново; вход в учётную запись и настройки сохраняются.",
+      "kind": "Cache",
+      "default": true,
+      "files": [
+        {
+          "path": "%AppData%\\*\\Cache\\Cache_Data",
+          "group": 1
+        },
+        {
+          "path": "%AppData%\\*\\Code Cache",
+          "group": 1
+        },
+        {
+          "path": "%AppData%\\*\\GPUCache",
+          "group": 1
+        },
+        {
+          "path": "%AppData%\\*\\DawnCache",
+          "group": 1
+        },
+        {
+          "path": "%AppData%\\*\\DawnGraphiteCache",
+          "group": 1
+        },
+        {
+          "path": "%AppData%\\*\\DawnWebGPUCache",
+          "group": 1
+        },
+        {
+          "path": "%AppData%\\*\\Service Worker\\CacheStorage",
+          "group": 1
+        },
+        {
+          "path": "%AppData%\\*\\Service Worker\\ScriptCache",
+          "group": 1
+        },
+        {
+          "path": "%AppData%\\*\\*\\Cache\\Cache_Data",
+          "group": 2
+        },
+        {
+          "path": "%AppData%\\*\\*\\Code Cache",
+          "group": 2
+        },
+        {
+          "path": "%AppData%\\*\\*\\GPUCache",
+          "group": 2
+        },
+        {
+          "path": "%AppData%\\*\\*\\DawnCache",
+          "group": 2
+        },
+        {
+          "path": "%AppData%\\*\\*\\DawnGraphiteCache",
+          "group": 2
+        },
+        {
+          "path": "%AppData%\\*\\*\\DawnWebGPUCache",
+          "group": 2
+        },
+        {
+          "path": "%AppData%\\*\\*\\Service Worker\\CacheStorage",
+          "group": 2
+        },
+        {
+          "path": "%AppData%\\*\\*\\Service Worker\\ScriptCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\Cache\\Cache_Data",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\Code Cache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\GPUCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\DawnCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\DawnGraphiteCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\DawnWebGPUCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\Service Worker\\CacheStorage",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\Service Worker\\ScriptCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\Cache\\Cache_Data",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\Code Cache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\GPUCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\DawnCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\DawnGraphiteCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\DawnWebGPUCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\Service Worker\\CacheStorage",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\Service Worker\\ScriptCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\User Data\\*\\Cache\\Cache_Data",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\User Data\\*\\Code Cache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\User Data\\*\\GPUCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\User Data\\*\\DawnCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\User Data\\*\\DawnGraphiteCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\User Data\\*\\DawnWebGPUCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\User Data\\*\\Service Worker\\CacheStorage",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\User Data\\*\\Service Worker\\ScriptCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\User Data\\*\\Cache\\Cache_Data",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\User Data\\*\\Code Cache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\User Data\\*\\GPUCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\User Data\\*\\DawnCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\User Data\\*\\DawnGraphiteCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\User Data\\*\\DawnWebGPUCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\User Data\\*\\Service Worker\\CacheStorage",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\User Data\\*\\Service Worker\\ScriptCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\EBWebView\\*\\Cache\\Cache_Data",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\EBWebView\\*\\Code Cache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\EBWebView\\*\\GPUCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\EBWebView\\*\\DawnCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\EBWebView\\*\\DawnGraphiteCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\EBWebView\\*\\DawnWebGPUCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\EBWebView\\*\\Service Worker\\CacheStorage",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\EBWebView\\*\\Service Worker\\ScriptCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\EBWebView\\*\\Cache\\Cache_Data",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\EBWebView\\*\\Code Cache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\EBWebView\\*\\GPUCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\EBWebView\\*\\DawnCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\EBWebView\\*\\DawnGraphiteCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\EBWebView\\*\\DawnWebGPUCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\EBWebView\\*\\Service Worker\\CacheStorage",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\*\\*\\EBWebView\\*\\Service Worker\\ScriptCache",
+          "group": 2
+        },
+        {
+          "path": "%AppData%\\*\\EBWebView\\*\\Cache\\Cache_Data",
+          "group": 1
+        },
+        {
+          "path": "%AppData%\\*\\EBWebView\\*\\Code Cache",
+          "group": 1
+        },
+        {
+          "path": "%AppData%\\*\\EBWebView\\*\\GPUCache",
+          "group": 1
+        },
+        {
+          "path": "%AppData%\\*\\EBWebView\\*\\DawnCache",
+          "group": 1
+        },
+        {
+          "path": "%AppData%\\*\\EBWebView\\*\\DawnGraphiteCache",
+          "group": 1
+        },
+        {
+          "path": "%AppData%\\*\\EBWebView\\*\\DawnWebGPUCache",
+          "group": 1
+        },
+        {
+          "path": "%AppData%\\*\\EBWebView\\*\\Service Worker\\CacheStorage",
+          "group": 1
+        },
+        {
+          "path": "%AppData%\\*\\EBWebView\\*\\Service Worker\\ScriptCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalState\\EBWebView\\*\\Cache\\Cache_Data",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalState\\EBWebView\\*\\Code Cache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalState\\EBWebView\\*\\GPUCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalState\\EBWebView\\*\\DawnCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalState\\EBWebView\\*\\DawnGraphiteCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalState\\EBWebView\\*\\DawnWebGPUCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalState\\EBWebView\\*\\Service Worker\\CacheStorage",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalState\\EBWebView\\*\\Service Worker\\ScriptCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalCache\\*\\*\\EBWebView\\*\\Cache\\Cache_Data",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalCache\\*\\*\\EBWebView\\*\\Code Cache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalCache\\*\\*\\EBWebView\\*\\GPUCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalCache\\*\\*\\EBWebView\\*\\DawnCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalCache\\*\\*\\EBWebView\\*\\DawnGraphiteCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalCache\\*\\*\\EBWebView\\*\\DawnWebGPUCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalCache\\*\\*\\EBWebView\\*\\Service Worker\\CacheStorage",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalCache\\*\\*\\EBWebView\\*\\Service Worker\\ScriptCache",
+          "group": 1
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalCache\\Roaming\\*\\Cache\\Cache_Data",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalCache\\Roaming\\*\\Code Cache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalCache\\Roaming\\*\\GPUCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalCache\\Roaming\\*\\DawnCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalCache\\Roaming\\*\\DawnGraphiteCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalCache\\Roaming\\*\\DawnWebGPUCache",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalCache\\Roaming\\*\\Service Worker\\CacheStorage",
+          "group": 2
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\LocalCache\\Roaming\\*\\Service Worker\\ScriptCache",
+          "group": 2
+        }
+      ],
+      "groupLabels": {
+        "discord": "Discord",
+        "discordptb": "Discord PTB",
+        "discordcanary": "Discord Canary",
+        "Slack": "Slack",
+        "Signal": "Signal",
+        "Element": "Element",
+        "WhatsApp": "WhatsApp",
+        "Microsoft\\Teams": "Microsoft Teams (классический)",
+        "MSTeams_8wekyb3d8bbwe": "Microsoft Teams",
+        "Microsoft.OutlookForWindows_8wekyb3d8bbwe": "Outlook",
+        "Microsoft\\Skype for Desktop": "Skype",
+        "Code": "Visual Studio Code",
+        "Code - Insiders": "Visual Studio Code Insiders",
+        "VSCodium": "VSCodium",
+        "Cursor": "Cursor",
+        "obsidian": "Obsidian",
+        "Notion": "Notion",
+        "Figma": "Figma",
+        "Postman": "Postman",
+        "GitHub Desktop": "GitHub Desktop",
+        "GitKraken": "GitKraken",
+        "Trello": "Trello",
+        "Bitwarden": "Bitwarden",
+        "Claude": "Claude",
+        "ChatGPT": "ChatGPT",
+        "Zoom": "Zoom",
+        "Microsoft\\Edge": "Microsoft Edge",
+        "Google\\Chrome": "Google Chrome",
+        "EpicGamesLauncher": "Epic Games Launcher",
+        "Steam\\htmlcache": "Steam",
+        "Spotify": "Spotify",
+        "Battle.net": "Battle.net",
+        "Ubisoft Game Launcher": "Ubisoft Connect",
+        "Microsoft\\Office": "Microsoft Office",
+        "Microsoft\\OneDrive": "OneDrive",
+        "Microsoft\\Windows": "Компоненты Windows",
+        "Microsoft\\EdgeWebView": "Microsoft Edge WebView2"
+      }
+    }
+  ]
+}

@@ -1,0 +1,224 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "game.steam.web-cache",
+      "section": "Games",
+      "app": "Steam",
+      "title": "Кэш магазина и встроенного браузера",
+      "explanation": "Копии страниц магазина, сообщества и обложек. Steam скачает их заново; вход в учётную запись сохраняется.",
+      "kind": "Cache",
+      "default": true,
+      "processes": [
+        "steam"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Steam\\htmlcache\\Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Steam\\htmlcache\\Code Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Steam\\htmlcache\\GPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Steam\\htmlcache\\*\\Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Steam\\htmlcache\\*\\Code Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Steam\\htmlcache\\*\\GPUCache"
+        },
+        {
+          "path": "%reg:HKCU\\Software\\Valve\\Steam@SteamPath%\\appcache\\httpcache"
+        }
+      ]
+    },
+    {
+      "id": "game.steam.logs",
+      "section": "Games",
+      "app": "Steam",
+      "title": "Журналы и отчёты о сбоях",
+      "explanation": "Журналы работы Steam и отчёты о его сбоях. Нужны только при поиске причин неполадок.",
+      "kind": "Logs",
+      "default": true,
+      "processes": [
+        "steam"
+      ],
+      "files": [
+        {
+          "path": "%reg:HKCU\\Software\\Valve\\Steam@SteamPath%\\logs"
+        },
+        {
+          "path": "%reg:HKCU\\Software\\Valve\\Steam@SteamPath%\\dumps"
+        }
+      ]
+    },
+    {
+      "id": "game.steam.shader-cache",
+      "section": "Games",
+      "app": "Steam",
+      "title": "Кэш шейдеров игр",
+      "explanation": "Заранее подготовленные шейдеры установленных игр из основной библиотеки Steam. Может занимать гигабайты.",
+      "kind": "Cache",
+      "default": false,
+      "warning": "Steam скачает или соберёт шейдеры заново; первые запуски игр могут идти с рывками.",
+      "processes": [
+        "steam"
+      ],
+      "skipWhileRunning": true,
+      "files": [
+        {
+          "path": "%reg:HKCU\\Software\\Valve\\Steam@SteamPath%\\steamapps\\shadercache"
+        }
+      ]
+    },
+    {
+      "id": "game.epic.cache",
+      "section": "Games",
+      "app": "Epic Games Launcher",
+      "title": "Кэш магазина",
+      "explanation": "Копии страниц магазина и библиотеки. Лаунчер скачает их заново.",
+      "kind": "Cache",
+      "default": true,
+      "processes": [
+        "EpicGamesLauncher"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\EpicGamesLauncher\\Saved\\webcache*"
+        }
+      ]
+    },
+    {
+      "id": "game.epic.logs",
+      "section": "Games",
+      "app": "Epic Games Launcher",
+      "title": "Журналы",
+      "explanation": "Журналы работы программы. Нужны только при поиске причин неполадок.",
+      "kind": "Logs",
+      "default": true,
+      "processes": [
+        "EpicGamesLauncher"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\EpicGamesLauncher\\Saved\\Logs"
+        },
+        {
+          "path": "%LocalAppData%\\EpicGamesLauncher\\Saved\\Crashes"
+        }
+      ]
+    },
+    {
+      "id": "game.battlenet.cache",
+      "section": "Games",
+      "app": "Battle.net",
+      "title": "Кэш и журналы",
+      "explanation": "Кэш страниц и журналы лаунчера Battle.net. Создаются заново; установленные игры не затрагиваются.",
+      "kind": "Cache",
+      "default": true,
+      "processes": [
+        "Battle.net"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Battle.net\\Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Battle.net\\BrowserCache*"
+        },
+        {
+          "path": "%LocalAppData%\\Battle.net\\Logs"
+        },
+        {
+          "path": "%ProgramData%\\Blizzard Entertainment\\Battle.net\\Cache"
+        }
+      ]
+    },
+    {
+      "id": "game.ubisoft.cache",
+      "section": "Games",
+      "app": "Ubisoft Connect",
+      "title": "Кэш и журналы",
+      "explanation": "Кэш лаунчера и его журналы. Ubisoft Connect скачает данные заново при следующем входе.",
+      "kind": "Cache",
+      "default": true,
+      "processes": [
+        "upc",
+        "UbisoftConnect"
+      ],
+      "skipWhileRunning": true,
+      "files": [
+        {
+          "path": "%reg:HKLM\\SOFTWARE\\WOW6432Node\\Ubisoft\\Launcher@InstallDir%\\cache"
+        },
+        {
+          "path": "%reg:HKLM\\SOFTWARE\\WOW6432Node\\Ubisoft\\Launcher@InstallDir%\\logs"
+        }
+      ]
+    },
+    {
+      "id": "game.gog.cache",
+      "section": "Games",
+      "app": "GOG Galaxy",
+      "title": "Кэш и журналы",
+      "explanation": "Кэш страниц магазина и журналы GOG Galaxy. Создаются заново; установленные игры не затрагиваются.",
+      "kind": "Cache",
+      "default": true,
+      "processes": [
+        "GalaxyClient"
+      ],
+      "files": [
+        {
+          "path": "%ProgramData%\\GOG.com\\Galaxy\\webcache"
+        },
+        {
+          "path": "%ProgramData%\\GOG.com\\Galaxy\\logs"
+        }
+      ]
+    },
+    {
+      "id": "game.minecraft.logs",
+      "section": "Games",
+      "app": "Minecraft",
+      "title": "Журналы и отчёты о сбоях",
+      "explanation": "Архивы журналов игры и отчёты о её сбоях. Миры и настройки не затрагиваются.",
+      "kind": "Logs",
+      "default": true,
+      "files": [
+        {
+          "path": "%AppData%\\.minecraft\\logs",
+          "match": [
+            "*.gz"
+          ]
+        },
+        {
+          "path": "%AppData%\\.minecraft\\crash-reports",
+          "match": [
+            "*.txt"
+          ]
+        },
+        {
+          "path": "%AppData%\\.minecraft\\webcache2"
+        }
+      ]
+    },
+    {
+      "id": "game.roblox.logs",
+      "section": "Games",
+      "app": "Roblox",
+      "title": "Журналы",
+      "explanation": "Журналы работы программы. Нужны только при поиске причин неполадок.",
+      "kind": "Logs",
+      "default": true,
+      "files": [
+        {
+          "path": "%LocalAppData%\\Roblox\\logs"
+        }
+      ]
+    }
+  ]
+}

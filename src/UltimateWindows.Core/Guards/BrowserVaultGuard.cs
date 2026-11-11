@@ -68,7 +68,56 @@ public static class BrowserVaultGuard
         "/startupcache/",
         "/thumbnails/",
         "/dxcache/",
-        "/glcache/"
+        "/glcache/",
+        "/dawngraphitecache/",
+        "/dawnwebgpucache/",
+        "/graphitedawncache/",
+        "/application cache/",
+        "/media cache/",
+        "/component_crx_cache/",
+        "/extensions_crx_cache/",
+        "/browsermetrics/",
+        "/optguideondevicemodel/",
+        "/cache2/",
+        "/jumplistcache/",
+        "/offlinecache/",
+        "/crash reports/",
+        "/crashes/",
+        "/minidumps/",
+        "/datareporting/archived/",
+        "/saved-telemetry-pings/"
+    ];
+
+    /// <summary>
+    /// Признаки того, что путь лежит в данных браузера или встроенного в программу браузера.
+    /// Внутри таких папок очистке разрешён только кэш; всё остальное — личные данные.
+    /// </summary>
+    private static readonly string[] BrowserAreaMarkers =
+    [
+        "/google/chrome",
+        "/microsoft/edge",
+        "/yandex/yandexbrowser",
+        "/bravesoftware/",
+        "/vivaldi/",
+        "/opera software/",
+        "/chromium/user data",
+        "/mozilla/",
+        "/thunderbird/",
+        "/librewolf/",
+        "/waterfox/",
+        "/moonchild productions/",
+        "/the browser company/",
+        "/avast software/browser/",
+        "/avg/browser/",
+        "/coccoc/",
+        "/centbrowser/",
+        "/thorium/",
+        "/tor browser/",
+        "/ebwebview/",
+        "/user data/default/",
+        "/user data/profile ",
+        "/user data/guest profile/",
+        "/user data/system profile/"
     ];
 
     /// <summary>
@@ -109,6 +158,34 @@ public static class BrowserVaultGuard
         }
 
         return VaultPathDecision.NeutralRequiresExplicitRule;
+    }
+
+    /// <summary>
+    /// Возвращает true, если путь лежит в данных браузера (профиль, общая папка данных, встроенный браузер программы).
+    /// Здесь правилам очистки разрешён только кэш — см. <see cref="CanDeleteDuringStandardCleanup"/>.
+    /// </summary>
+    public static bool IsInsideBrowserProfileArea(string? candidatePath)
+    {
+        if (string.IsNullOrWhiteSpace(candidatePath))
+        {
+            return false;
+        }
+
+        var normalized = candidatePath.Trim().Replace('\\', '/').ToLowerInvariant();
+        if (!normalized.EndsWith('/'))
+        {
+            normalized += "/";
+        }
+
+        foreach (var marker in BrowserAreaMarkers)
+        {
+            if (normalized.Contains(marker, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

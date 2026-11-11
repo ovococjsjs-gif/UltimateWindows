@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "office.ms-office.web-cache",
+      "section": "Office",
+      "app": "Microsoft Office",
+      "title": "Кэш сетевых служб",
+      "explanation": "Данные, которые Office скачал из интернета: шаблоны, справка, сведения служб. Скачаются заново. Документы и несохранённые файлы не затрагиваются.",
+      "kind": "Cache",
+      "default": true,
+      "files": [
+        {
+          "path": "%LocalAppData%\\Microsoft\\Office\\16.0\\WebServiceCache"
+        }
+      ]
+    },
+    {
+      "id": "office.onedrive.logs",
+      "section": "Office",
+      "app": "OneDrive",
+      "title": "Журналы",
+      "explanation": "Журналы синхронизации OneDrive. Файлы в облаке и на диске не затрагиваются.",
+      "kind": "Logs",
+      "default": true,
+      "processes": [
+        "OneDrive"
+      ],
+      "minAgeHours": 24,
+      "files": [
+        {
+          "path": "%LocalAppData%\\Microsoft\\OneDrive\\logs"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\OneDrive\\setup\\logs"
+        }
+      ]
+    },
+    {
+      "id": "office.acrobat.cache",
+      "section": "Office",
+      "app": "Adobe Acrobat",
+      "title": "Кэш",
+      "explanation": "Кэш встроенного браузера и служб Acrobat Reader. Создаётся заново.",
+      "kind": "Cache",
+      "default": true,
+      "files": [
+        {
+          "path": "%LocalAppData%\\Adobe\\Acrobat\\DC\\Cache"
+        },
+        {
+          "path": "%LocalLow%\\Adobe\\AcroCef\\DC\\Acrobat\\Cache"
+        }
+      ]
+    }
+  ]
+}

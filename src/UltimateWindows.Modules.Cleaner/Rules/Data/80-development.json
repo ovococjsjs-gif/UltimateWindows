@@ -1,0 +1,241 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "dev.npm.cache",
+      "section": "Development",
+      "app": "npm",
+      "title": "Кэш пакетов",
+      "explanation": "Скачанные пакеты. При следующей установке или сборке они скачаются заново.",
+      "kind": "Cache",
+      "default": false,
+      "files": [
+        {
+          "path": "%LocalAppData%\\npm-cache\\_cacache"
+        }
+      ]
+    },
+    {
+      "id": "dev.npm.logs",
+      "section": "Development",
+      "app": "npm",
+      "title": "Журналы",
+      "explanation": "Журналы работы программы. Нужны только при поиске причин неполадок.",
+      "kind": "Logs",
+      "default": true,
+      "files": [
+        {
+          "path": "%LocalAppData%\\npm-cache\\_logs"
+        }
+      ]
+    },
+    {
+      "id": "dev.yarn.cache",
+      "section": "Development",
+      "app": "Yarn",
+      "title": "Кэш пакетов",
+      "explanation": "Скачанные пакеты. При следующей установке или сборке они скачаются заново.",
+      "kind": "Cache",
+      "default": false,
+      "files": [
+        {
+          "path": "%LocalAppData%\\Yarn\\Cache"
+        }
+      ]
+    },
+    {
+      "id": "dev.pip.cache",
+      "section": "Development",
+      "app": "pip",
+      "title": "Кэш пакетов",
+      "explanation": "Скачанные пакеты. При следующей установке или сборке они скачаются заново.",
+      "kind": "Cache",
+      "default": false,
+      "files": [
+        {
+          "path": "%LocalAppData%\\pip\\cache"
+        }
+      ]
+    },
+    {
+      "id": "dev.nuget.http-cache",
+      "section": "Development",
+      "app": "NuGet",
+      "title": "Кэш запросов",
+      "explanation": "Ответы серверов пакетов, сохранённые на полчаса. Создаются заново.",
+      "kind": "Cache",
+      "default": true,
+      "files": [
+        {
+          "path": "%LocalAppData%\\NuGet\\v3-cache"
+        },
+        {
+          "path": "%LocalAppData%\\NuGet\\plugins-cache"
+        }
+      ]
+    },
+    {
+      "id": "dev.nuget.packages",
+      "section": "Development",
+      "app": "NuGet",
+      "title": "Скачанные пакеты",
+      "explanation": "Скачанные пакеты. При следующей установке или сборке они скачаются заново.",
+      "kind": "Cache",
+      "default": false,
+      "warning": "Следующая сборка каждого проекта скачает все пакеты заново.",
+      "files": [
+        {
+          "path": "%UserProfile%\\.nuget\\packages"
+        }
+      ]
+    },
+    {
+      "id": "dev.gradle.caches",
+      "section": "Development",
+      "app": "Gradle",
+      "title": "Кэш зависимостей и сборок",
+      "explanation": "Скачанные пакеты. При следующей установке или сборке они скачаются заново.",
+      "kind": "Cache",
+      "default": false,
+      "warning": "Следующая сборка каждого проекта скачает зависимости заново.",
+      "files": [
+        {
+          "path": "%UserProfile%\\.gradle\\caches"
+        }
+      ]
+    },
+    {
+      "id": "dev.gradle.logs",
+      "section": "Development",
+      "app": "Gradle",
+      "title": "Журналы",
+      "explanation": "Журналы работы программы. Нужны только при поиске причин неполадок.",
+      "kind": "Logs",
+      "default": true,
+      "files": [
+        {
+          "path": "%UserProfile%\\.gradle\\daemon",
+          "match": [
+            "*.log"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dev.cargo.cache",
+      "section": "Development",
+      "app": "Cargo",
+      "title": "Скачанные пакеты",
+      "explanation": "Скачанные пакеты. При следующей установке или сборке они скачаются заново.",
+      "kind": "Cache",
+      "default": false,
+      "files": [
+        {
+          "path": "%UserProfile%\\.cargo\\registry\\cache"
+        }
+      ]
+    },
+    {
+      "id": "dev.go.build-cache",
+      "section": "Development",
+      "app": "Go",
+      "title": "Кэш сборки",
+      "explanation": "Результаты прошлых сборок. Следующая сборка пройдёт дольше.",
+      "kind": "Cache",
+      "default": false,
+      "files": [
+        {
+          "path": "%LocalAppData%\\go-build"
+        }
+      ]
+    },
+    {
+      "id": "dev.vscode.cache",
+      "section": "Development",
+      "app": "Visual Studio Code",
+      "title": "Служебный кэш и журналы",
+      "explanation": "Кэш редактора, скачанные пакеты расширений и журналы. Создаются заново; настройки, расширения и несохранённые файлы не затрагиваются.",
+      "kind": "Cache",
+      "default": true,
+      "processes": [
+        "Code"
+      ],
+      "files": [
+        {
+          "path": "%AppData%\\Code*\\CachedData"
+        },
+        {
+          "path": "%AppData%\\Code*\\CachedExtensionVSIXs"
+        },
+        {
+          "path": "%AppData%\\Code*\\logs"
+        }
+      ]
+    },
+    {
+      "id": "dev.visual-studio.component-cache",
+      "section": "Development",
+      "app": "Visual Studio",
+      "title": "Кэш компонентов",
+      "explanation": "Служебный кэш расширений Visual Studio. Создаётся заново при запуске.",
+      "kind": "Cache",
+      "default": true,
+      "processes": [
+        "devenv"
+      ],
+      "skipWhileRunning": true,
+      "files": [
+        {
+          "path": "%LocalAppData%\\Microsoft\\VisualStudio\\*\\ComponentModelCache"
+        }
+      ]
+    },
+    {
+      "id": "dev.jetbrains.logs",
+      "section": "Development",
+      "app": "JetBrains",
+      "title": "Журналы и временные файлы",
+      "explanation": "Журналы и временные файлы сред разработки JetBrains.",
+      "kind": "Logs",
+      "default": true,
+      "files": [
+        {
+          "path": "%LocalAppData%\\JetBrains\\*\\log"
+        },
+        {
+          "path": "%LocalAppData%\\JetBrains\\*\\tmp"
+        }
+      ]
+    },
+    {
+      "id": "dev.jetbrains.caches",
+      "section": "Development",
+      "app": "JetBrains",
+      "title": "Индексы и кэш",
+      "explanation": "Индексы проектов и кэш сред разработки JetBrains. Создаются заново при открытии проекта.",
+      "kind": "Cache",
+      "default": false,
+      "warning": "Проекты после очистки открываются дольше: индексы строятся заново.",
+      "files": [
+        {
+          "path": "%LocalAppData%\\JetBrains\\*\\caches"
+        }
+      ]
+    },
+    {
+      "id": "dev.unreal.ddc",
+      "section": "Development",
+      "app": "Unreal Engine",
+      "title": "Кэш производных данных",
+      "explanation": "Подготовленные данные ресурсов проектов. Создаются заново при открытии проекта.",
+      "kind": "Cache",
+      "default": false,
+      "warning": "Проекты после очистки открываются заметно дольше.",
+      "files": [
+        {
+          "path": "%LocalAppData%\\UnrealEngine\\Common\\DerivedDataCache"
+        }
+      ]
+    }
+  ]
+}

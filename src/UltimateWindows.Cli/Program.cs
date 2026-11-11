@@ -1,6 +1,8 @@
 using System.Text;
 using UltimateWindows.Core.Guards;
+using UltimateWindows.Modules.Cleaner.Browsers;
 using UltimateWindows.Modules.Cleaner.Models;
+using UltimateWindows.Modules.Cleaner.Rules;
 using UltimateWindows.Modules.Cleaner.Services;
 using UltimateWindows.Modules.Drivers.Orchestration;
 using UltimateWindows.Modules.Drivers.Services;
@@ -117,6 +119,74 @@ switch (command)
         break;
     }
 
+    case "clean-apps-scan":
+    case "clean-apps-run":
+    {
+        var winapp2Path = GetOptionValue(args, "--winapp2");
+        if (!string.IsNullOrWhiteSpace(winapp2Path))
+        {
+            var imported = cleaner.ImportExternalWinapp2File(winapp2Path);
+            Console.WriteLine($"Подключён файл правил «{imported.SourceName}»: правил {imported.Rules.Count:N0}, пропущено {imported.Skipped.Count:N0}.");
+        }
+
+        var scan = await cleaner.ScanAppRulesAsync();
+        var present = scan.Findings.Where(f => f.IsPresent && f.HasAnythingToClean).OrderByDescending(f => f.TotalBytes).ToList();
+        Console.WriteLine($"=== Очистка 2.0 — Каталог программ ({scan.Elapsed.TotalSeconds:F2} сек) ===");
+        Console.WriteLine($"Всего найдено : {scan.FormattedTotal} (безопасных по умолчанию: {scan.FormattedSelectedByDefault})");
+        foreach (var f in present)
+        {
+            var mark = f.Rule.SelectedByDefault ? "[по умолч.]" : "[вручную ]";
+            Console.WriteLine($"  {mark} {f.FormattedSize,10} | {f.Application,-26} | {f.Rule.Title} ({f.Rule.Id})");
+        }
+
+        if (command == "clean-apps-run")
+        {
+            var explicitRuleId = GetOptionValue(args, "--rule");
+            var chosen = !string.IsNullOrWhiteSpace(explicitRuleId)
+                ? scan.Findings.Where(f => f.CanCleanNow && (string.Equals(f.Rule.Id, explicitRuleId, StringComparison.OrdinalIgnoreCase) || string.Equals(f.Key, explicitRuleId, StringComparison.OrdinalIgnoreCase))).ToList()
+                : scan.Findings.Where(f => f.Rule.SelectedByDefault && f.CanCleanNow).ToList();
+
+            var exec = await cleaner.ExecuteAppRulesAsync(chosen);
+            Console.WriteLine(exec.UserSummaryMessage);
+        }
+
+        break;
+    }
+
+    case "browser-scan":
+    case "browser-clean":
+    {
+        var keepRaw = GetOptionValue(args, "--keep-cookies");
+        var keepDomains = BrowserDataCleaner.ParseKeepCookieDomains(keepRaw);
+        var details = await cleaner.ScanBrowserDataDetailsAsync(keepDomains);
+        Console.WriteLine("=== Очистка 2.0 — Браузеры по пунктам (пароли и закладки под защитой) ===");
+        foreach (var warn in details.Warnings)
+        {
+            Console.WriteLine($"  [!] {warn}");
+        }
+        foreach (var it in details.Items)
+        {
+            Console.WriteLine($"  - {it.FriendlyTitle,-48} : {it.FormattedAmount}");
+        }
+
+        if (command == "browser-clean")
+        {
+            var sel = new BrowserCleanupSelection
+            {
+                CleanCache = false,
+                CleanHistory = HasFlag(args, "--history"),
+                CleanDownloads = HasFlag(args, "--downloads"),
+                CleanCookies = HasFlag(args, "--cookies"),
+                CleanSessions = HasFlag(args, "--sessions"),
+                KeepCookieDomains = keepDomains
+            };
+            var res = await cleaner.CleanBrowserDataDetailsAsync(sel);
+            Console.WriteLine(res.UserSummaryMessage);
+        }
+
+        break;
+    }
+
     case "disk-map":
     {
         var targetPath = args.Length > 1
@@ -124,6 +194,7 @@ switch (command)
             : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var diskReport = await cleaner.AnalyzeDiskSpaceAsync(targetPath, topDirectoryLimit: 10, largestFilesLimit: 10);
         Console.WriteLine($"=== Карта диска: {diskReport.RootPath} ===");
+        Console.WriteLine($"Способ чтения  : {diskReport.ScanMethodDescription}");
         Console.WriteLine($"Просканировано : {diskReport.FormattedTotalScanned} ({diskReport.TotalFilesCount:N0} файлов) за {diskReport.Elapsed.TotalSeconds:F2} сек");
         Console.WriteLine("\nТоп объемных папок:");
         foreach (var dir in diskReport.TopDirectories)
@@ -735,7 +806,7 @@ switch (command)
 
     default:
     {
-        Console.WriteLine("Доступные команды: status | smart-audit | hardware-audit | stress-test [сек] | drivers-audit [--online] | driver-backup <oemXX.inf> | clean-scan | clean-run | disk-map [путь] | pe-doctor <exe> | bsod-scan | bsod-file <dmp> | repair-list | repair-run <id> | tweak-list [раздел] [--on|--off] | tweak-info <id> | tweak-enable <id> [--force] | tweak-disable <id> | preset-list | preset-apply <набор> [--dry-run] [--force] | tweak-export [yaml] | tweak-import <yaml> [--dry-run] [--force] | service-list [--third-party] [--running] | service-set <имя> <auto|delayed|manual|disabled> | task-list [--third-party] [--enabled] | task-enable <путь> | task-disable <путь> | startup-list | unlock-check <path> | miner-scan [--fast] | miner-heal-os | history | cleanup-blobs | rollback <id> | check-path <path>");
+        Console.WriteLine("Доступные команды: status | smart-audit | hardware-audit | stress-test [сек] | drivers-audit [--online] | driver-backup <oemXX.inf> | clean-scan | clean-run | clean-apps-scan [--winapp2 <ini>] | clean-apps-run [--rule <id>] [--winapp2 <ini>] | browser-scan [--keep-cookies <домены>] | browser-clean [--history] [--downloads] [--cookies] [--sessions] [--keep-cookies <домены>] | disk-map [путь] | pe-doctor <exe> | bsod-scan | bsod-file <dmp> | repair-list | repair-run <id> | tweak-list [раздел] [--on|--off] | tweak-info <id> | tweak-enable <id> [--force] | tweak-disable <id> | preset-list | preset-apply <набор> [--dry-run] [--force] | tweak-export [yaml] | tweak-import <yaml> [--dry-run] [--force] | service-list [--third-party] [--running] | service-set <имя> <auto|delayed|manual|disabled> | task-list [--third-party] [--enabled] | task-enable <путь> | task-disable <путь> | startup-list | unlock-check <path> | miner-scan [--fast] | miner-heal-os | history | cleanup-blobs | rollback <id> | check-path <path>");
         break;
     }
 }
@@ -744,6 +815,19 @@ return 0;
 
 static bool HasFlag(string[] arguments, string flag) =>
     arguments.Any(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase));
+
+static string? GetOptionValue(string[] arguments, string optionName)
+{
+    for (int i = 0; i < arguments.Length - 1; i++)
+    {
+        if (string.Equals(arguments[i], optionName, StringComparison.OrdinalIgnoreCase))
+        {
+            return arguments[i + 1];
+        }
+    }
+
+    return null;
+}
 
 static void PrintBatchPlan(SmartOptimizerService optimizerService, IReadOnlyList<string> tweakIds, string title)
 {

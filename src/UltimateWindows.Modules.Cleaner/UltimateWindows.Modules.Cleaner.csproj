@@ -2,8 +2,17 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>UltimateWindows.Modules.Cleaner</RootNamespace>
-    <Description>Бережная очистка кэша ОС, шейдеров GPU и браузеров с защитой паролей/форм, верифицированная гигиена реестра и быстрый анализ места на диске.</Description>
+    <Description>Очистка 2.0: каталог правил программ и совместимость с Winapp2.ini под защитой BrowserVaultGuard, браузеры по пунктам со списком исключений cookie, гигиена реестра и карта диска через NTFS $MFT.</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Встроенный каталог правил очистки программ. Формат описан в docs/07-CLEANUP-RULES.md -->
+    <EmbeddedResource Include="Rules\Data\*.json" LogicalName="UltimateWindows.Cleaner.Rules.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.15" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\UltimateWindows.Core\UltimateWindows.Core.csproj" />
