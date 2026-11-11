@@ -6,6 +6,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Каталог твиков — файл данных, встроенный в сборку. Формат описан в docs/06-TWEAK-CATALOG.md -->
+    <EmbeddedResource Include="Catalog\tweaks.json" LogicalName="UltimateWindows.Optimizer.tweaks.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\UltimateWindows.Core\UltimateWindows.Core.csproj" />
   </ItemGroup>
 </Project>

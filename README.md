@@ -50,6 +50,7 @@
 - [**`docs/02-ARCHITECTURE.md`**](./docs/02-ARCHITECTURE.md) — Техническая архитектура `UltimateWindows`, выбор технологического стека (`.NET 10`, `C#`, `WPF Fluent`), структура модулей, схемы баз знаний и механизмов безопасности.
 - [**`docs/03-ROADMAP.md`**](./docs/03-ROADMAP.md) — Поэтапный план разработки (от ядра транзакций и MVP до релиза `v1.0` и `v2.0`), стратегия тестирования на виртуальных стендах, CI/CD и цифровая подпись.
 - [**`docs/04-UX-AND-VAULT-DESIGN.md`**](./docs/04-UX-AND-VAULT-DESIGN.md) — Дизайн дружелюбного двухуровневого интерфейса (`Простой ↔ Эксперт`) и система не засоряющих ОС бэкапов (`Zero-Bloat Vault`).
+- [**`docs/06-TWEAK-CATALOG.md`**](./docs/06-TWEAK-CATALOG.md) — Формат файла данных с твиками Оптимизатора: как добавить или поправить твик без правки кода.
 - [**`docs/05-AUDIT-AND-GAP-ANALYSIS.md`**](./docs/05-AUDIT-AND-GAP-ANALYSIS.md) — Аудит текущего кода (ноябрь 2026), измеренное сравнение с эталонами, матрица разрывов и поэтапный план доведения до их уровня.
 
 ---
@@ -115,7 +116,7 @@ dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- miner
 
 `.github/workflows/ci.yml` на каждый push и pull request запускает на `windows-latest` скрипт `scripts/ci.ps1`: сборка всего решения, модульные тесты и пробная сборка портативной версии. Итог каждого шага попадает в сводку запуска, а ошибки компиляции и упавшие тесты — в аннотации с файлом и строкой.
 
-Пока файл рабочего процесса не добавлен в `.github/workflows/`, его готовое содержимое лежит в [`docs/ci-workflow-template.yml`](./docs/ci-workflow-template.yml) — скопируйте его в `.github/workflows/ci.yml`. Тот же скрипт можно запустить локально: `\.\scripts\ci.ps1`.
+Копия рабочего процесса лежит в [`docs/ci-workflow-template.yml`](./docs/ci-workflow-template.yml). Тот же скрипт можно запустить локально: `.\scripts\ci.ps1`.
 
 ## Лицензия
 
