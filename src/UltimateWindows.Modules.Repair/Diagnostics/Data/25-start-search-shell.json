@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "section": "StartAndSearch",
+  "rules": [
+    {
+      "id": "shell.ctfmon-uwp-typing",
+      "title": "Ввод с клавиатуры в меню «Пуск», Поиске и Параметрах Windows (ctfmon.exe)",
+      "symptom": "В браузере и Блокноте клавиатура печатает нормально, но в строке Поиска Windows, меню «Пуск» и Параметрах буквы не вводятся.",
+      "explanation": "Текстовые поля современных окон XAML/UWP работают через загрузчик текстовых служб ctfmon.exe и службу ввода. Если ctfmon не запущен, ввод в «Пуске» и Поиске полностью перестаёт работать.",
+      "fixSummary": "Запускает системный процесс C:\\Windows\\System32\\ctfmon.exe и восстанавливает службу текстового ввода.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": false,
+      "reversible": false,
+      "customProbe": "shell-ctfmon-typing"
+    },
+    {
+      "id": "shell.win11-xaml-packages",
+      "title": "Регистрация системных пакетов XAML оболочки («Пуск», Панель задач, Поиск)",
+      "symptom": "Кнопка «Пуск» не реагирует на нажатие, Панель задач пустая или окно Параметров закрывается при открытии.",
+      "explanation": "После сбоя обновления (особенно в Windows 11 24H2/25H2) нарушается регистрация пакетов StartMenuExperienceHost, MicrosoftWindows.Client.CBS и Microsoft.UI.Xaml.CBS.",
+      "fixSummary": "Перерегистрирует манифесты системных пакетов оболочки (Add-AppxPackage -DisableDevelopmentMode -Register) без потери настроек.",
+      "severity": "Critical",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": false,
+      "minBuild": 19041,
+      "errorCodes": ["0xC000027B", "0x80040154"],
+      "customProbe": "shell-win11-xaml-packages"
+    },
+    {
+      "id": "search.wsearch-service",
+      "title": "Служба индексирования Windows Search (WSearch)",
+      "symptom": "Поиск в Проводнике и меню «Пуск» не находит файлы на диске или пишет «Индексирование отключено».",
+      "explanation": "Служба WSearch переведена в состояние «Отключена», из-за чего прекращается быстрый индексный поиск документов, писем и ярлыков.",
+      "fixSummary": "Возвращает службе WSearch штатный отложенный автоматический запуск и запускает её.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "WSearch", "healthyStartup": "AutomaticDelayed", "startIfStopped": true }
+      ]
+    },
+    {
+      "id": "shell.event-brokers",
+      "title": "Брокеры фоновых событий оболочки (SystemEventsBroker и TimeBrokerSvc)",
+      "symptom": "Не открываются календарь, центр уведомлений и меню быстрых настроек на панели задач.",
+      "explanation": "Элементы панели задач Windows 10/11 опираются на брокеры SystemEventsBroker и TimeBrokerSvc. Их отключение парализует всплывающие панели оболочки.",
+      "fixSummary": "Восстанавливает штатный режим запуска SystemEventsBroker и TimeBrokerSvc.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "SystemEventsBroker", "healthyStartup": "Automatic" },
+        { "serviceName": "TimeBrokerSvc", "healthyStartup": "Manual" }
+      ]
+    },
+    {
+      "id": "shell.core-messaging",
+      "title": "Служба обмена сообщениями интерфейса Windows (CoreMessagingRegistrar)",
+      "symptom": "Зависает рабочий стол, не открывается меню «Пуск» и переключатель окон Alt+Tab.",
+      "explanation": "CoreMessagingRegistrar связывает композитор окон DWM и оболочку Windows. Отключение этой службы приводит к тяжёлым сбоям интерфейса.",
+      "fixSummary": "Возвращает автоматический запуск CoreMessagingRegistrar.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "CoreMessagingRegistrar", "healthyStartup": "Automatic" }
+      ]
+    },
+    {
+      "id": "shell.lock-taskbar-policies",
+      "title": "Блокирующие политики меню «Пуск» и Панели задач (NoSetTaskbar / LockTaskbar)",
+      "symptom": "Недоступны настройки Панели задач, нельзя закрепить или открепить значки.",
+      "explanation": "В разделе политик Explorer выставлены ограничения LockTaskbar или NoSetTaskbar.",
+      "fixSummary": "Снимает блокирующие политики LockTaskbar и NoSetTaskbar.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "NoSetTaskbar",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "LockTaskbar",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "shell.settings-page-visibility",
+      "title": "Скрытые разделы приложения «Параметры» (SettingsPageVisibility)",
+      "symptom": "В приложении «Параметры» бесследно пропали отдельные вкладки (например Центр обновления, Экран или Защита).",
+      "explanation": "Политика SettingsPageVisibility со значением hide:... или showonly:... скрывает страницы Параметров Windows от пользователя.",
+      "fixSummary": "Удаляет фильтр скрытия страниц SettingsPageVisibility в HKLM и HKCU.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "SettingsPageVisibility",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "SettingsPageVisibility",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    }
+  ]
+}

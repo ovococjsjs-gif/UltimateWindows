@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "section": "DisplayGamingAndVirtualization",
+  "rules": [
+    {
+      "id": "disp.tdr-disabled-danger",
+      "title": "Опасное отключение восстановления видеодрайвера (TdrLevel = 0)",
+      "symptom": "Вместо краткого моргания экрана при зависании шейдера в игре компьютер намертво виснет до нажатия кнопки питания.",
+      "explanation": "Советы с форумов иногда предлагают выставить TdrLevel = 0 в GraphicsDrivers, что полностью отключает механизм перезапуска зависшего GPU.",
+      "fixSummary": "Удаляет опасный параметр TdrLevel = 0, возвращая штатное восстановление видеодрайвера Windows.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x887A0005", "0x887A0006", "0x00000116"],
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+          "valueName": "TdrLevel",
+          "expectation": "MustNotEqualDword",
+          "expectedDword": 0,
+          "fixKind": "DeleteValue",
+          "onlyIfKeyExists": true
+        }
+      ]
+    },
+    {
+      "id": "disp.dwm-gpu-software-override",
+      "title": "Принудительный программный рендеринг окон на процессоре вместо видеокарты",
+      "symptom": "Перетаскивание окон и прокрутка браузера тормозят, хотя драйвер видеокарты установлен.",
+      "explanation": "В реестре включён флаг DisableHWAcceleration = 1 для WPF/Avalon или DWM.",
+      "fixSummary": "Удаляет принудительное отключение аппаратного ускорения графики интерфейса.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": false,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Avalon.Graphics",
+          "valueName": "DisableHWAcceleration",
+          "expectation": "MustNotEqualDword",
+          "expectedDword": 1,
+          "fixKind": "DeleteValue",
+          "onlyIfKeyExists": true
+        }
+      ]
+    },
+    {
+      "id": "virt.hypervisor-launch-off",
+      "title": "Отключённый запуск гипервизора для WSL2, Docker и Песочницы Windows (hypervisorlaunchtype = Off)",
+      "symptom": "WSL2, Docker Desktop или Windows Sandbox не запускаются с ошибкой 0x80370102, хотя виртуализация в BIOS включена.",
+      "explanation": "Для старых эмуляторов или античитов ранее выполнялась команда bcdedit /set hypervisorlaunchtype off, которая отражается в параметрах загрузки.",
+      "fixSummary": "Возвращает штатную настройку запуска гипервизора, если установлен параметр блокировки виртуализации.",
+      "severity": "Info",
+      "risk": "Moderate",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\DeviceGuard",
+          "valueName": "EnableVirtualizationBasedSecurity",
+          "expectation": "MustNotEqualDword",
+          "expectedDword": 0,
+          "fixKind": "DeleteValue",
+          "onlyIfKeyExists": true
+        }
+      ]
+    },
+    {
+      "id": "virt.vmcompute-service",
+      "title": "Служба вычислений узла виртуализации (vmcompute) для WSL2 и Песочницы",
+      "symptom": "Контейнеры WSL2 и Windows Sandbox завершаются с ошибкой «Служба вычислений хоста не запущена».",
+      "explanation": "Служба vmcompute переведена в состояние «Отключена».",
+      "fixSummary": "Возвращает службе vmcompute штатный режим запуска «Вручную».",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "vmcompute", "healthyStartup": "Manual" }
+      ]
+    },
+    {
+      "id": "game.directplay-dinput-compat",
+      "title": "Служба помощника по совместимости программ (PcaSvc) для старых игр и установщиков",
+      "symptom": "Классические игры и старые установщики закрываются без применения автоматических шимов совместимости Windows.",
+      "explanation": "Служба PcaSvc была отключена твикером.",
+      "fixSummary": "Возвращает штатный запуск службы PcaSvc.",
+      "severity": "Info",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "PcaSvc", "healthyStartup": "Automatic" }
+      ]
+    }
+  ]
+}

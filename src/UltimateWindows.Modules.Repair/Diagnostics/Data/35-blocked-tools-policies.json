@@ -1,0 +1,334 @@
+{
+  "schemaVersion": 1,
+  "section": "SystemToolsAndPolicies",
+  "rules": [
+    {
+      "id": "tools.unlock-taskmgr",
+      "title": "Разблокировка Диспетчера задач (DisableTaskMgr)",
+      "symptom": "Ctrl+Shift+Esc не работает или появляется окно «Диспетчер задач отключён администратором».",
+      "explanation": "Вирусы и майнеры выставляют параметр DisableTaskMgr = 1, чтобы пользователь не мог увидеть нагрузку на CPU и GPU.",
+      "fixSummary": "Удаляет блокировку DisableTaskMgr в HKCU и HKLM.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+          "valueName": "DisableTaskMgr",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+          "valueName": "DisableTaskMgr",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "tools.unlock-regedit",
+      "title": "Разблокировка Редактора реестра (DisableRegistryTools)",
+      "symptom": "При запуске regedit.exe появляется ошибка «Редактирование реестра запрещено администратором системы».",
+      "explanation": "В политиках системы включён запрет DisableRegistryTools.",
+      "fixSummary": "Удаляет параметр DisableRegistryTools в HKCU и HKLM.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x80070005"],
+      "registry": [
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+          "valueName": "DisableRegistryTools",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+          "valueName": "DisableRegistryTools",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "tools.unlock-cmd",
+      "title": "Разблокировка Командной строки (DisableCMD)",
+      "symptom": "Окно cmd.exe сразу закрывается с сообщением «Командная строка отключена администратором».",
+      "explanation": "В разделе Policies\\Microsoft\\Windows\\System установлен параметр DisableCMD.",
+      "fixSummary": "Удаляет блокировку DisableCMD в HKCU и HKLM.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x80070005"],
+      "registry": [
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Policies\\Microsoft\\Windows\\System",
+          "valueName": "DisableCMD",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+          "valueName": "DisableCMD",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "tools.unlock-control-panel",
+      "title": "Разблокировка Панели управления и Параметров Windows (NoControlPanel)",
+      "symptom": "При открытии Параметров (Win+I) или Панели управления выдаётся «Операция отменена вследствие действующих для компьютера ограничений».",
+      "explanation": "Политика NoControlPanel = 1 блокирует одновременно и классическую Панель управления, и современное приложение «Параметры».",
+      "fixSummary": "Удаляет политику NoControlPanel в HKCU и HKLM.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "NoControlPanel",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "NoControlPanel",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "tools.unlock-win-r-run",
+      "title": "Разблокировка диалога «Выполнить» Win+R (NoRun)",
+      "symptom": "Сочетание клавиш Win+R не открывает окно «Выполнить».",
+      "explanation": "В политиках Проводника установлен запрет NoRun = 1.",
+      "fixSummary": "Удаляет политику NoRun в HKCU и HKLM.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "NoRun",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "NoRun",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "tools.unlock-folder-options",
+      "title": "Разблокировка «Параметров папок» Проводника (NoFolderOptions)",
+      "symptom": "В меню Проводника пропал пункт «Параметры» — невозможно включить показ скрытых файлов и расширений.",
+      "explanation": "Трояны скрывают свои файлы и выставляют политику NoFolderOptions = 1, чтобы пользователь не смог включить отображение скрытых папок.",
+      "fixSummary": "Удаляет политику NoFolderOptions в HKCU и HKLM.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "NoFolderOptions",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "NoFolderOptions",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "tools.unlock-mmc-snapins",
+      "title": "Разблокировка оснасток управления MMC (Диспетчер устройств, Службы, Управление дисками)",
+      "symptom": "При открытии devmgmt.msc, services.msc или diskmgmt.msc появляется сообщение о блокировке оснастки MMC.",
+      "explanation": "Политика RestrictToPermittedSnapins блокирует стандартные административные консоли Windows.",
+      "fixSummary": "Удаляет ограничение RestrictToPermittedSnapins в HKCU и HKLM.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Policies\\Microsoft\\MMC",
+          "valueName": "RestrictToPermittedSnapins",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\MMC",
+          "valueName": "RestrictToPermittedSnapins",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "tools.disallow-run-policy",
+      "title": "Скрытый список запрещённых к запуску программ (DisallowRun)",
+      "symptom": "Антивирусные сканеры, браузеры или системные утилиты отказываются запускаться с окном об ограничениях.",
+      "explanation": "Майнеры включают флаг DisallowRun = 1 в политиках Explorer, блокируя запуск диагностических программ по именам.",
+      "fixSummary": "Отключает политику DisallowRun в HKCU и HKLM.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "DisallowRun",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "DisallowRun",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "tools.ifeo-taskmgr-regedit",
+      "title": "Перехват запуска Диспетчера задач и Редактора реестра через IFEO Debugger",
+      "symptom": "При запуске taskmgr.exe или regedit.exe открывается посторонняя программа либо выдаётся ошибка «Файл не найден».",
+      "explanation": "В разделе Image File Execution Options прописан параметр Debugger для taskmgr.exe или regedit.exe.",
+      "fixSummary": "Удаляет перехватчик Debugger у taskmgr.exe и regedit.exe.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\taskmgr.exe",
+          "valueName": "Debugger",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\regedit.exe",
+          "valueName": "Debugger",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "tools.ifeo-cmd-powershell",
+      "title": "Перехват запуска cmd.exe, powershell.exe и mmc.exe через IFEO Debugger",
+      "symptom": "Терминал, PowerShell или консоли управления не запускаются даже от имени администратора.",
+      "explanation": "В разделе Image File Execution Options установлен перехватчик Debugger для cmd.exe, powershell.exe или mmc.exe.",
+      "fixSummary": "Удаляет перехватчики Debugger у cmd.exe, powershell.exe и mmc.exe.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\cmd.exe",
+          "valueName": "Debugger",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\powershell.exe",
+          "valueName": "Debugger",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\mmc.exe",
+          "valueName": "Debugger",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "tools.unlock-system-restore",
+      "title": "Политика блокировки Восстановления системы Windows (DisableSR / DisableConfig)",
+      "symptom": "Окно создания точек восстановления неактивно, кнопки настройки защиты системы серые.",
+      "explanation": "В разделе Policies\\Microsoft\\Windows NT\\SystemRestore выставлен запрет DisableSR или DisableConfig.",
+      "fixSummary": "Удаляет политики блокировки Восстановления системы DisableSR и DisableConfig.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows NT\\SystemRestore",
+          "valueName": "DisableSR",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows NT\\SystemRestore",
+          "valueName": "DisableConfig",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "tools.unlock-powershell-execution",
+      "title": "Политика полного запрета сценариев PowerShell (EnableScripts = 0)",
+      "symptom": "Любой системный или пользовательский скрипт PowerShell блокируется политикой EnableScripts.",
+      "explanation": "В разделе политик PowerShell установлен запрет EnableScripts = 0.",
+      "fixSummary": "Удаляет принудительный запрет EnableScripts = 0.",
+      "severity": "Warning",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell",
+          "valueName": "EnableScripts",
+          "expectation": "MustNotEqualDword",
+          "expectedDword": 0,
+          "fixKind": "DeleteValue",
+          "onlyIfKeyExists": true
+        }
+      ]
+    }
+  ]
+}

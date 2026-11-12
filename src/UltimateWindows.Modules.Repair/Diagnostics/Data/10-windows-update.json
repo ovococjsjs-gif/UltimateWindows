@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 1,
+  "section": "WindowsUpdate",
+  "rules": [
+    {
+      "id": "wu.core-services",
+      "title": "Службы Центра обновления Windows (wuauserv, BITS, UsoSvc, TrustedInstaller)",
+      "symptom": "Центр обновления выдаёт ошибку 0x80070422 или бесконечно крутит индикатор проверки.",
+      "explanation": "Для скачивания и установки обновлений необходимы службы wuauserv, BITS, UsoSvc, CryptSvc и установщик модулей TrustedInstaller. Сторонние твикеры часто переводят их в состояние «Отключена».",
+      "fixSummary": "Восстанавливает штатный режим запуска служб обновления (Вручную / Автоматически) и запускает CryptSvc.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x80070422", "0x8024001E", "0x80246008"],
+      "services": [
+        { "serviceName": "wuauserv", "healthyStartup": "Manual" },
+        { "serviceName": "BITS", "healthyStartup": "Manual" },
+        { "serviceName": "UsoSvc", "healthyStartup": "AutomaticDelayed" },
+        { "serviceName": "TrustedInstaller", "healthyStartup": "Manual" },
+        { "serviceName": "CryptSvc", "healthyStartup": "Automatic", "startIfStopped": true }
+      ]
+    },
+    {
+      "id": "wu.delivery-optimization-service",
+      "title": "Служба оптимизации доставки (DoSvc) для Магазина и обновлений",
+      "symptom": "Приложения из Microsoft Store и накопительные обновления зависают на 0% загрузки.",
+      "explanation": "В Windows 10 и 11 загрузка пакетов Store и обновлений идёт через службу DoSvc. Если она полностью отключена, часть пакетов перестаёт скачиваться.",
+      "fixSummary": "Возвращает службе DoSvc штатный режим запуска «Вручную».",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x80240034", "0x80073CF9"],
+      "services": [
+        { "serviceName": "DoSvc", "healthyStartup": "Manual" }
+      ]
+    },
+    {
+      "id": "wu.access-policies",
+      "title": "Блокировка Центра обновления групповыми политиками",
+      "symptom": "В окне Центра обновления написано «Некоторыми параметрами управляет ваша организация», кнопка проверки неактивна.",
+      "explanation": "В разделе политик WindowsUpdate выставлены параметры DisableWindowsUpdateAccess или SetDisableUXWUAccess, блокирующие доступ пользователя к обновлениям.",
+      "fixSummary": "Удаляет блокирующие параметры DisableWindowsUpdateAccess, SetDisableUXWUAccess и NoAutoUpdate (с сохранением копии в Машине времени).",
+      "severity": "Broken",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x8024500C"],
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+          "valueName": "DisableWindowsUpdateAccess",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+          "valueName": "SetDisableUXWUAccess",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\WindowsUpdate",
+          "valueName": "DisableWindowsUpdateAccess",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "wu.wsus-hijack-policy",
+      "title": "Поддельный или недоступный сервер обновлений WSUS (UseWUServer)",
+      "symptom": "Обновления и .NET 3.5 не скачиваются с ошибками 0x8024402C, 0x8024500C или 0x800F081F на домашнем ПК.",
+      "explanation": "Твикеры «отключения обновлений» часто прописывают несуществующий корпоративный сервер WSUS (например 127.0.0.1), из-за чего Windows перестаёт обращаться к официальным серверам Microsoft.",
+      "fixSummary": "Отключает принудительное перенаправление UseWUServer и очищает фиктивный адрес WUServer.",
+      "severity": "Broken",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x800F081F", "0x800F0906", "0x8024402C", "0x8024500C"],
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU",
+          "valueName": "UseWUServer",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+          "valueName": "WUServer",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+          "valueName": "WUStatusServer",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "wu.medic-service-lock",
+      "title": "Служба восстановления Центра обновления (WaaSMedicSvc)",
+      "symptom": "Самодиагностика Центра обновления не может восстановить повреждённые компоненты.",
+      "explanation": "Сторонние утилиты блокировки обновлений намеренно ломают параметр Start у WaaSMedicSvc (ставят 4 — Отключена).",
+      "fixSummary": "Возвращает штатное значение Start = 3 (Вручную) в разделе реестра службы WaaSMedicSvc.",
+      "severity": "Warning",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SYSTEM\\CurrentControlSet\\Services\\WaaSMedicSvc",
+          "valueName": "Start",
+          "expectation": "MustNotEqualDword",
+          "expectedDword": 4,
+          "fixKind": "SetDword",
+          "fixDword": 3,
+          "onlyIfKeyExists": true
+        }
+      ]
+    },
+    {
+      "id": "wu.driver-exclusion-policy",
+      "title": "Принудительный запрет обновления драйверов через Центр обновления",
+      "symptom": "Новые устройства остаются с базовым драйвером, Windows Update не подтягивает подписанные WHQL-драйверы.",
+      "explanation": "В политиках включён параметр ExcludeWUDriversInQualityUpdate, запрещающий загрузку драйверов.",
+      "fixSummary": "Удаляет политику ExcludeWUDriversInQualityUpdate с возможностью отката в 1 клик.",
+      "severity": "Info",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+          "valueName": "ExcludeWUDriversInQualityUpdate",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "wu.pending-reboot",
+      "title": "Зависший флаг ожидающей перезагрузки (RebootRequired / PendingFileRename)",
+      "symptom": "Обновления и установщики MSI отказываются запускаться с ошибкой 0x80070BC9 или 1603 («Сначала перезагрузите компьютер»).",
+      "explanation": "Предыдущее обновление компонентов CBS или установщик оставил маркер RebootPending / RebootRequired.",
+      "fixSummary": "Показывает точный источник ожидания перезагрузки и очищает осиротевший флаг RebootRequired (либо подсказывает выполнить штатную перезагрузку).",
+      "severity": "Warning",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": false,
+      "errorCodes": ["0x80070BC9", "0x80070643", "1603"],
+      "customProbe": "wu-pending-reboot"
+    },
+    {
+      "id": "wu.reset-corrupt-cache",
+      "title": "Целостность кэша SoftwareDistribution, очереди BITS и подписей catroot2",
+      "symptom": "Обновление зависает на одном проценте или падает с кодом 0x80070002, 0x8007000D, 0x80248007.",
+      "explanation": "Проверяет журнал отказов WindowsUpdateClient и застрявшие загрузки; при повреждении безопасно переименовывает SoftwareDistribution и catroot2 в *.uw-old и очищает qmgr*.dat.",
+      "fixSummary": "Выполняет полный безопасный сброс кэша Центра обновления и перезапускает его службы.",
+      "severity": "Broken",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": false,
+      "errorCodes": ["0x80070002", "0x8007000D", "0x80240022", "0x80248007"],
+      "customProbe": "wu-corrupt-cache"
+    }
+  ]
+}

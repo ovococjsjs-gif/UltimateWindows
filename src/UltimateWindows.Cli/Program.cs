@@ -9,6 +9,9 @@ using UltimateWindows.Modules.Drivers.Services;
 using UltimateWindows.Modules.Hardware.Services;
 using UltimateWindows.Modules.Optimizer.Models;
 using UltimateWindows.Modules.Optimizer.Services;
+using UltimateWindows.Modules.Repair.Catalog;
+using UltimateWindows.Modules.Repair.Diagnostics;
+using UltimateWindows.Modules.Repair.ErrorCodes;
 using UltimateWindows.Modules.Repair.Models;
 using UltimateWindows.Modules.Repair.Services;
 using UltimateWindows.Modules.Safety.Services;
@@ -292,6 +295,182 @@ switch (command)
         {
             Console.WriteLine(res.TechnicalLogOutput);
         }
+        break;
+    }
+
+    case "repair-scan":
+    {
+        var onlyIssues = HasFlag(args, "--issues");
+        var secArg = args.Skip(1).FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal));
+        RepairSectionId? sectionFilter = null;
+        if (!string.IsNullOrWhiteSpace(secArg) && Enum.TryParse<RepairSectionId>(secArg, ignoreCase: true, out var parsedSec))
+        {
+            sectionFilter = parsedSec;
+        }
+
+        var findings = await repair.ScanSystemHealthAsync(sectionFilter);
+        var issues = findings.Count(f => f.State == RepairHealthState.IssueDetected);
+        var healthy = findings.Count(f => f.State == RepairHealthState.Healthy);
+        Console.WriteLine($"=== Ремонт и DLL 2.0 — Диагностика ОС: проверено {findings.Count} правил (найдено отклонений: {issues}, в норме: {healthy}) ===");
+
+        foreach (var f in findings.Where(f => !onlyIssues || f.State == RepairHealthState.IssueDetected))
+        {
+            Console.WriteLine($"  [{f.StateBadge,-18}] {f.Rule.Id,-34} | {f.Rule.Title}");
+            if (f.State == RepairHealthState.IssueDetected)
+            {
+                Console.WriteLine($"      Обнаружено : {f.Evidence}");
+                Console.WriteLine($"      Исправление: {f.Rule.FixSummary}");
+            }
+        }
+        break;
+    }
+
+    case "repair-fix":
+    {
+        var force = HasFlag(args, "--force");
+        var allFound = HasFlag(args, "--all-found");
+        List<string> targetIds;
+
+        if (allFound)
+        {
+            var findings = await repair.ScanSystemHealthAsync();
+            targetIds = findings
+                .Where(f => f.State == RepairHealthState.IssueDetected && (force || !f.Rule.RequiresExplicitConfirmation))
+                .Select(f => f.Rule.Id)
+                .ToList();
+            if (targetIds.Count == 0)
+            {
+                Console.WriteLine("Отклонений для автоматического исправления не обнаружено.");
+                break;
+            }
+        }
+        else
+        {
+            targetIds = args.Skip(1).Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToList();
+            if (targetIds.Count == 0)
+            {
+                Console.WriteLine("Использование: UltimateWindows.Cli repair-fix <rule-id...> [--force] | repair-fix --all-found [--force]");
+                return 1;
+            }
+        }
+
+        var batch = await repair.FixIssuesAsync(targetIds, allowRiskyConfirmed: force);
+        foreach (var o in batch.Outcomes)
+        {
+            var tag = o.VerifiedHealthyAfterFix ? "ПРОВЕРЕНО" : o.FixSucceeded ? "ВЫПОЛНЕНО" : "ОШИБКА";
+            Console.WriteLine($"  [{tag,-9}] {o.RuleId,-34} | {o.Message}");
+        }
+        Console.WriteLine(batch.SummaryHeadline);
+        if (batch.RollbackSessionId is { } rbId)
+        {
+            Console.WriteLine($"Откат в 1 команду: UltimateWindows.Cli rollback {rbId}");
+        }
+        break;
+    }
+
+    case "error-lookup":
+    {
+        if (args.Length < 2)
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli error-lookup <код или ключевое слово> (например 0xC000007B, 0x80070005, -2147024891, 1603)");
+            return 1;
+        }
+
+        var query = string.Join(' ', args.Skip(1));
+        var matches = repair.SearchErrorCodes(query, maxResults: 12);
+        if (matches.Count == 0)
+        {
+            Console.WriteLine($"По запросу «{query}» совпадений не найдено.");
+            break;
+        }
+
+        Console.WriteLine($"=== Справочник кодов ошибок Windows: найдено {matches.Count} ===");
+        foreach (var e in matches)
+        {
+            Console.WriteLine($"\n[{e.DisplayCode}] {e.SymbolicName} ({e.FamilyTitle})");
+            Console.WriteLine($"  Суть   : {e.ShortTitle}");
+            Console.WriteLine($"  Причина: {e.DetailedExplanation}");
+            Console.WriteLine($"  Решение: {e.RecommendedFixSteps}");
+            if (e.RelatedRepairRuleIds.Count > 0)
+            {
+                Console.WriteLine($"  Правила: {string.Join(", ", e.RelatedRepairRuleIds)}");
+            }
+            if (e.RelatedRuntimePackageKeys.Count > 0)
+            {
+                Console.WriteLine($"  Пакеты : {string.Join(", ", e.RelatedRuntimePackageKeys)}");
+            }
+        }
+        break;
+    }
+
+    case "runtime-list":
+    {
+        var statuses = await repair.GetOfficialRuntimeStatusesAsync();
+        Console.WriteLine($"=== Официальные среды выполнения ({statuses.Count(s => s.IsInstalled)} из {statuses.Count} установлены) ===");
+        foreach (var st in statuses)
+        {
+            Console.WriteLine($"  [{st.StatusBadge,-24}] {st.Package.PackageKey,-26} | {st.Package.FriendlyName}");
+        }
+        break;
+    }
+
+    case "runtime-install":
+    {
+        if (args.Length < 2)
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli runtime-install <package-key> (список: runtime-list)");
+            return 1;
+        }
+
+        var pkg = OfficialRuntimeCatalog.GetByKey(args[1]);
+        if (pkg is null)
+        {
+            Console.WriteLine($"Неизвестный пакет «{args[1]}». Выполните runtime-list для просмотра ключей.");
+            return 1;
+        }
+
+        var res = await repair.InstallOfficialRuntimeAsync(pkg);
+        Console.WriteLine(res.UserFriendlySummary);
+        if (!res.Succeeded && !string.IsNullOrWhiteSpace(res.TechnicalLogOutput))
+        {
+            Console.WriteLine(res.TechnicalLogOutput);
+            return 1;
+        }
+        break;
+    }
+
+    case "deps-scan-installed":
+    {
+        var scan = await repair.ScanInstalledProgramsDependenciesAsync();
+        Console.WriteLine($"=== Проверка DLL установленных программ: проверено {scan.ExecutablesInspected} из {scan.TotalProgramsFound} ({scan.Elapsed.TotalSeconds:F2} сек) ===");
+        if (scan.BrokenPrograms.Count == 0)
+        {
+            Console.WriteLine("[OK] Конфликтов 0xC000007B и отсутствующих библиотек сред выполнения не обнаружено.");
+        }
+        else
+        {
+            foreach (var b in scan.BrokenPrograms)
+            {
+                Console.WriteLine($"  [!] {b.Program.DisplayName} ({b.Program.ExecutablePath})");
+                Console.WriteLine($"      DLL   : {b.MissingOrConflictingDllsSummary}");
+                Console.WriteLine($"      Пакеты: {b.RecommendedPackagesSummary}");
+            }
+        }
+        break;
+    }
+
+    case "cbs-scan":
+    {
+        var cbs = repair.AnalyzeCbsLog();
+        var rec = repair.GetInPlaceReinstallReadiness();
+        Console.WriteLine("=== Анализ CBS.log и готовности восстановления ОС ===");
+        Console.WriteLine($"Вердикт CBS.log : {cbs.HumanVerdict}");
+        if (cbs.UnrepairableFiles.Count > 0)
+        {
+            Console.WriteLine($"Невосстановлено : {string.Join(", ", cbs.UnrepairableFiles.Take(10))}");
+        }
+        Console.WriteLine($"Крайняя мера    : {rec.RecommendedMethodTitle}");
+        Console.WriteLine($"Свободно на C:\\ : {rec.FreeSystemDriveGb:F1} ГБ (достаточно >= 20 ГБ: {(rec.HasEnoughDiskSpace ? "Да" : "Нет")})");
         break;
     }
 
@@ -806,7 +985,7 @@ switch (command)
 
     default:
     {
-        Console.WriteLine("Доступные команды: status | smart-audit | hardware-audit | stress-test [сек] | drivers-audit [--online] | driver-backup <oemXX.inf> | clean-scan | clean-run | clean-apps-scan [--winapp2 <ini>] | clean-apps-run [--rule <id>] [--winapp2 <ini>] | browser-scan [--keep-cookies <домены>] | browser-clean [--history] [--downloads] [--cookies] [--sessions] [--keep-cookies <домены>] | disk-map [путь] | pe-doctor <exe> | bsod-scan | bsod-file <dmp> | repair-list | repair-run <id> | tweak-list [раздел] [--on|--off] | tweak-info <id> | tweak-enable <id> [--force] | tweak-disable <id> | preset-list | preset-apply <набор> [--dry-run] [--force] | tweak-export [yaml] | tweak-import <yaml> [--dry-run] [--force] | service-list [--third-party] [--running] | service-set <имя> <auto|delayed|manual|disabled> | task-list [--third-party] [--enabled] | task-enable <путь> | task-disable <путь> | startup-list | unlock-check <path> | miner-scan [--fast] | miner-heal-os | history | cleanup-blobs | rollback <id> | check-path <path>");
+        Console.WriteLine("Доступные команды: status | smart-audit | hardware-audit | stress-test [сек] | drivers-audit [--online] | driver-backup <oemXX.inf> | clean-scan | clean-run | clean-apps-scan [--winapp2 <ini>] | clean-apps-run [--rule <id>] [--winapp2 <ini>] | browser-scan [--keep-cookies <домены>] | browser-clean [--history] [--downloads] [--cookies] [--sessions] [--keep-cookies <домены>] | disk-map [путь] | pe-doctor <exe> | deps-scan-installed | runtime-list | runtime-install <key> | repair-scan [раздел] [--issues] | repair-fix <id|--all-found> [--force] | error-lookup <код> | cbs-scan | bsod-scan | bsod-file <dmp> | repair-list | repair-run <id> | tweak-list [раздел] [--on|--off] | tweak-info <id> | tweak-enable <id> [--force] | tweak-disable <id> | preset-list | preset-apply <набор> [--dry-run] [--force] | tweak-export [yaml] | tweak-import <yaml> [--dry-run] [--force] | service-list [--third-party] [--running] | service-set <имя> <auto|delayed|manual|disabled> | task-list [--third-party] [--enabled] | task-enable <путь> | task-disable <путь> | startup-list | unlock-check <path> | miner-scan [--fast] | miner-heal-os | history | cleanup-blobs | rollback <id> | check-path <path>");
         break;
     }
 }

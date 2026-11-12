@@ -103,6 +103,39 @@ public sealed class MainWindowSmokeTests
             notes.Add($"очистка-каталог: {cleanerVm.AppRulesStatusText}");
             notes.Add($"карта-диска: {cleanerVm.DiskMapStatusText}");
 
+            reached = "ремонт 2.0: все 5 вкладок и живая диагностика ОС";
+            main.SelectedDomain = SystemDomain.DllAndRepair;
+            var repairVm = main.RepairStudio;
+            await repairVm.ScanDiagnosticsAsync();
+            await repairVm.RefreshRuntimeStatusesAsync();
+            await repairVm.ScanBsodAndCrashLogsAsync();
+            repairVm.RunExecutableDiagnosis();
+
+            // Проверка на минимальном разрешении 1024×768 без обрезки вкладок и кнопок
+            window.Width = 1024;
+            window.Height = 768;
+            repairVm.SelectedSubTabIndex = 0;
+            await surface.SettleAsync();
+            surface.Save("repair-tab-0-1024");
+
+            window.Width = 1360;
+            window.Height = 840;
+            for (var rtab = 0; rtab <= 4; rtab++)
+            {
+                repairVm.SelectedSubTabIndex = rtab;
+                if (rtab == 3)
+                {
+                    repairVm.ErrorSearchQuery = "0x80070005";
+                }
+
+                await surface.SettleAsync();
+                surface.Save($"repair-tab-{rtab}");
+            }
+
+            Assert.Empty(trace.Errors);
+            notes.Add($"ремонт-диагностика: {repairVm.DiagnosticsSummaryText}");
+            notes.Add($"ремонт-пакеты: {repairVm.RuntimeCatalogHeadline}");
+
             reached = "конец";
         }
         finally

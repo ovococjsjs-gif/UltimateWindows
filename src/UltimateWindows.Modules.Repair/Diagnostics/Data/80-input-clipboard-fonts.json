@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "section": "InputClipboardAndFonts",
+  "rules": [
+    {
+      "id": "input.clipboard-history-policy",
+      "title": "Блокировка журнала буфера обмена Win+V политикой (AllowClipboardHistory = 0)",
+      "symptom": "Сочетание клавиш Win+V пишет «Невозможно показать журнал» и кнопка включения неактивна.",
+      "explanation": "В разделе политик System выставлен параметр AllowClipboardHistory = 0.",
+      "fixSummary": "Удаляет блокирующую политику AllowClipboardHistory = 0.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+          "valueName": "AllowClipboardHistory",
+          "expectation": "MustNotEqualDword",
+          "expectedDword": 0,
+          "fixKind": "DeleteValue",
+          "onlyIfKeyExists": true
+        }
+      ]
+    },
+    {
+      "id": "input.snipping-printscreen-policy",
+      "title": "Блокировка инструмента «Ножницы» и снимков экрана Win+Shift+S",
+      "symptom": "Win+Shift+S перестало делать скриншоты области экрана.",
+      "explanation": "В политиках TabletPC выставлен запрет DisableSnippingTool = 1.",
+      "fixSummary": "Удаляет политику DisableSnippingTool в HKLM и HKCU.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\TabletPC",
+          "valueName": "DisableSnippingTool",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Policies\\Microsoft\\TabletPC",
+          "valueName": "DisableSnippingTool",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "input.hid-service",
+      "title": "Служба устройств пользовательского интерфейса (hidserv) для мультимедийных клавиш",
+      "symptom": "Не работают колесо громкости и кнопки Play/Pause на клавиатуре и наушниках.",
+      "explanation": "Служба hidserv переведена в состояние «Отключена».",
+      "fixSummary": "Возвращает службе hidserv штатный запуск «Вручную».",
+      "severity": "Info",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "hidserv", "healthyStartup": "Manual" }
+      ]
+    },
+    {
+      "id": "input.fontcache-service",
+      "title": "Служба и база кэша шрифтов Windows (FontCache)",
+      "symptom": "В программах пропали значки глифов (квадратики вместо символов), медленно открываются текстовые редакторы и браузер.",
+      "explanation": "Проверяет работу службы FontCache и целостность кэша шрифтов FontCache\\*FontCache*.dat.",
+      "fixSummary": "Восстанавливает автоматический запуск FontCache и пересобирает повреждённые файлы кэша шрифтов.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": false,
+      "services": [
+        { "serviceName": "FontCache", "healthyStartup": "Automatic", "startIfStopped": true }
+      ],
+      "customProbe": "font-cache-health"
+    },
+    {
+      "id": "input.scancode-map-hijack",
+      "title": "Принудительная переназначенная карта клавиш клавиатуры (Scancode Map)",
+      "symptom": "Клавиши Win, Alt, Esc или буквы на клавиатуре нажимают чужие символы или не срабатывают во всех программах.",
+      "explanation": "В разделе Keyboard Layout прописана двоичная таблица перехвата скан-кодов Scancode Map.",
+      "fixSummary": "Удаляет переназначение Scancode Map (вступает в силу после перезагрузки, прежняя карта сохраняется в Машине времени).",
+      "severity": "Info",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SYSTEM\\CurrentControlSet\\Control\\Keyboard Layout",
+          "valueName": "Scancode Map",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    }
+  ]
+}

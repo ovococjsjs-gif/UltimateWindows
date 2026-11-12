@@ -217,7 +217,7 @@ public sealed class PeDoctorBsodAndRepairTests : IDisposable
 
     // ==================== ГЕНЕРАТОРЫ СПЕЦИФИКАЦИОННЫХ БИНАРНЫХ СТРУКТУР PE И MDMP ====================
 
-    private static byte[] BuildSyntheticPeBinary(bool is64Bit, IReadOnlyList<string> importedDlls)
+    internal static byte[] BuildSyntheticPeBinary(bool is64Bit, IReadOnlyList<string> importedDlls)
     {
         var buf = new byte[2048];
         // DOS Header: 'MZ' + e_lfanew = 0x80

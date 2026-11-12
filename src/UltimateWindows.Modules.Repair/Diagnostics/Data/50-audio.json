@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "section": "AudioAndMedia",
+  "rules": [
+    {
+      "id": "audio.core-services",
+      "title": "Системные службы звука Windows (Audiosrv и AudioEndpointBuilder)",
+      "symptom": "Возле значка громкости в трее красный крестик, «Служба аудио не запущена».",
+      "explanation": "Для вывода звука на наушники, колонки и HDMI должны работать службы AudioEndpointBuilder (построитель конечных точек) и Audiosrv (Windows Audio).",
+      "fixSummary": "Возвращает автоматический запуск AudioEndpointBuilder и Audiosrv и запускает обе службы.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x88890008", "0x800706BA"],
+      "services": [
+        { "serviceName": "AudioEndpointBuilder", "healthyStartup": "Automatic", "startIfStopped": true },
+        { "serviceName": "Audiosrv", "healthyStartup": "Automatic", "startIfStopped": true }
+      ]
+    },
+    {
+      "id": "audio.mmcss-scheduler",
+      "title": "Планировщик классов мультимедиа (MMCSS) от треска и заиканий звука",
+      "symptom": "В играх и при просмотре видео звук хрипит, заикается или пропадает под нагрузкой процессора.",
+      "explanation": "Служба MMCSS выдаёт потокам звука реального времени повышенный приоритет. Если она отключена твикером, буфер аудио начинает опустошаться.",
+      "fixSummary": "Восстанавливает автоматический запуск службы MMCSS.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "MMCSS", "healthyStartup": "Automatic", "startIfStopped": true }
+      ]
+    },
+    {
+      "id": "audio.bluetooth-handsfree",
+      "title": "Службы Bluetooth-наушников и гарнитур (bthserv и BTAGService)",
+      "symptom": "Беспроводные наушники или колонки не подключаются либо пропадают из списка аудиоустройств.",
+      "explanation": "Поддержка аудиопрофилей A2DP/HFP требует неблокированных служб bthserv (Поддержка Bluetooth) и BTAGService (Шлюз аудио Bluetooth).",
+      "fixSummary": "Возвращает штатный режим запуска «Вручную» для служб bthserv и BTAGService.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "bthserv", "healthyStartup": "Manual" },
+        { "serviceName": "BTAGService", "healthyStartup": "Manual" }
+      ]
+    },
+    {
+      "id": "audio.microphone-privacy-policy",
+      "title": "Принудительная блокировка микрофона групповой политикой",
+      "symptom": "В браузерах, Discord, Zoom и играх не работает микрофон, переключатель доступа к микрофону серый.",
+      "explanation": "В разделе CapabilityAccessManager\\ConsentStore\\microphone или в политиках AppPrivacy выставлен принудительный запрет LetAppsAccessMicrophone = 2.",
+      "fixSummary": "Удаляет блокирующую политику LetAppsAccessMicrophone и включает глобальный доступ микрофона Allow.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy",
+          "valueName": "LetAppsAccessMicrophone",
+          "expectation": "MustNotEqualDword",
+          "expectedDword": 2,
+          "fixKind": "DeleteValue",
+          "onlyIfKeyExists": true
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone",
+          "valueName": "Value",
+          "expectation": "MustEqualString",
+          "expectedString": "Allow",
+          "fixKind": "SetString",
+          "fixString": "Allow",
+          "onlyIfKeyExists": true
+        }
+      ]
+    },
+    {
+      "id": "audio.webcam-privacy-policy",
+      "title": "Принудительная блокировка веб-камеры групповой политикой",
+      "symptom": "Веб-камера определяется в Диспетчере устройств, но приложения выдают ошибку доступа к камере.",
+      "explanation": "Твикер конфиденциальности выставил глобальный запрет LetAppsAccessCamera = 2 или Value = Deny в ConsentStore\\webcam.",
+      "fixSummary": "Удаляет запрет политики LetAppsAccessCamera и возвращает глобальное разрешение Allow (доступ отдельных приложений остаётся под вашим контролем).",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy",
+          "valueName": "LetAppsAccessCamera",
+          "expectation": "MustNotEqualDword",
+          "expectedDword": 2,
+          "fixKind": "DeleteValue",
+          "onlyIfKeyExists": true
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\webcam",
+          "valueName": "Value",
+          "expectation": "MustEqualString",
+          "expectedString": "Allow",
+          "fixKind": "SetString",
+          "fixString": "Allow",
+          "onlyIfKeyExists": true
+        }
+      ]
+    },
+    {
+      "id": "audio.windows-camera-frame-server",
+      "title": "Служба сервера кадров камеры Windows (FrameServer)",
+      "symptom": "Веб-камера даёт чёрный экран или ошибку 0xA00F4244 в приложениях видеосвязи.",
+      "explanation": "Если служба FrameServer переведена в состояние «Отключена», современные UWP и гибридные приложения теряют видеопоток с камеры.",
+      "fixSummary": "Возвращает штатный запуск «Вручную» для службы FrameServer.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "FrameServer", "healthyStartup": "Manual" }
+      ]
+    }
+  ]
+}

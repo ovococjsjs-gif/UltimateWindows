@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "section": "CriticalServices",
+  "rules": [
+    {
+      "id": "svc.appinfo-uac-elevation",
+      "title": "Служба сведений о приложениях (Appinfo) для запуска от имени администратора",
+      "symptom": "При выборе «Запуск от имени администратора» ничего не происходит или выдаётся ошибка файловой системы.",
+      "explanation": "Служба Appinfo отвечает за отображение запроса UAC и создание повышенного процесса.",
+      "fixSummary": "Возвращает службе Appinfo режим запуска «Вручную».",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "Appinfo", "healthyStartup": "Manual" }
+      ]
+    },
+    {
+      "id": "svc.eventlog-and-schedule",
+      "title": "Журнал событий Windows и Планировщик заданий (EventLog и Schedule)",
+      "symptom": "Не работает диагностика сбоев, не запускаются задачи обслуживания и автозапуска.",
+      "explanation": "Службы EventLog и Schedule являются фундаментальными компонентами ядра пользовательского окружения Windows.",
+      "fixSummary": "Восстанавливает автоматический запуск служб EventLog и Schedule.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "EventLog", "healthyStartup": "Automatic", "startIfStopped": true },
+        { "serviceName": "Schedule", "healthyStartup": "Automatic", "startIfStopped": true }
+      ]
+    },
+    {
+      "id": "svc.vss-shadow-copy",
+      "title": "Теневое копирование тома (VSS и swprv) для точек восстановления и бэкапов",
+      "symptom": "Не создаются системные точки восстановления и резервные копии (ошибка 0x80042302).",
+      "explanation": "Службы VSS и программный поставщик теневого копирования swprv отключены.",
+      "fixSummary": "Возвращает режим запуска «Вручную» для служб VSS и swprv.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "VSS", "healthyStartup": "Manual" },
+        { "serviceName": "swprv", "healthyStartup": "Manual" }
+      ]
+    },
+    {
+      "id": "svc.power-and-profsvc",
+      "title": "Службы питания и профилей пользователей (Power и ProfSvc)",
+      "symptom": "Не переключаются схемы электропитания или при входе загружается временный профиль пользователя.",
+      "explanation": "Службы Power и ProfSvc обязаны запускаться автоматически.",
+      "fixSummary": "Восстанавливает автоматический запуск Power и ProfSvc.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "Power", "healthyStartup": "Automatic", "startIfStopped": true },
+        { "serviceName": "ProfSvc", "healthyStartup": "Automatic", "startIfStopped": true }
+      ]
+    },
+    {
+      "id": "svc.themes-visual-styles",
+      "title": "Служба тем оформления Windows (Themes)",
+      "symptom": "Окна некоторых программ выглядят поломанными, не применяются тёмная тема и обои Рабочего стола.",
+      "explanation": "Служба Themes переведена в состояние «Отключена».",
+      "fixSummary": "Возвращает автоматический запуск службы Themes.",
+      "severity": "Info",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "Themes", "healthyStartup": "Automatic", "startIfStopped": true }
+      ]
+    },
+    {
+      "id": "svc.xbox-gaming-services-ready",
+      "title": "Службы аутентификации и сохранений Xbox / PC Game Pass (XblAuthManager, XblGameSave)",
+      "symptom": "Игры из Xbox / Steam с авторизацией Xbox Live не входят в профиль или не синхронизируют сохранения.",
+      "explanation": "Агрессивные твикеры переводят XblAuthManager и XblGameSave в состояние «Отключена»; в норме они запускаются «Вручную» только во время игры и не тратят ресурсы в простое.",
+      "fixSummary": "Возвращает службам XblAuthManager и XblGameSave неблокирующий режим «Вручную».",
+      "severity": "Info",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "XblAuthManager", "healthyStartup": "Manual" },
+        { "serviceName": "XblGameSave", "healthyStartup": "Manual" }
+      ]
+    }
+  ]
+}

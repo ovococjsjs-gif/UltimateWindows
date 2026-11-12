@@ -2,10 +2,16 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>UltimateWindows.Modules.Repair</RootNamespace>
-    <Description>Модуль Фазы 3: бинарный PE-анализатор зависимостей .exe/.dll (лечение 0xc000007b), каталог официальных сред выполнения Microsoft, анализатор минидампов BSOD (MDMP) и плейбуки ремонта ОС.</Description>
+    <Description>Модуль Этапа 3 (Ремонт и DLL 2.0): диагностический движок «обнаружить → объяснить → исправить → проверить», справочник кодов ошибок, разбор CBS.log и сбоев программ, PE-доктор, сканер зависимостей установленных программ и каталог официальных сред выполнения с проверкой подписи.</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\UltimateWindows.Core\UltimateWindows.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Diagnostics\Data\*.json">
+      <LogicalName>UltimateWindows.Repair.Diagnostics.%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 </Project>

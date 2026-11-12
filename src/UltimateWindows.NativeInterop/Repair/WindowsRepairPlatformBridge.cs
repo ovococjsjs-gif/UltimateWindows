@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Xml.Linq;
+using UltimateWindows.Modules.Repair.Diagnostics;
 using UltimateWindows.Modules.Repair.Models;
 using UltimateWindows.Modules.Repair.Services;
 using UltimateWindows.NativeInterop.Security;
@@ -10,11 +11,11 @@ using UltimateWindows.NativeInterop.Security;
 namespace UltimateWindows.NativeInterop.Repair;
 
 /// <summary>
-/// Полноценный нативный мост Фазы 3 для Windows 10/11:
+/// Полноценный нативный мост Этапа 3 («Ремонт и DLL 2.0») для Windows 10 и Windows 11:
 /// чтение журналов сбоев через Win32 EvtQuery (wevtapi.dll), проверка подписи Authenticode (WinVerifyTrust),
-/// тихая установка официальных пакетов через winget и безопасное выполнение рецептов восстановления ОС.
+/// прямая загрузка официальных подписанных сред выполнения, диагностика 100+ правил ОС и выполнение рецептов восстановления.
 /// </summary>
-public sealed class WindowsRepairPlatformBridge : DefaultRepairPlatformBridge
+public sealed partial class WindowsRepairPlatformBridge : DefaultRepairPlatformBridge
 {
     public override string GetSystem64Directory()
     {
@@ -58,18 +59,26 @@ public sealed class WindowsRepairPlatformBridge : DefaultRepairPlatformBridge
             var items = new List<SystemCrashEventEntry>();
             var half = Math.Max(4, maxEntries / 2);
 
-            // 1. Журнал Application: падения программ (Event ID 1000) и ошибки манифестов VC++ SideBySide (33, 59)
+            // 1. Журнал Application: вылеты (1000), зависания (1002), исключения .NET (1026) и манифесты VC++ SideBySide (33, 59, 78)
             QueryChannelEvents(
                 channelPath: "Application",
-                xpathQuery: "*[System[(EventID=1000 or EventID=33 or EventID=59)]]",
-                maxCount: half,
+                xpathQuery: "*[System[(EventID=1000 or EventID=1002 or EventID=1026 or EventID=33 or EventID=59 or EventID=78)]]",
+                maxCount: half + 4,
                 sink: items,
                 ct: ct);
 
-            // 2. Журнал System: сброс видеодрайвера TDR (4101), внезапное выключение Kernel-Power (41), BSOD BugCheck (1001), WHEA (17, 18, 19)
+            // 2. Журнал активации UWP/MSIX пакетов и меню «Пуск»
+            QueryChannelEvents(
+                channelPath: "Microsoft-Windows-AppModel-Runtime/Admin",
+                xpathQuery: "*[System[(Level=1 or Level=2)]]",
+                maxCount: 6,
+                sink: items,
+                ct: ct);
+
+            // 3. Журнал System: сброс видеодрайвера TDR (4101), внезапное выключение Kernel-Power (41), BSOD BugCheck (1001), WHEA (17, 18, 19)
             QueryChannelEvents(
                 channelPath: "System",
-                xpathQuery: "*[System[(EventID=41 or EventID=1001 or EventID=4101 or EventID=18 or EventID=19)]]",
+                xpathQuery: "*[System[(EventID=41 or EventID=1001 or EventID=4101 or EventID=17 or EventID=18 or EventID=19)]]",
                 maxCount: half,
                 sink: items,
                 ct: ct);
@@ -628,72 +637,15 @@ public sealed class WindowsRepairPlatformBridge : DefaultRepairPlatformBridge
 
             var dataItems = doc.Root?.Element(ns + "EventData")?.Elements(ns + "Data")
                 .Select(d => d.Value?.Trim() ?? "")
-                .Where(v => !string.IsNullOrEmpty(v))
                 .ToArray() ?? [];
 
-            var joinedData = string.Join(" | ", dataItems);
-
-            var (kind, summary) = ClassifyCrashEvent(eventId, provider, dataItems);
-            entry = new SystemCrashEventEntry(
-                Kind: kind,
-                TimestampUtc: timestamp,
-                EventId: eventId,
-                SourceProvider: provider,
-                SimpleSummary: summary,
-                TechnicalRawDetails: string.IsNullOrWhiteSpace(joinedData) ? provider : joinedData);
+            entry = AppCrashAnalyzer.BuildAnalyzedEntry(eventId, provider, timestamp, dataItems);
             return true;
         }
         catch
         {
             return false;
         }
-    }
-
-    private static (SystemCrashEventKind Kind, string Summary) ClassifyCrashEvent(
-        int eventId,
-        string provider,
-        string[] dataItems)
-    {
-        if (eventId == 1000)
-        {
-            var appName = dataItems.Length > 0 ? dataItems[0] : "Приложение";
-            var faultMod = dataItems.Length > 3 ? dataItems[3] : "неизвестный модуль";
-            return (
-                SystemCrashEventKind.ApplicationCrash1000,
-                $"Сбой программы «{appName}» в модуле «{faultMod}». Вы можете проверить .exe этой программы в Докторе зависимостей выше.");
-        }
-
-        if (eventId is 33 or 59)
-        {
-            return (
-                SystemCrashEventKind.SideBySideManifestError,
-                "Ошибка сборки SideBySide: программе не хватает официального пакета Microsoft Visual C++ Redistributable.");
-        }
-
-        if (eventId == 4101)
-        {
-            return (
-                SystemCrashEventKind.GpuTdrReset4101,
-                "Видеодрайвер перестал отвечать и был перезапущен Windows (TDR 4101). Проверьте перегрев GPU и стабильность видеодрайвера.");
-        }
-
-        if (eventId == 41)
-        {
-            return (
-                SystemCrashEventKind.UnexpectedKernelPower41,
-                "Внезапная перезагрузка или отключение питания ПК без штатного завершения работы (Kernel-Power 41).");
-        }
-
-        if (eventId == 1001)
-        {
-            return (
-                SystemCrashEventKind.BsodBugCheck1001,
-                "Система была перезагружена после критической ошибки синего экрана (BugCheck 1001).");
-        }
-
-        return (
-            SystemCrashEventKind.HardwareWheaError,
-            $"Аппаратное предупреждение подсистемы {provider} (WHEA): проверьте стабильность процессора, памяти или шины PCIe.");
     }
 
     // ==================== WIN32 WEVTAPI P/INVOKE ====================

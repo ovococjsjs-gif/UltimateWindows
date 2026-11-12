@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "section": "StoreAndAppx",
+  "rules": [
+    {
+      "id": "store.core-services",
+      "title": "Службы развёртывания приложений Microsoft Store (AppXSvc, InstallService, StateRepository)",
+      "symptom": "Не открываются приложения из Microsoft Store, Калькулятор, Фотографии или Терминал Windows (0x80073CF6).",
+      "explanation": "Пакеты MSIX/AppX не могут запускаться и обновляться, если отключены службы AppXSvc, StateRepository или InstallService.",
+      "fixSummary": "Восстанавливает штатный режим запуска служб AppXSvc, StateRepository и InstallService.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x80073CF3", "0x80073CF6", "0x80070422"],
+      "services": [
+        { "serviceName": "AppXSvc", "healthyStartup": "Manual" },
+        { "serviceName": "StateRepository", "healthyStartup": "Manual" },
+        { "serviceName": "InstallService", "healthyStartup": "Manual" }
+      ]
+    },
+    {
+      "id": "store.remove-policy",
+      "title": "Политика блокировки Microsoft Store (RemoveWindowsStore)",
+      "symptom": "При открытии Microsoft Store появляется сообщение «Microsoft Store заблокирован».",
+      "explanation": "Скрипты «деблоата» выставляют политику RemoveWindowsStore = 1 в HKLM или HKCU, полностью блокируя Магазин и обновление встроенных приложений.",
+      "fixSummary": "Удаляет политику RemoveWindowsStore в HKLM и HKCU (с возможностью отката).",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\WindowsStore",
+          "valueName": "RemoveWindowsStore",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Policies\\Microsoft\\WindowsStore",
+          "valueName": "RemoveWindowsStore",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "store.disable-store-apps-policy",
+      "title": "Политика запрета запуска приложений из Магазина (DisableStoreApps)",
+      "symptom": "Ни одно встроенное приложение UWP не запускается.",
+      "explanation": "В разделе политик WindowsStore включён запрет DisableStoreApps.",
+      "fixSummary": "Удаляет блокирующую политику DisableStoreApps.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\WindowsStore",
+          "valueName": "DisableStoreApps",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "store.sideload-msix-policy",
+      "title": "Запрет установки доверенных пакетов MSIX / AppX (AllowAllTrustedApps = 0)",
+      "symptom": "Не ставятся официальные установщики .msix / .appxbundle (например Windows Terminal или кодеки HEVC) с ошибкой политики.",
+      "explanation": "В реестре принудительно выставлено AllowAllTrustedApps = 0, блокирующее установку подписанных MSIX-пакетов вне Store.",
+      "fixSummary": "Включает установку подписанных пакетов AllowAllTrustedApps = 1.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\Appx",
+          "valueName": "AllowAllTrustedApps",
+          "expectation": "MustNotEqualDword",
+          "expectedDword": 0,
+          "fixKind": "SetDword",
+          "fixDword": 1,
+          "onlyIfKeyExists": true
+        }
+      ]
+    },
+    {
+      "id": "store.user-manager-service",
+      "title": "Служба диспетчера учётных записей и токенов (TokenBroker / UserManager)",
+      "symptom": "Не входит в учётную запись Microsoft в Магазине, Xbox и играх (белое или мигающее окно входа).",
+      "explanation": "Авторизация в приложениях Windows зависит от службы TokenBroker (Диспетчер веб-учётных записей). При её отключении окно входа мгновенно закрывается.",
+      "fixSummary": "Восстанавливает режим запуска «Вручную» для службы TokenBroker.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "TokenBroker", "healthyStartup": "Manual" }
+      ]
+    },
+    {
+      "id": "store.reset-cache-and-register",
+      "title": "Регистрация и кэш приложения Microsoft Store",
+      "symptom": "Microsoft Store закрывается сразу после заставки или не загружает страницы приложений.",
+      "explanation": "Проверяет наличие зарегистрированного пакета Microsoft.WindowsStore на настольных редакциях Windows и состояние его локального кэша.",
+      "fixSummary": "Очищает кэш Microsoft Store (wsreset -i) и при необходимости перерегистрирует манифест Магазина.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": false,
+      "reversible": false,
+      "errorCodes": ["0x80073CF3", "0x80073CF6", "0x80073CF9", "0xC000027B"],
+      "customProbe": "store-cache-health"
+    }
+  ]
+}

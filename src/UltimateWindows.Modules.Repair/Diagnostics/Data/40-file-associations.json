@@ -1,0 +1,276 @@
+{
+  "schemaVersion": 1,
+  "section": "FileAssociations",
+  "rules": [
+    {
+      "id": "assoc.exe-launch",
+      "title": "Ассоциация запуска программ .exe (exefile)",
+      "symptom": "Ни одна программа .exe не запускается или Windows спрашивает «Каким приложением открыть этот файл .exe?».",
+      "explanation": "Повреждена базовая привязка HKCR\\.exe -> exefile, команда запуска \"%1\" %* или создан ошибочный выбор UserChoice для .exe.",
+      "fixSummary": "Восстанавливает привязку .exe -> exefile, команду \"%1\" %* и удаляет битый UserChoice для .exe.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCR",
+          "subKey": ".exe",
+          "valueName": "",
+          "expectation": "MustEqualString",
+          "expectedString": "exefile",
+          "fixKind": "SetString",
+          "fixString": "exefile"
+        },
+        {
+          "hive": "HKCR",
+          "subKey": "exefile\\shell\\open\\command",
+          "valueName": "",
+          "expectation": "MustEqualString",
+          "expectedString": "\"%1\" %*",
+          "fixKind": "SetString",
+          "fixString": "\"%1\" %*"
+        },
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\.exe\\UserChoice",
+          "valueName": "ProgId",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "assoc.lnk-shortcuts",
+      "title": "Ассоциация ярлыков Рабочего стола и меню «Пуск» (.lnk -> lnkfile)",
+      "symptom": "Все ярлыки на Рабочем столе получили один значок и открываются в Блокноте, браузере или Word.",
+      "explanation": "Случайно выбрана программа «Открыть с помощью» для файла ярлыка .lnk (создан UserChoice\\ProgId) либо сбит класс lnkfile.",
+      "fixSummary": "Возвращает .lnk -> lnkfile, атрибут IsShortcut и удаляет ошибочный UserChoice для ярлыков.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCR",
+          "subKey": ".lnk",
+          "valueName": "",
+          "expectation": "MustEqualString",
+          "expectedString": "lnkfile",
+          "fixKind": "SetString",
+          "fixString": "lnkfile"
+        },
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\.lnk\\UserChoice",
+          "valueName": "ProgId",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "assoc.msi-package",
+      "title": "Ассоциация пакетов установщика Windows (.msi -> Msi.Package)",
+      "symptom": "Двойной клик по установочному файлу .msi не запускает установку программы.",
+      "explanation": "Нарушена связь расширения .msi с обработчиком Msi.Package.",
+      "fixSummary": "Восстанавливает привязку HKCR\\.msi -> Msi.Package и удаляет неверный UserChoice.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["1619"],
+      "registry": [
+        {
+          "hive": "HKCR",
+          "subKey": ".msi",
+          "valueName": "",
+          "expectation": "MustEqualString",
+          "expectedString": "Msi.Package",
+          "fixKind": "SetString",
+          "fixString": "Msi.Package"
+        },
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\.msi\\UserChoice",
+          "valueName": "ProgId",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "assoc.bat-scripts",
+      "title": "Ассоциация пакетных сценариев .bat (batfile)",
+      "symptom": "Сценарии .bat открываются в текстовом редакторе вместо выполнения в командной строке.",
+      "explanation": "Сбита ассоциация HKCR\\.bat -> batfile или команда запуска batfile.",
+      "fixSummary": "Восстанавливает HKCR\\.bat -> batfile и команду \"%1\" %*.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCR",
+          "subKey": ".bat",
+          "valueName": "",
+          "expectation": "MustEqualString",
+          "expectedString": "batfile",
+          "fixKind": "SetString",
+          "fixString": "batfile"
+        },
+        {
+          "hive": "HKCR",
+          "subKey": "batfile\\shell\\open\\command",
+          "valueName": "",
+          "expectation": "MustEqualString",
+          "expectedString": "\"%1\" %*",
+          "fixKind": "SetString",
+          "fixString": "\"%1\" %*"
+        }
+      ]
+    },
+    {
+      "id": "assoc.cmd-scripts",
+      "title": "Ассоциация командных сценариев .cmd (cmdfile)",
+      "symptom": "Файлы .cmd не выполняются при двойном щелчке.",
+      "explanation": "Повреждена привязка HKCR\\.cmd -> cmdfile или команда запуска cmdfile.",
+      "fixSummary": "Восстанавливает HKCR\\.cmd -> cmdfile и команду \"%1\" %*.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCR",
+          "subKey": ".cmd",
+          "valueName": "",
+          "expectation": "MustEqualString",
+          "expectedString": "cmdfile",
+          "fixKind": "SetString",
+          "fixString": "cmdfile"
+        },
+        {
+          "hive": "HKCR",
+          "subKey": "cmdfile\\shell\\open\\command",
+          "valueName": "",
+          "expectation": "MustEqualString",
+          "expectedString": "\"%1\" %*",
+          "fixKind": "SetString",
+          "fixString": "\"%1\" %*"
+        }
+      ]
+    },
+    {
+      "id": "assoc.reg-files",
+      "title": "Ассоциация файлов экспорта реестра .reg (regfile)",
+      "symptom": "Файлы .reg не импортируются в реестр при открытии.",
+      "explanation": "Сбита привязка HKCR\\.reg -> regfile.",
+      "fixSummary": "Восстанавливает привязку HKCR\\.reg -> regfile.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCR",
+          "subKey": ".reg",
+          "valueName": "",
+          "expectation": "MustEqualString",
+          "expectedString": "regfile",
+          "fixKind": "SetString",
+          "fixString": "regfile"
+        }
+      ]
+    },
+    {
+      "id": "assoc.com-scr-binaries",
+      "title": "Ассоциация консольных утилит .com (comfile)",
+      "symptom": "Классические системные утилиты .com (например mode.com, tree.com, chcp.com) не запускаются.",
+      "explanation": "Повреждена привязка HKCR\\.com -> comfile.",
+      "fixSummary": "Восстанавливает HKCR\\.com -> comfile и команду \"%1\" %*.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCR",
+          "subKey": ".com",
+          "valueName": "",
+          "expectation": "MustEqualString",
+          "expectedString": "comfile",
+          "fixKind": "SetString",
+          "fixString": "comfile"
+        },
+        {
+          "hive": "HKCR",
+          "subKey": "comfile\\shell\\open\\command",
+          "valueName": "",
+          "expectation": "MustEqualString",
+          "expectedString": "\"%1\" %*",
+          "fixKind": "SetString",
+          "fixString": "\"%1\" %*"
+        }
+      ]
+    },
+    {
+      "id": "assoc.vbs-wsh",
+      "title": "Разблокировка сервера сценариев Windows Script Host (WSH Enabled)",
+      "symptom": "При запуске .vbs / .js скриптов автоматизации выдаётся «Доступ к серверу сценариев Windows на этом компьютере отключён».",
+      "explanation": "В разделе Windows Script Host\\Settings установлен параметр Enabled = 0.",
+      "fixSummary": "Удаляет блокировку Enabled = 0 для Windows Script Host.",
+      "severity": "Info",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows Script Host\\Settings",
+          "valueName": "Enabled",
+          "expectation": "MustNotEqualDword",
+          "expectedDword": 0,
+          "fixKind": "DeleteValue",
+          "onlyIfKeyExists": true
+        },
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows Script Host\\Settings",
+          "valueName": "Enabled",
+          "expectation": "MustNotEqualDword",
+          "expectedDword": 0,
+          "fixKind": "DeleteValue",
+          "onlyIfKeyExists": true
+        }
+      ]
+    },
+    {
+      "id": "assoc.policy-no-associate",
+      "title": "Политика запрета смены приложений по умолчанию (NoFileAssociate)",
+      "symptom": "Не удаётся сменить браузер, плеер или просмотрщик PDF по умолчанию в Параметрах Windows.",
+      "explanation": "В политиках Explorer установлен параметр NoFileAssociate = 1.",
+      "fixSummary": "Удаляет ограничение NoFileAssociate в HKCU и HKLM.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "NoFileAssociate",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "NoFileAssociate",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    }
+  ]
+}
