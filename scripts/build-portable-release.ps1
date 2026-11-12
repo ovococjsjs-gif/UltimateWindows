@@ -14,9 +14,9 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Version = "2.0.0",
+    [string]$Version = "2.1.0",
     [string]$Runtime = "win-x64",
-    [string]$ReleaseTag = "v2.0.0",
+    [string]$ReleaseTag = "v2.1.0",
     [switch]$SkipTests,
     [switch]$UploadToGitHubRelease,
     [switch]$AllowOlderReleaseTag
@@ -24,6 +24,56 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+$script:DotnetExe = "dotnet"
+
+function Ensure-Dotnet10Sdk {
+    $hasNet10 = $false
+    if (Get-Command dotnet -ErrorAction SilentlyContinue) {
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        $sdks = & dotnet --list-sdks 2>&1 | ForEach-Object { "$_" }
+        $ErrorActionPreference = $prevEap
+        if (@($sdks | Where-Object { $_ -match "^10\.0\." }).Count -gt 0) {
+            $hasNet10 = $true
+        }
+    }
+
+    if ($hasNet10) {
+        return
+    }
+
+    # Если старый workflow настроил DOTNET_ROOT на .NET 8, проверим системный каталог C:\Program Files\dotnet
+    $sysDotnet = "C:\Program Files\dotnet"
+    if (Test-Path -LiteralPath (Join-Path $sysDotnet "sdk")) {
+        $sysSdks = Get-ChildItem -LiteralPath (Join-Path $sysDotnet "sdk") -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like "10.0.*" }
+        if (@($sysSdks).Count -gt 0) {
+            Write-Host "Обнаружен предустановленный .NET 10 SDK в $sysDotnet — переключаем окружение." -ForegroundColor Cyan
+            $env:DOTNET_ROOT = $sysDotnet
+            $env:PATH = "$sysDotnet;$env:PATH"
+            $script:DotnetExe = Join-Path $sysDotnet "dotnet.exe"
+            return
+        }
+    }
+
+    # Автоматическая доустановка официального .NET 10.0 SDK (актуально для старого release-workflow)
+    $baseTemp = if (-not [string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
+    $installDir = Join-Path $baseTemp "uw-dotnet10"
+    $installerScript = Join-Path $baseTemp "dotnet-install.ps1"
+
+    Write-Host "Текущий SDK старше .NET 10 — загружаем официальный .NET 10.0 SDK в $installDir..." -ForegroundColor Yellow
+    New-Item -ItemType Directory -Path $installDir -Force | Out-Null
+    Invoke-WebRequest -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile $installerScript -UseBasicParsing
+    & $installerScript -Channel "10.0" -Quality "GA" -InstallDir $installDir -NoPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Не удалось автоматически установить .NET 10.0 SDK."
+    }
+
+    $env:DOTNET_ROOT = $installDir
+    $env:PATH = "$installDir;$env:PATH"
+    $script:DotnetExe = Join-Path $installDir "dotnet.exe"
+    Write-Host "Активирован .NET SDK: $(& $script:DotnetExe --version)" -ForegroundColor Green
+}
 
 function Invoke-LoggedDotnet {
     param(
@@ -33,7 +83,7 @@ function Invoke-LoggedDotnet {
 
     $prevEap = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    $outputLines = & dotnet @DotnetArgs 2>&1 | ForEach-Object { "$_" }
+    $outputLines = & $script:DotnetExe @DotnetArgs 2>&1 | ForEach-Object { "$_" }
     $code = $LASTEXITCODE
     $ErrorActionPreference = $prevEap
 
@@ -99,6 +149,8 @@ try {
     Write-Host "=================================================================" -ForegroundColor Cyan
     Write-Host " UltimateWindows Portable Builder — v$Version ($Runtime)" -ForegroundColor Cyan
     Write-Host "=================================================================" -ForegroundColor Cyan
+
+    Ensure-Dotnet10Sdk
 
     if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
         throw "Не найден .NET 10 SDK (dotnet). Установите с https://dotnet.microsoft.com/download/dotnet/10.0"
@@ -173,26 +225,32 @@ try {
     Set-Content -Path (Join-Path $StagingDir ".portable") -Value "UltimateWindows Portable Mode Enabled" -Encoding UTF8
 
     $PortableReadme = @"
-UltimateWindows v$Version — портативная версия ($Runtime)
+UltimateWindows v$Version — портативная версия ($Runtime, .NET 10)
 ============================================================
-Установка не нужна: .NET и все библиотеки уже внутри.
+Установка не нужна: среда .NET 10 и все библиотеки уже внутри.
 
-Что умеет программа:
-  • Оптимизатор: около 190 настроек Windows в 13 разделах (реестр, службы, задания планировщика). У каждой есть
-    пояснение и уровень риска. Готовые наборы показывают список изменений до применения. Рядом — службы,
-    планировщик, автозагрузка, удаление программ и встроенных приложений, проверка сети, DNS и файл hosts.
-  • Диск и очистка: быстрая карта диска через прямое чтение NTFS `$MFT (дерево папок, типы файлов, блоки),
-    каталог из 86 правил очистки программ с поддержкой внешних баз Winapp2.ini, очистка браузеров по 5 пунктам
-    (включая cookie со списком «сохранить вход») при жёсткой защите паролей и автозаполнения, 8 системных
-    резервов C:\ (WinSxS, Windows.old, оптимизация доставки, дампы, журналы), поиск дубликатов и чистка
-    реестра по 13 категориям с откатом.
-  • Поиск майнеров, разбор синих экранов и ошибок запуска программ, драйверы, сведения о железе.
-  • «Машина времени»: изменения настроек, служб и заданий записываются, и любое из них можно отменить.
+Что входит в выпуск:
+  • Оптимизатор 2.0: 191 обратимая настройка Windows 10/11 в 13 разделах, готовые наборы с предпросмотром,
+    менеджер служб и заданий Планировщика, автозагрузка, UWP, сеть, DNS и файл hosts (импорт/экспорт YAML).
+  • Диск и Очистка 2.0: сверхбыстрая карта диска через прямое чтение NTFS `$MFT, 86 встроенных правил очистки
+    программ + поддержка баз Winapp2.ini, 5-уровневая очистка браузеров с защитой паролей (BrowserVaultGuard),
+    8 системных резервов C:\, дубли SHA-256 и 13 категорий реестра с откатом.
+  • Ремонт ОС и DLL 2.0: 107 проверок и рецептов лечения Windows, 23 пакета сред выполнения Microsoft
+    (VC++ 2005–2022, .NET, DirectX, WebView2), рекурсивный PE-доктор (0xC000007B), 160 кодов ошибок и разбор BSOD.
+  • Анти-Майнер и Защита 2.0: ревизия 18 зон автозакрепления, поведенческий детектор скрытых майнеров CPU+GPU,
+    проверка исключений Защитника и правил брандмауэра, снятие блокировок системы и карантин .uwq.
+  • Железо 2.0, Бенчмарки и Драйверы 2.0: паспорт SMBIOS 3.x, датчики без WinRing0 (+ опциональный PawnIO),
+    экспресс-бенчмарк CPU SIMD / GPU DirectCompute / ОЗУ / Диска (~5 сек), живой поиск Microsoft Update Catalog,
+    серверный каталог из 39 основных драйверов, очистка DriverStore и аудит уязвимых драйверов ядра (BYOVD).
+  • Программы winget, Windows 11 и Автопилот: обновление всех программ в 1 клик, каталог из 36 утилит без рекламы,
+    чистый деинсталлятор с поиском хвостов в AppData/реестре, проверка готовности к Windows 11 (24H2/25H2)
+    и статуса Windows 10 ESU, диагностика батареи/сна/ОЗУ, расписание обслуживания и единый .zip-архив диагностики.
+  • «Машина времени» (Zero-Bloat Vault): транзакционный откат изменений в 1 клик.
 
 Файлы в комплекте:
-  1. UltimateWindows.exe     — программа с окнами. При запуске просит права администратора.
-  2. UltimateWindows.Cli.exe — командная строка: smart-audit, tweak-list, preset-apply, service-list, task-list, clean-scan, clean-apps-scan, browser-scan, disk-map и другие.
-  3. .portable               — метка портативного режима: точки отката хранятся рядом с программой, в папке .\Data\Vault\
+  1. UltimateWindows.exe     — графический интерфейс (Fluent Design, Тёмная / Светлая тема).
+  2. UltimateWindows.Cli.exe — полная командная строка и движок фонового автообслуживания.
+  3. .portable               — метка портативного режима: точки отката хранятся локально в .\Data\Vault\
 "@
     Set-Content -Path (Join-Path $StagingDir "PORTABLE-README.txt") -Value $PortableReadme -Encoding UTF8
 

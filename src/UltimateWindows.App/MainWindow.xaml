@@ -58,7 +58,7 @@
               <TextBlock Text="ULTIMATE WINDOWS"
                          FontSize="13"
                          FontWeight="Bold" />
-              <TextBlock Text="v2.0 PRO PORTABLE"
+              <TextBlock Text="v2.1 PRO PORTABLE"
                          FontSize="10"
                          FontWeight="SemiBold"
                          Foreground="{DynamicResource AccentBrush}" />
