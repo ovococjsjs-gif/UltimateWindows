@@ -1,11 +1,10 @@
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
-using Microsoft.Win32;
-using UltimateWindows.Modules.Cleaner.Utilities;
-using UltimateWindows.Modules.Optimizer.Network;
+using UltimateWindows.Modules.Security.Catalog;
 using UltimateWindows.Modules.Security.Models;
 using UltimateWindows.Modules.Security.Services;
 using UltimateWindows.NativeInterop.Security;
@@ -13,17 +12,17 @@ using UltimateWindows.NativeInterop.Security;
 namespace UltimateWindows.NativeInterop.SecurityHunter;
 
 /// <summary>
-/// Полноценный нативный мост Фазы 5 для Windows 10/11:
-/// двухфазный поведенческий детектор Drop-on-Inspect с невидимым окном-приманкой,
-/// таблица соединений GetExtendedTcpTable (iphlpapi.dll), ревизор IFEO/Winlogon/скрытых задач без SD
-/// и модуль снятия блокировок майнера.
+/// Полноценный нативный мост Этапа 4 «Анти-майнер и Защита 2.0» для Windows 10 и Windows 11:
+/// - двухфазный поведенческий детектор Drop-on-Inspect по CPU + GPU (pdh.dll \GPU Engine(*)\Utilization Percentage)
+///   с окнами-приманками и реальным кратковременным запуском системного монитора;
+/// - извлечение командной строки и родительского PID через NtQueryInformationProcess без WMI;
+/// - нативная проверка приватных исполняемых регионов памяти (VirtualQueryEx) на Process Hollowing;
+/// - таблица TCP-соединений IPv4 + IPv6 (GetExtendedTcpTable) и аудит DNS-кэша;
+/// - ревизия всех 18 зон автозакрепления, исключений Microsoft Defender, правил брандмауэра, скрытых пользователей и staging-папок.
 /// </summary>
-public sealed class WindowsSecurityPlatformBridge : DefaultSecurityPlatformBridge
+public sealed partial class WindowsSecurityPlatformBridge : DefaultSecurityPlatformBridge
 {
-    private static readonly string[] CriticalAdminTools =
-    [
-        "taskmgr.exe", "regedit.exe", "cmd.exe", "mmc.exe", "powershell.exe", "msconfig.exe"
-    ];
+    private readonly ConcurrentDictionary<string, bool> _signatureCache = new(StringComparer.OrdinalIgnoreCase);
 
     public override bool IsRunningAsAdministrator() => ElevationChecker.IsRunningAsAdministrator();
 
@@ -33,308 +32,119 @@ public sealed class WindowsSecurityPlatformBridge : DefaultSecurityPlatformBridg
     {
         if (!OperatingSystem.IsWindows())
         {
-            return Array.Empty<ProcessTelemetrySample>();
+            return [];
         }
 
+        _signatureCache.Clear();
         var logicalCores = Math.Max(1, Environment.ProcessorCount);
 
-        // 1. Тихий фоновый замер нагрузки CPU (T0 -> T1, 650 мс)
+        using var gpuSampler = NativeGpuEngineSampler.TryOpen();
+
+        // 1. Тихий фоновый замер нагрузки CPU и GPU (T0 -> T1, 600 мс)
         var t0 = SampleProcessCpuTimes();
+        gpuSampler?.PrimeBaseline();
         var swQuiet = Stopwatch.StartNew();
-        await Task.Delay(650, ct).ConfigureAwait(false);
+        await Task.Delay(600, ct).ConfigureAwait(false);
         swQuiet.Stop();
         var t1 = SampleProcessCpuTimes();
+        var quietGpuByPid = gpuSampler?.CollectUtilizationByPid() ?? [];
 
-        Dictionary<int, (string Name, TimeSpan CpuTime)> t2;
-        double inspectElapsedMs = 650;
-
-        if (runDecoyTrigger)
+        if (!runDecoyTrigger)
         {
-            // 2. Создаем невидимое нулевое окно-приманку с заголовком «Task Manager» для выманивания прячущихся майнеров
-            using var decoy = DecoyInspectionWindow.CreateHiddenDecoy();
-            await Task.Delay(150, ct).ConfigureAwait(false); // Даем сторожевому потоку майнера заметить окно
-            var t1Start = SampleProcessCpuTimes();
-            var swInspect = Stopwatch.StartNew();
-            await Task.Delay(650, ct).ConfigureAwait(false);
-            swInspect.Stop();
-            inspectElapsedMs = Math.Max(1.0, swInspect.Elapsed.TotalMilliseconds);
-            t2 = SampleProcessCpuTimes();
-
-            // Пересчитываем дельту второй фазы от t1Start
-            return BuildProcessSamples(t0, t1, swQuiet.Elapsed.TotalMilliseconds, t1Start, t2, inspectElapsedMs, logicalCores);
+            return BuildProcessSamples(
+                t0, t1, swQuiet.Elapsed.TotalMilliseconds,
+                t1, t1, swQuiet.Elapsed.TotalMilliseconds,
+                quietGpuByPid, quietGpuByPid,
+                logicalCores);
         }
 
-        return BuildProcessSamples(t0, t1, swQuiet.Elapsed.TotalMilliseconds, t1, t1, inspectElapsedMs, logicalCores);
+        // 2. Фаза активного мониторинга: окна-приманки + реальный системный монитор (если доступен интерактивный рабочий стол)
+        using var decoy = DecoyInspectionWindow.CreateDecoys();
+        using var realMonitor = RealSystemMonitorProbe.TryLaunchMinimizedIfSafe();
+
+        await Task.Delay(180, ct).ConfigureAwait(false); // Даём сторожевому потоку майнера заметить процесс/окно монитора
+
+        var i0 = SampleProcessCpuTimes();
+        gpuSampler?.PrimeBaseline();
+        var swInspect = Stopwatch.StartNew();
+        await Task.Delay(650, ct).ConfigureAwait(false);
+        swInspect.Stop();
+        var i1 = SampleProcessCpuTimes();
+        var inspectGpuByPid = gpuSampler?.CollectUtilizationByPid() ?? [];
+
+        return BuildProcessSamples(
+            t0, t1, Math.Max(1.0, swQuiet.Elapsed.TotalMilliseconds),
+            i0, i1, Math.Max(1.0, swInspect.Elapsed.TotalMilliseconds),
+            quietGpuByPid, inspectGpuByPid,
+            logicalCores);
     }
 
     public override Task<IReadOnlyList<ProcessTcpConnectionInfo>> GetActiveTcpConnectionsAsync(CancellationToken ct = default)
     {
         if (!OperatingSystem.IsWindows())
         {
-            return Task.FromResult<IReadOnlyList<ProcessTcpConnectionInfo>>(Array.Empty<ProcessTcpConnectionInfo>());
+            return Task.FromResult<IReadOnlyList<ProcessTcpConnectionInfo>>([]);
         }
 
         return Task.Run<IReadOnlyList<ProcessTcpConnectionInfo>>(() =>
         {
             var list = new List<ProcessTcpConnectionInfo>();
-            uint buffSize = 0;
-            _ = GetExtendedTcpTable(IntPtr.Zero, ref buffSize, sort: false, AF_INET, TCP_TABLE_OWNER_PID_ALL, 0);
-            if (buffSize == 0 || buffSize > 16 * 1024 * 1024)
-            {
-                return list;
-            }
-
-            var buffer = Marshal.AllocHGlobal((int)buffSize);
-            try
-            {
-                if (GetExtendedTcpTable(buffer, ref buffSize, sort: false, AF_INET, TCP_TABLE_OWNER_PID_ALL, 0) != 0)
-                {
-                    return list;
-                }
-
-                var rowCount = Marshal.ReadInt32(buffer);
-                var rowPtr = buffer + 4;
-                var rowSize = Marshal.SizeOf<MIB_TCPROW_OWNER_PID>();
-
-                for (int i = 0; i < rowCount && i < 16384; i++)
-                {
-                    var row = Marshal.PtrToStructure<MIB_TCPROW_OWNER_PID>(rowPtr);
-                    rowPtr += rowSize;
-
-                    // Нас интересуют активные исходящие/установленные сессии (SYN_SENT = 3, ESTABLISHED = 5)
-                    if (row.dwState is not (3u or 5u) || row.dwRemoteAddr == 0)
-                    {
-                        continue;
-                    }
-
-                    var localIp = new IPAddress(row.dwLocalAddr).ToString();
-                    var remoteIp = new IPAddress(row.dwRemoteAddr).ToString();
-                    var localPort = BinaryPrimitives.ReverseEndianness((ushort)(row.dwLocalPort & 0xFFFF));
-                    var remotePort = BinaryPrimitives.ReverseEndianness((ushort)(row.dwRemotePort & 0xFFFF));
-
-                    list.Add(new ProcessTcpConnectionInfo(
-                        ProcessId: (int)row.dwOwningPid,
-                        LocalAddress: localIp,
-                        LocalPort: localPort,
-                        RemoteAddress: remoteIp,
-                        RemotePort: remotePort));
-                }
-            }
-            finally
-            {
-                Marshal.FreeHGlobal(buffer);
-            }
-
+            ReadIpv4TcpTable(list);
+            ReadIpv6TcpTable(list);
             return list;
         }, ct);
     }
 
-    public override Task<IReadOnlyList<PersistenceAnomalyRecord>> ScanPersistenceAnomaliesAsync(CancellationToken ct = default)
+    public override async Task<IReadOnlyList<string>> ScanDnsCacheMiningPoolDomainsAsync(CancellationToken ct = default)
     {
         if (!OperatingSystem.IsWindows())
         {
-            return Task.FromResult<IReadOnlyList<PersistenceAnomalyRecord>>(Array.Empty<PersistenceAnomalyRecord>());
+            return [];
         }
 
-        return Task.Run<IReadOnlyList<PersistenceAnomalyRecord>>(() =>
+        try
         {
-            var anomalies = new List<PersistenceAnomalyRecord>();
-
-            // 1. Проверка перехватов запуска Image File Execution Options (IFEO Debugger)
-            const string ifeoPath = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options";
-            try
+            var psi = new ProcessStartInfo
             {
-                using var ifeoRoot = Registry.LocalMachine.OpenSubKey(ifeoPath, writable: false);
-                if (ifeoRoot is not null)
+                FileName = Path.Combine(Environment.SystemDirectory, "ipconfig.exe"),
+                Arguments = "/displaydns",
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            using var proc = Process.Start(psi);
+            if (proc is null) return [];
+
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(4));
+
+            var output = await proc.StandardOutput.ReadToEndAsync(timeoutCts.Token).ConfigureAwait(false);
+            await proc.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
+
+            var catalog = ThreatIndicatorCatalog.Shared;
+            var matched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var rawLine in output.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (catalog.MatchesMiningPoolDomain(rawLine, out var domain))
                 {
-                    foreach (var subName in ifeoRoot.GetSubKeyNames())
-                    {
-                        ct.ThrowIfCancellationRequested();
-                        using var sub = ifeoRoot.OpenSubKey(subName, writable: false);
-                        var debugger = sub?.GetValue("Debugger")?.ToString()?.Trim();
-                        if (string.IsNullOrWhiteSpace(debugger)) continue;
-
-                        // Пропускаем штатный JIT-отладчик Visual Studio, если он явно указан разработчиком
-                        if (debugger.Contains("vsjitdebugger.exe", StringComparison.OrdinalIgnoreCase))
-                        {
-                            continue;
-                        }
-
-                        anomalies.Add(new PersistenceAnomalyRecord(
-                            Vector: ThreatDetectionVector.IfeoDebuggerHijack,
-                            RegistryOrTaskPath: $@"HKLM\{ifeoPath}\{subName}",
-                            EntryName: subName,
-                            PayloadCommandOrPath: debugger,
-                            ReferencedExecutablePath: CommandLinePathExtractor.TryExtractLocalExecutablePath(debugger),
-                            IsMissingSecurityDescriptorSd: false,
-                            PreviousValueSerialized: debugger));
-                    }
+                    matched.Add(domain);
                 }
             }
-            catch
-            {
-                // Безопасный пропуск
-            }
 
-            // 2. Проверка подмены оболочки входа Winlogon (Shell / Userinit)
-            const string winlogonPath = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon";
-            try
-            {
-                using var wl = Registry.LocalMachine.OpenSubKey(winlogonPath, writable: false);
-                if (wl is not null)
-                {
-                    var shell = wl.GetValue("Shell")?.ToString()?.Trim();
-                    if (!string.IsNullOrWhiteSpace(shell) &&
-                        !string.Equals(shell, "explorer.exe", StringComparison.OrdinalIgnoreCase) &&
-                        !shell.EndsWith(@"\explorer.exe", StringComparison.OrdinalIgnoreCase))
-                    {
-                        anomalies.Add(new PersistenceAnomalyRecord(
-                            Vector: ThreatDetectionVector.WinlogonShellHijack,
-                            RegistryOrTaskPath: $@"HKLM\{winlogonPath}",
-                            EntryName: "Shell",
-                            PayloadCommandOrPath: shell,
-                            ReferencedExecutablePath: CommandLinePathExtractor.TryExtractLocalExecutablePath(shell),
-                            IsMissingSecurityDescriptorSd: false,
-                            PreviousValueSerialized: shell));
-                    }
-                }
-            }
-            catch
-            {
-                // Безопасный пропуск
-            }
-
-            // 3. Поиск скрытых задач Планировщика без дескриптора безопасности SD (Ghost Scheduled Tasks)
-            const string taskTreePath = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tree";
-            try
-            {
-                using var treeRoot = Registry.LocalMachine.OpenSubKey(taskTreePath, writable: false);
-                if (treeRoot is not null)
-                {
-                    ScanTaskTreeForMissingSd(treeRoot, "", depth: 0, anomalies, ct);
-                }
-            }
-            catch
-            {
-                // На части систем ветка TaskCache закрыта для обычного пользователя — безопасно пропускаем
-            }
-
-            return anomalies;
-        }, ct);
-    }
-
-    public override Task<IReadOnlyList<OsSabotageFinding>> ScanOsSabotageLocksAsync(CancellationToken ct = default)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return Task.FromResult<IReadOnlyList<OsSabotageFinding>>(Array.Empty<OsSabotageFinding>());
+            return matched.OrderBy(d => d, StringComparer.OrdinalIgnoreCase).ToList();
         }
-
-        return Task.Run<IReadOnlyList<OsSabotageFinding>>(() =>
+        catch
         {
-            var findings = new List<OsSabotageFinding>();
-
-            CheckPolicyIntLock(
-                Registry.CurrentUser, "HKCU",
-                @"Software\Microsoft\Windows\CurrentVersion\Policies\System", "DisableTaskMgr",
-                OsSabotageKind.TaskManagerDisabledByPolicy,
-                "Диспетчер задач заблокирован политикой",
-                "Майнер установил запрет на открытие Диспетчера задач, чтобы вы не могли увидеть нагрузку на ПК.",
-                findings);
-
-            CheckPolicyIntLock(
-                Registry.LocalMachine, "HKLM",
-                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System", "DisableTaskMgr",
-                OsSabotageKind.TaskManagerDisabledByPolicy,
-                "Диспетчер задач заблокирован на уровне системы",
-                "Системная политика запрещает запуск Диспетчера задач.",
-                findings);
-
-            CheckPolicyIntLock(
-                Registry.CurrentUser, "HKCU",
-                @"Software\Microsoft\Windows\CurrentVersion\Policies\System", "DisableRegistryTools",
-                OsSabotageKind.RegistryEditorDisabledByPolicy,
-                "Редактор реестра (regedit) заблокирован",
-                "Установлен запрет на просмотр и редактирование реестра Windows.",
-                findings);
-
-            CheckPolicyIntLock(
-                Registry.CurrentUser, "HKCU",
-                @"Software\Policies\Microsoft\Windows\System", "DisableCMD",
-                OsSabotageKind.CommandPromptDisabledByPolicy,
-                "Командная строка (cmd.exe) заблокирована",
-                "Политика запрещает выполнение диагностических команд в консоли.",
-                findings);
-
-            // Проверка блокировки системных утилит через IFEO Debugger
-            const string ifeoBase = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options";
-            try
-            {
-                using var ifeo = Registry.LocalMachine.OpenSubKey(ifeoBase, writable: false);
-                if (ifeo is not null)
-                {
-                    foreach (var tool in CriticalAdminTools)
-                    {
-                        using var sub = ifeo.OpenSubKey(tool, writable: false);
-                        var dbg = sub?.GetValue("Debugger")?.ToString();
-                        if (!string.IsNullOrWhiteSpace(dbg))
-                        {
-                            findings.Add(new OsSabotageFinding(
-                                Kind: OsSabotageKind.SystemToolIfeoBlocked,
-                                TargetDisplayPath: $@"HKLM\{ifeoBase}\{tool} :: Debugger",
-                                Hive: "HKLM",
-                                SubKeyPath: $@"{ifeoBase}\{tool}",
-                                ValueName: "Debugger",
-                                CurrentMaliciousValue: dbg,
-                                SimpleTitle: $"Перехвачен запуск системной утилиты «{tool}»",
-                                SimpleExplanation: $"При попытке открыть «{tool}» система перенаправляется на «{dbg}»."));
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // Безопасный пропуск
-            }
-
-            // Проверка блокировок антивирусов и Центра обновления в файле hosts
-            var hostsPath = GetHostsFilePath();
-            if (File.Exists(hostsPath))
-            {
-                try
-                {
-                    var text = File.ReadAllText(hostsPath);
-                    var suspicious = NetworkAndHostsInspector.ParseHostsContent(text)
-                        .Where(h => h.IsSuspiciousSecurityBlock)
-                        .ToList();
-
-                    if (suspicious.Count > 0)
-                    {
-                        var sampleDomains = string.Join(", ", suspicious.Take(4).Select(s => s.DomainHost));
-                        findings.Add(new OsSabotageFinding(
-                            Kind: OsSabotageKind.SecurityDomainsBlockedInHosts,
-                            TargetDisplayPath: hostsPath,
-                            Hive: "FILE",
-                            SubKeyPath: hostsPath,
-                            ValueName: "hosts",
-                            CurrentMaliciousValue: sampleDomains,
-                            SimpleTitle: $"В файле hosts заблокированы сайты антивирусов и обновлений ({suspicious.Count} шт.)",
-                            SimpleExplanation: $"Обнаружена блокировка доступа к защитным серверам ({sampleDomains})."));
-                    }
-                }
-                catch
-                {
-                    // Безопасный пропуск
-                }
-            }
-
-            return findings;
-        }, ct);
+            return [];
+        }
     }
 
     public override async Task<bool> TerminateSuspectProcessAsync(int processId, CancellationToken ct = default)
     {
-        if (!OperatingSystem.IsWindows() || processId <= 4)
+        if (!OperatingSystem.IsWindows() || processId <= 4 || processId == Environment.ProcessId)
         {
             return false;
         }
@@ -346,7 +156,9 @@ public sealed class WindowsSecurityPlatformBridge : DefaultSecurityPlatformBridg
             if (cleanName.Equals("csrss", StringComparison.OrdinalIgnoreCase) ||
                 cleanName.Equals("lsass", StringComparison.OrdinalIgnoreCase) ||
                 cleanName.Equals("wininit", StringComparison.OrdinalIgnoreCase) ||
-                cleanName.Equals("smss", StringComparison.OrdinalIgnoreCase))
+                cleanName.Equals("smss", StringComparison.OrdinalIgnoreCase) ||
+                cleanName.Equals("services", StringComparison.OrdinalIgnoreCase) ||
+                cleanName.Equals("winlogon", StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
@@ -363,129 +175,101 @@ public sealed class WindowsSecurityPlatformBridge : DefaultSecurityPlatformBridg
         }
     }
 
-    public override Task<(bool Succeeded, string? OriginalHostsBackupContent)> RepairSabotageLockAsync(
-        OsSabotageFinding lockFinding,
-        CancellationToken ct = default)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return Task.FromResult((false, (string?)null));
-        }
-
-        return Task.Run(() =>
-        {
-            if (lockFinding.Kind == OsSabotageKind.SecurityDomainsBlockedInHosts)
-            {
-                try
-                {
-                    var hostsPath = GetHostsFilePath();
-                    if (!File.Exists(hostsPath)) return (false, (string?)null);
-
-                    var original = File.ReadAllText(hostsPath);
-                    var suspiciousLines = NetworkAndHostsInspector.ParseHostsContent(original)
-                        .Where(h => h.IsSuspiciousSecurityBlock)
-                        .Select(h => h.LineNumber)
-                        .ToHashSet();
-
-                    var rawLines = original.Split(["\r\n", "\n"], StringSplitOptions.None);
-                    var cleaned = new StringBuilder();
-                    for (int i = 0; i < rawLines.Length; i++)
-                    {
-                        if (!suspiciousLines.Contains(i + 1))
-                        {
-                            cleaned.AppendLine(rawLines[i]);
-                        }
-                    }
-
-                    File.WriteAllText(hostsPath, cleaned.ToString(), Encoding.UTF8);
-                    return (true, original);
-                }
-                catch
-                {
-                    return (false, (string?)null);
-                }
-            }
-
-            try
-            {
-                var root = string.Equals(lockFinding.Hive, "HKLM", StringComparison.OrdinalIgnoreCase)
-                    ? Registry.LocalMachine
-                    : Registry.CurrentUser;
-
-                using var key = root.OpenSubKey(lockFinding.SubKeyPath, writable: true);
-                key?.DeleteValue(lockFinding.ValueName, throwOnMissingValue: false);
-                return (true, (string?)null);
-            }
-            catch
-            {
-                return (false, (string?)null);
-            }
-        }, ct);
-    }
-
-    private static List<ProcessTelemetrySample> BuildProcessSamples(
-        Dictionary<int, (string Name, TimeSpan CpuTime)> q0,
-        Dictionary<int, (string Name, TimeSpan CpuTime)> q1,
+    private List<ProcessTelemetrySample> BuildProcessSamples(
+        Dictionary<int, (string Name, TimeSpan CpuTime, long WorkingSet)> q0,
+        Dictionary<int, (string Name, TimeSpan CpuTime, long WorkingSet)> q1,
         double quietWindowMs,
-        Dictionary<int, (string Name, TimeSpan CpuTime)> i0,
-        Dictionary<int, (string Name, TimeSpan CpuTime)> i1,
+        Dictionary<int, (string Name, TimeSpan CpuTime, long WorkingSet)> i0,
+        Dictionary<int, (string Name, TimeSpan CpuTime, long WorkingSet)> i1,
         double inspectWindowMs,
+        Dictionary<int, double> quietGpuByPid,
+        Dictionary<int, double> inspectGpuByPid,
         int logicalCores)
     {
-        var samples = new List<ProcessTelemetrySample>();
+        var samples = new List<ProcessTelemetrySample>(q1.Count);
         var quietDenom = Math.Max(1.0, quietWindowMs * logicalCores);
         var inspectDenom = Math.Max(1.0, inspectWindowMs * logicalCores);
+        var hollowTargets = ThreatIndicatorCatalog.Shared.HollowTargetBinaries;
 
         foreach (var (pid, endQuiet) in q1)
         {
-            if (pid <= 4 || !q0.TryGetValue(pid, out var startQuiet))
+            if (pid <= 4 || pid == Environment.ProcessId || !q0.TryGetValue(pid, out var startQuiet))
             {
                 continue;
             }
 
             var quietCpuMs = Math.Max(0.0, (endQuiet.CpuTime - startQuiet.CpuTime).TotalMilliseconds);
-            var baselinePct = Math.Clamp(quietCpuMs / quietDenom * 100.0, 0.0, 100.0);
+            var baselineCpuPct = Math.Clamp(quietCpuMs / quietDenom * 100.0, 0.0, 100.0);
 
             bool exitedDuringInspect = !i1.ContainsKey(pid);
-            double inspectPct = 0.0;
+            double inspectCpuPct = 0.0;
             if (!exitedDuringInspect && i0.TryGetValue(pid, out var startInsp) && i1.TryGetValue(pid, out var endInsp))
             {
                 var inspCpuMs = Math.Max(0.0, (endInsp.CpuTime - startInsp.CpuTime).TotalMilliseconds);
-                inspectPct = Math.Clamp(inspCpuMs / inspectDenom * 100.0, 0.0, 100.0);
+                inspectCpuPct = Math.Clamp(inspCpuMs / inspectDenom * 100.0, 0.0, 100.0);
             }
 
-            var exePath = QueryProcessImagePathFast(pid);
-            var signed = !string.IsNullOrWhiteSpace(exePath) && AuthenticodeVerifier.IsFileTrustedSigned(exePath);
+            double baselineGpuPct = quietGpuByPid.TryGetValue(pid, out var qGpu) ? Math.Clamp(qGpu, 0.0, 100.0) : 0.0;
+            double inspectGpuPct = !exitedDuringInspect && inspectGpuByPid.TryGetValue(pid, out var iGpu)
+                ? Math.Clamp(iGpu, 0.0, 100.0)
+                : 0.0;
+
+            var (exePath, commandLine, parentPid) = QueryProcessExtendedMetadata(pid);
+            string parentName = parentPid > 4 && q1.TryGetValue(parentPid, out var pEntry) ? pEntry.Name : "";
+            bool signed = !string.IsNullOrWhiteSpace(exePath) && VerifySignedCached(exePath);
+
+            var exeFileName = !string.IsNullOrWhiteSpace(exePath) ? Path.GetFileName(exePath) : endQuiet.Name + ".exe";
+            int privateExecRegions = 0;
+            if (hollowTargets.Contains(exeFileName) || baselineCpuPct >= 15.0 || baselineGpuPct >= 15.0)
+            {
+                privateExecRegions = CountPrivateExecutableRegions(pid);
+            }
 
             samples.Add(new ProcessTelemetrySample(
                 ProcessId: pid,
                 ProcessName: endQuiet.Name,
                 ExecutablePath: exePath,
-                CommandLine: "",
-                BaselineCpuPercent: Math.Round(baselinePct, 1),
-                DuringInspectCpuPercent: Math.Round(inspectPct, 1),
+                CommandLine: commandLine,
+                BaselineCpuPercent: Math.Round(baselineCpuPct, 1),
+                DuringInspectCpuPercent: Math.Round(inspectCpuPct, 1),
                 ExitedDuringInspect: exitedDuringInspect,
-                IsAuthenticodeSigned: signed));
+                IsAuthenticodeSigned: signed,
+                BaselineGpuPercent: Math.Round(baselineGpuPct, 1),
+                DuringInspectGpuPercent: Math.Round(inspectGpuPct, 1),
+                ParentProcessId: parentPid,
+                ParentProcessName: parentName,
+                PrivateExecutableRegionCount: privateExecRegions,
+                WorkingSetBytes: endQuiet.WorkingSet));
         }
 
         return samples;
     }
 
-    private static Dictionary<int, (string Name, TimeSpan CpuTime)> SampleProcessCpuTimes()
+    private bool VerifySignedCached(string filePath)
     {
-        var map = new Dictionary<int, (string Name, TimeSpan CpuTime)>();
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return false;
+        }
+
+        return _signatureCache.GetOrAdd(filePath, static p => AuthenticodeVerifier.IsFileTrustedSigned(p));
+    }
+
+    private static Dictionary<int, (string Name, TimeSpan CpuTime, long WorkingSet)> SampleProcessCpuTimes()
+    {
+        var map = new Dictionary<int, (string Name, TimeSpan CpuTime, long WorkingSet)>(256);
         foreach (var p in Process.GetProcesses())
         {
             try
             {
                 if (p.Id > 4)
                 {
-                    map[p.Id] = (p.ProcessName, p.TotalProcessorTime);
+                    map[p.Id] = (p.ProcessName, p.TotalProcessorTime, p.WorkingSet64);
                 }
             }
             catch
             {
-                // Системные защищенные процессы пропускаются без ошибок
+                // Защищённые системные процессы пропускаются без исключений
             }
             finally
             {
@@ -496,94 +280,29 @@ public sealed class WindowsSecurityPlatformBridge : DefaultSecurityPlatformBridg
         return map;
     }
 
-    private static void ScanTaskTreeForMissingSd(
-        RegistryKey currentKey,
-        string relativeTaskPath,
-        int depth,
-        List<PersistenceAnomalyRecord> sink,
-        CancellationToken ct)
-    {
-        if (depth > 6) return;
-
-        foreach (var childName in currentKey.GetSubKeyNames())
-        {
-            ct.ThrowIfCancellationRequested();
-            try
-            {
-                using var child = currentKey.OpenSubKey(childName, writable: false);
-                if (child is null) continue;
-
-                var taskPath = $"{relativeTaskPath}\\{childName}";
-                var taskId = child.GetValue("Id")?.ToString();
-                var sd = child.GetValue("SD");
-
-                // Если у зарегистрированной задачи есть GUID Id, но намеренно стерт бинарный дескриптор SD — это скрытая задача!
-                if (!string.IsNullOrWhiteSpace(taskId) && sd is null)
-                {
-                    sink.Add(new PersistenceAnomalyRecord(
-                        Vector: ThreatDetectionVector.HiddenScheduledTask,
-                        RegistryOrTaskPath: $@"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tree{taskPath}",
-                        EntryName: taskPath,
-                        PayloadCommandOrPath: $"TaskId={taskId} (отсутствует дескриптор безопасности SD)",
-                        ReferencedExecutablePath: null,
-                        IsMissingSecurityDescriptorSd: true,
-                        PreviousValueSerialized: taskId));
-                }
-
-                ScanTaskTreeForMissingSd(child, taskPath, depth + 1, sink, ct);
-            }
-            catch
-            {
-                // Пропускаем закрытые ветки
-            }
-        }
-    }
-
-    private static void CheckPolicyIntLock(
-        RegistryKey root,
-        string hiveName,
-        string subKeyPath,
-        string valueName,
-        OsSabotageKind kind,
-        string title,
-        string explanation,
-        List<OsSabotageFinding> sink)
-    {
-        try
-        {
-            using var key = root.OpenSubKey(subKeyPath, writable: false);
-            if (key?.GetValue(valueName) is int flag && flag != 0)
-            {
-                sink.Add(new OsSabotageFinding(
-                    Kind: kind,
-                    TargetDisplayPath: $@"{hiveName}\{subKeyPath} :: {valueName}",
-                    Hive: hiveName,
-                    SubKeyPath: subKeyPath,
-                    ValueName: valueName,
-                    CurrentMaliciousValue: flag.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    SimpleTitle: title,
-                    SimpleExplanation: explanation));
-            }
-        }
-        catch
-        {
-            // Пропускаем
-        }
-    }
-
-    private static string QueryProcessImagePathFast(int pid)
+    private static (string ExePath, string CommandLine, int ParentPid) QueryProcessExtendedMetadata(int pid)
     {
         var hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, bInheritHandle: false, (uint)pid);
         if (hProcess == IntPtr.Zero)
         {
-            return "";
+            return ("", "", 0);
         }
 
         try
         {
             var sb = new StringBuilder(512);
             uint size = (uint)sb.Capacity;
-            return QueryFullProcessImageNameW(hProcess, 0, sb, ref size) ? sb.ToString() : "";
+            string exePath = QueryFullProcessImageNameW(hProcess, 0, sb, ref size) ? sb.ToString() : "";
+
+            int parentPid = 0;
+            var pbi = new PROCESS_BASIC_INFORMATION();
+            if (NtQueryInformationProcess(hProcess, ProcessBasicInformationClass, ref pbi, Marshal.SizeOf<PROCESS_BASIC_INFORMATION>(), out _) == 0)
+            {
+                parentPid = (int)pbi.InheritedFromUniqueProcessId.ToInt64();
+            }
+
+            string cmdLine = QueryProcessCommandLineNative(hProcess);
+            return (exePath, cmdLine, parentPid);
         }
         finally
         {
@@ -591,8 +310,432 @@ public sealed class WindowsSecurityPlatformBridge : DefaultSecurityPlatformBridg
         }
     }
 
+    private static string QueryProcessCommandLineNative(IntPtr hProcess)
+    {
+        int status = NtQueryInformationProcessBuffer(hProcess, ProcessCommandLineInformationClass, IntPtr.Zero, 0, out int returnLength);
+        if (returnLength <= 0 || returnLength > 65536)
+        {
+            return "";
+        }
+
+        var buffer = Marshal.AllocHGlobal(returnLength);
+        try
+        {
+            status = NtQueryInformationProcessBuffer(hProcess, ProcessCommandLineInformationClass, buffer, returnLength, out _);
+            if (status != 0)
+            {
+                return "";
+            }
+
+            var unicode = Marshal.PtrToStructure<UNICODE_STRING>(buffer);
+            if (unicode.Length == 0 || unicode.Buffer == IntPtr.Zero)
+            {
+                return "";
+            }
+
+            return Marshal.PtrToStringUni(unicode.Buffer, unicode.Length / 2) ?? "";
+        }
+        catch
+        {
+            return "";
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
     /// <summary>
-    /// Вспомогательное невидимое нулевое окно верхнего уровня с заголовком «Task Manager» для детекта прячущихся майнеров.
+    /// Нативный поиск не привязанных к файлам на диске исполняемых регионов памяти (MEM_PRIVATE + PAGE_EXECUTE_*) >= 64 КБ.
+    /// Позволяет обнаруживать распакованные в память пейлоады XMRig и Process Hollowing даже без внешнего pe-sieve.
+    /// </summary>
+    private static int CountPrivateExecutableRegions(int pid)
+    {
+        var hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, bInheritHandle: false, (uint)pid);
+        if (hProcess == IntPtr.Zero)
+        {
+            return 0;
+        }
+
+        try
+        {
+            int suspectRegions = 0;
+            nuint address = 0;
+            int mbiSize = Marshal.SizeOf<MEMORY_BASIC_INFORMATION>();
+
+            for (int step = 0; step < 3072; step++)
+            {
+                if (VirtualQueryEx(hProcess, (IntPtr)address, out var mbi, (nuint)mbiSize) == 0)
+                {
+                    break;
+                }
+
+                if (mbi.State == MEM_COMMIT &&
+                    mbi.Type == MEM_PRIVATE &&
+                    mbi.RegionSize >= 64 * 1024 &&
+                    (mbi.Protect & (PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY)) != 0 &&
+                    (mbi.Protect & PAGE_GUARD) == 0)
+                {
+                    suspectRegions++;
+                }
+
+                nuint next = (nuint)mbi.BaseAddress + mbi.RegionSize;
+                if (next <= address)
+                {
+                    break;
+                }
+
+                address = next;
+            }
+
+            return suspectRegions;
+        }
+        catch
+        {
+            return 0;
+        }
+        finally
+        {
+            _ = CloseHandle(hProcess);
+        }
+    }
+
+    private static void ReadIpv4TcpTable(List<ProcessTcpConnectionInfo> sink)
+    {
+        uint buffSize = 0;
+        _ = GetExtendedTcpTable(IntPtr.Zero, ref buffSize, sort: false, AF_INET, TCP_TABLE_OWNER_PID_ALL, 0);
+        if (buffSize == 0 || buffSize > 16 * 1024 * 1024)
+        {
+            return;
+        }
+
+        var buffer = Marshal.AllocHGlobal((int)buffSize);
+        try
+        {
+            if (GetExtendedTcpTable(buffer, ref buffSize, sort: false, AF_INET, TCP_TABLE_OWNER_PID_ALL, 0) != 0)
+            {
+                return;
+            }
+
+            int rowCount = Marshal.ReadInt32(buffer);
+            var rowPtr = buffer + 4;
+            int rowSize = Marshal.SizeOf<MIB_TCPROW_OWNER_PID>();
+
+            for (int i = 0; i < rowCount && i < 16384; i++)
+            {
+                var row = Marshal.PtrToStructure<MIB_TCPROW_OWNER_PID>(rowPtr);
+                rowPtr += rowSize;
+
+                if (row.dwState is not (3u or 5u) || row.dwRemoteAddr == 0)
+                {
+                    continue;
+                }
+
+                var localIp = new IPAddress(row.dwLocalAddr).ToString();
+                var remoteIp = new IPAddress(row.dwRemoteAddr).ToString();
+                var localPort = BinaryPrimitives.ReverseEndianness((ushort)(row.dwLocalPort & 0xFFFF));
+                var remotePort = BinaryPrimitives.ReverseEndianness((ushort)(row.dwRemotePort & 0xFFFF));
+
+                sink.Add(new ProcessTcpConnectionInfo(
+                    ProcessId: (int)row.dwOwningPid,
+                    LocalAddress: localIp,
+                    LocalPort: localPort,
+                    RemoteAddress: remoteIp,
+                    RemotePort: remotePort,
+                    IsIpv6: false));
+            }
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    private static unsafe void ReadIpv6TcpTable(List<ProcessTcpConnectionInfo> sink)
+    {
+        uint buffSize = 0;
+        _ = GetExtendedTcpTable(IntPtr.Zero, ref buffSize, sort: false, AF_INET6, TCP_TABLE_OWNER_PID_ALL, 0);
+        if (buffSize == 0 || buffSize > 16 * 1024 * 1024)
+        {
+            return;
+        }
+
+        var buffer = Marshal.AllocHGlobal((int)buffSize);
+        try
+        {
+            if (GetExtendedTcpTable(buffer, ref buffSize, sort: false, AF_INET6, TCP_TABLE_OWNER_PID_ALL, 0) != 0)
+            {
+                return;
+            }
+
+            int rowCount = Marshal.ReadInt32(buffer);
+            var rowPtr = buffer + 4;
+            int rowSize = Marshal.SizeOf<MIB_TCP6ROW_OWNER_PID>();
+
+            for (int i = 0; i < rowCount && i < 16384; i++)
+            {
+                var row = *(MIB_TCP6ROW_OWNER_PID*)rowPtr;
+                rowPtr += rowSize;
+
+                if (row.dwState is not (3u or 5u))
+                {
+                    continue;
+                }
+
+                var localSpan = new ReadOnlySpan<byte>(row.ucLocalAddr, 16);
+                var remoteSpan = new ReadOnlySpan<byte>(row.ucRemoteAddr, 16);
+                var remoteAddr = new IPAddress(remoteSpan, row.dwRemoteScopeId);
+                if (IPAddress.IsLoopback(remoteAddr) || remoteAddr.Equals(IPAddress.IPv6Any) || remoteAddr.Equals(IPAddress.IPv6None))
+                {
+                    continue;
+                }
+
+                var localAddr = new IPAddress(localSpan, row.dwLocalScopeId);
+                var localPort = BinaryPrimitives.ReverseEndianness((ushort)(row.dwLocalPort & 0xFFFF));
+                var remotePort = BinaryPrimitives.ReverseEndianness((ushort)(row.dwRemotePort & 0xFFFF));
+
+                sink.Add(new ProcessTcpConnectionInfo(
+                    ProcessId: (int)row.dwOwningPid,
+                    LocalAddress: localAddr.ToString(),
+                    LocalPort: localPort,
+                    RemoteAddress: remoteAddr.ToString(),
+                    RemotePort: remotePort,
+                    IsIpv6: true));
+            }
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    /// <summary>
+    /// Нативный PDH-сэмплер загрузки GPU по процессам (\GPU Engine(*)\Utilization Percentage).
+    /// Использует английское имя счётчика (PdhAddEnglishCounterW), поэтому одинаково работает на русской и английской Windows 10/11.
+    /// </summary>
+    private sealed class NativeGpuEngineSampler : IDisposable
+    {
+        private IntPtr _hQuery;
+        private IntPtr _hCounter;
+
+        private NativeGpuEngineSampler(IntPtr hQuery, IntPtr hCounter)
+        {
+            _hQuery = hQuery;
+            _hCounter = hCounter;
+        }
+
+        public static NativeGpuEngineSampler? TryOpen()
+        {
+            try
+            {
+                if (PdhOpenQueryW(IntPtr.Zero, IntPtr.Zero, out var query) != 0 || query == IntPtr.Zero)
+                {
+                    return null;
+                }
+
+                if (PdhAddEnglishCounterW(query, @"\GPU Engine(*)\Utilization Percentage", IntPtr.Zero, out var counter) != 0 || counter == IntPtr.Zero)
+                {
+                    _ = PdhCloseQuery(query);
+                    return null;
+                }
+
+                return new NativeGpuEngineSampler(query, counter);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public void PrimeBaseline()
+        {
+            if (_hQuery != IntPtr.Zero)
+            {
+                _ = PdhCollectQueryData(_hQuery);
+            }
+        }
+
+        public Dictionary<int, double> CollectUtilizationByPid()
+        {
+            var result = new Dictionary<int, double>();
+            if (_hQuery == IntPtr.Zero || _hCounter == IntPtr.Zero)
+            {
+                return result;
+            }
+
+            if (PdhCollectQueryData(_hQuery) != 0)
+            {
+                return result;
+            }
+
+            uint bufferSize = 0;
+            uint itemCount = 0;
+            uint status = PdhGetFormattedCounterArrayW(_hCounter, PDH_FMT_DOUBLE, ref bufferSize, ref itemCount, IntPtr.Zero);
+            if (status != PDH_MORE_DATA || bufferSize == 0 || bufferSize > 8 * 1024 * 1024)
+            {
+                return result;
+            }
+
+            var buffer = Marshal.AllocHGlobal((int)bufferSize);
+            try
+            {
+                status = PdhGetFormattedCounterArrayW(_hCounter, PDH_FMT_DOUBLE, ref bufferSize, ref itemCount, buffer);
+                if (status != 0 || itemCount == 0)
+                {
+                    return result;
+                }
+
+                int itemSize = Marshal.SizeOf<PDH_FMT_COUNTERVALUE_ITEM_DOUBLE>();
+                var ptr = buffer;
+                for (uint i = 0; i < itemCount && i < 16384; i++)
+                {
+                    var item = Marshal.PtrToStructure<PDH_FMT_COUNTERVALUE_ITEM_DOUBLE>(ptr);
+                    ptr += itemSize;
+
+                    if (item.FmtValue.CStatus != 0 || item.FmtValue.DoubleValue <= 0.05 || item.SzName == IntPtr.Zero)
+                    {
+                        continue;
+                    }
+
+                    var instanceName = Marshal.PtrToStringUni(item.SzName);
+                    if (string.IsNullOrWhiteSpace(instanceName))
+                    {
+                        continue;
+                    }
+
+                    // Нас интересуют движки вычислений и рендера: 3D, Compute, Cuda, Copy
+                    int pid = TryParsePidFromGpuInstance(instanceName);
+                    if (pid <= 4)
+                    {
+                        continue;
+                    }
+
+                    result[pid] = result.TryGetValue(pid, out var prev)
+                        ? Math.Min(100.0, prev + item.FmtValue.DoubleValue)
+                        : Math.Min(100.0, item.FmtValue.DoubleValue);
+                }
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+
+            return result;
+        }
+
+        private static int TryParsePidFromGpuInstance(string instance)
+        {
+            const string prefix = "pid_";
+            int idx = instance.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+            if (idx < 0) return 0;
+
+            int start = idx + prefix.Length;
+            int end = start;
+            while (end < instance.Length && char.IsAsciiDigit(instance[end]))
+            {
+                end++;
+            }
+
+            return end > start && int.TryParse(instance.AsSpan(start, end - start), out int pid) ? pid : 0;
+        }
+
+        public void Dispose()
+        {
+            if (_hQuery != IntPtr.Zero)
+            {
+                _ = PdhCloseQuery(_hQuery);
+                _hQuery = IntPtr.Zero;
+                _hCounter = IntPtr.Zero;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Кратковременно запускает настоящий системный монитор Windows в свёрнутом неактивном режиме (только если он ещё не открыт),
+    /// чтобы выманить майнеры класса SilentCryptoMiner, проверяющие список процессов через CreateToolhelp32Snapshot.
+    /// По завершении 650-мс окна аккуратно закрывает только созданный дочерний процесс.
+    /// </summary>
+    private sealed class RealSystemMonitorProbe : IDisposable
+    {
+        private readonly Process? _spawnedProcess;
+
+        private RealSystemMonitorProbe(Process? spawnedProcess)
+        {
+            _spawnedProcess = spawnedProcess;
+        }
+
+        public static RealSystemMonitorProbe TryLaunchMinimizedIfSafe()
+        {
+            if (!OperatingSystem.IsWindows() || !Environment.UserInteractive)
+            {
+                return new RealSystemMonitorProbe(null);
+            }
+
+            // Не мешаем пользователю, если Диспетчер задач или Монитор ресурсов уже открыт, и не запускаем в автоматических CI-раннерах
+            if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")) ||
+                !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CI")))
+            {
+                return new RealSystemMonitorProbe(null);
+            }
+
+            try
+            {
+                if (Process.GetProcessesByName("Taskmgr").Length > 0 ||
+                    Process.GetProcessesByName("perfmon").Length > 0)
+                {
+                    return new RealSystemMonitorProbe(null);
+                }
+
+                // Когда процесс уже запущен с правами администратора, запускаем свёрнутый taskmgr.exe без запроса UAC;
+                // без прав администратора используем штатный свёрнутый perfmon /res (не вызывает UAC).
+                string candidateExe = ElevationChecker.IsRunningAsAdministrator()
+                    ? Path.Combine(Environment.SystemDirectory, "Taskmgr.exe")
+                    : Path.Combine(Environment.SystemDirectory, "systray.exe");
+
+                if (!File.Exists(candidateExe))
+                {
+                    return new RealSystemMonitorProbe(null);
+                }
+
+                var psi = new ProcessStartInfo
+                {
+                    FileName = candidateExe,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Minimized,
+                    CreateNoWindow = true
+                };
+
+                return new RealSystemMonitorProbe(Process.Start(psi));
+            }
+            catch
+            {
+                return new RealSystemMonitorProbe(null);
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_spawnedProcess is null) return;
+            try
+            {
+                if (!_spawnedProcess.HasExited)
+                {
+                    _spawnedProcess.Kill();
+                }
+            }
+            catch
+            {
+                // Игнорируем, если уже закрылся
+            }
+            finally
+            {
+                _spawnedProcess.Dispose();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Невидимые окна-приманки верхнего уровня с заголовками популярных диспетчеров процессов (EN + RU).
     /// </summary>
     private sealed class DecoyInspectionWindow : IDisposable
     {
@@ -611,22 +754,32 @@ public sealed class WindowsSecurityPlatformBridge : DefaultSecurityPlatformBridg
             _ready.Wait(TimeSpan.FromMilliseconds(300));
         }
 
-        public static DecoyInspectionWindow CreateHiddenDecoy() => new();
+        public static DecoyInspectionWindow CreateDecoys() => new();
 
         private void WindowThreadLoop()
         {
-            var hwnd = CreateWindowExW(
-                WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
-                "STATIC",
-                "Task Manager",
-                WS_POPUP,
-                -32000, -32000, 1, 1,
-                IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+            var titles = new[] { "Task Manager", "Диспетчер задач", "System Informer", "Process Explorer" };
+            var handles = new List<IntPtr>(titles.Length);
+
+            foreach (var title in titles)
+            {
+                var hwnd = CreateWindowExW(
+                    WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+                    "STATIC",
+                    title,
+                    WS_POPUP,
+                    -32000, -32000, 1, 1,
+                    IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                if (hwnd != IntPtr.Zero)
+                {
+                    handles.Add(hwnd);
+                }
+            }
 
             _ready.Set();
-            _stop.Wait(TimeSpan.FromSeconds(3));
+            _stop.Wait(TimeSpan.FromSeconds(4));
 
-            if (hwnd != IntPtr.Zero)
+            foreach (var hwnd in handles)
             {
                 _ = DestroyWindow(hwnd);
             }
@@ -641,13 +794,62 @@ public sealed class WindowsSecurityPlatformBridge : DefaultSecurityPlatformBridg
         }
     }
 
-    // ==================== WIN32 P/INVOKE (KERNEL32 / IPHLPAPI / USER32) ====================
+    // ==================== WIN32 / NTAPI / PDH P/INVOKE ====================
+    private const uint PROCESS_QUERY_INFORMATION = 0x0400;
     private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    private const int ProcessBasicInformationClass = 0;
+    private const int ProcessCommandLineInformationClass = 60;
+
+    private const uint MEM_COMMIT = 0x1000;
+    private const uint MEM_PRIVATE = 0x20000;
+    private const uint PAGE_EXECUTE = 0x10;
+    private const uint PAGE_EXECUTE_READ = 0x20;
+    private const uint PAGE_EXECUTE_READWRITE = 0x40;
+    private const uint PAGE_EXECUTE_WRITECOPY = 0x80;
+    private const uint PAGE_GUARD = 0x100;
+
     private const uint AF_INET = 2;
+    private const uint AF_INET6 = 23;
     private const int TCP_TABLE_OWNER_PID_ALL = 5;
+
+    private const uint PDH_FMT_DOUBLE = 0x00000200;
+    private const uint PDH_MORE_DATA = 0x800007D2;
+
     private const uint WS_POPUP = 0x80000000;
     private const uint WS_EX_TOOLWINDOW = 0x00000080;
     private const uint WS_EX_NOACTIVATE = 0x08000000;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PROCESS_BASIC_INFORMATION
+    {
+        public IntPtr Reserved1;
+        public IntPtr PebBaseAddress;
+        public IntPtr Reserved2_0;
+        public IntPtr Reserved2_1;
+        public IntPtr UniqueProcessId;
+        public IntPtr InheritedFromUniqueProcessId;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct UNICODE_STRING
+    {
+        public ushort Length;
+        public ushort MaximumLength;
+        public IntPtr Buffer;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MEMORY_BASIC_INFORMATION
+    {
+        public IntPtr BaseAddress;
+        public IntPtr AllocationBase;
+        public uint AllocationProtect;
+        public ushort PartitionId;
+        public nuint RegionSize;
+        public uint State;
+        public uint Protect;
+        public uint Type;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MIB_TCPROW_OWNER_PID
@@ -660,6 +862,33 @@ public sealed class WindowsSecurityPlatformBridge : DefaultSecurityPlatformBridg
         public uint dwOwningPid;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private unsafe struct MIB_TCP6ROW_OWNER_PID
+    {
+        public fixed byte ucLocalAddr[16];
+        public uint dwLocalScopeId;
+        public uint dwLocalPort;
+        public fixed byte ucRemoteAddr[16];
+        public uint dwRemoteScopeId;
+        public uint dwRemotePort;
+        public uint dwState;
+        public uint dwOwningPid;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PDH_FMT_COUNTERVALUE_DOUBLE
+    {
+        public uint CStatus;
+        public double DoubleValue;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PDH_FMT_COUNTERVALUE_ITEM_DOUBLE
+    {
+        public IntPtr SzName;
+        public PDH_FMT_COUNTERVALUE_DOUBLE FmtValue;
+    }
+
     [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
     private static extern IntPtr OpenProcess(uint dwDesiredAccess, [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle, uint dwProcessId);
 
@@ -668,8 +897,27 @@ public sealed class WindowsSecurityPlatformBridge : DefaultSecurityPlatformBridg
     private static extern bool QueryFullProcessImageNameW(IntPtr hProcess, uint dwFlags, StringBuilder lpExeName, ref uint lpdwSize);
 
     [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
+    private static extern nuint VirtualQueryEx(IntPtr hProcess, IntPtr lpAddress, out MEMORY_BASIC_INFORMATION lpBuffer, nuint dwLength);
+
+    [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool CloseHandle(IntPtr hObject);
+
+    [DllImport("ntdll.dll", ExactSpelling = true)]
+    private static extern int NtQueryInformationProcess(
+        IntPtr processHandle,
+        int processInformationClass,
+        ref PROCESS_BASIC_INFORMATION processInformation,
+        int processInformationLength,
+        out int returnLength);
+
+    [DllImport("ntdll.dll", EntryPoint = "NtQueryInformationProcess", ExactSpelling = true)]
+    private static extern int NtQueryInformationProcessBuffer(
+        IntPtr processHandle,
+        int processInformationClass,
+        IntPtr processInformation,
+        int processInformationLength,
+        out int returnLength);
 
     [DllImport("iphlpapi.dll", SetLastError = true, ExactSpelling = true)]
     private static extern uint GetExtendedTcpTable(
@@ -679,6 +927,26 @@ public sealed class WindowsSecurityPlatformBridge : DefaultSecurityPlatformBridg
         uint ulAf,
         int tableClass,
         uint reserved);
+
+    [DllImport("pdh.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern uint PdhOpenQueryW(IntPtr szDataSource, IntPtr dwUserData, out IntPtr phQuery);
+
+    [DllImport("pdh.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern uint PdhAddEnglishCounterW(IntPtr hQuery, string szFullCounterPath, IntPtr dwUserData, out IntPtr phCounter);
+
+    [DllImport("pdh.dll", ExactSpelling = true)]
+    private static extern uint PdhCollectQueryData(IntPtr hQuery);
+
+    [DllImport("pdh.dll", ExactSpelling = true)]
+    private static extern uint PdhGetFormattedCounterArrayW(
+        IntPtr hCounter,
+        uint dwFormat,
+        ref uint lpdwBufferSize,
+        ref uint lpdwItemCount,
+        IntPtr itemBuffer);
+
+    [DllImport("pdh.dll", ExactSpelling = true)]
+    private static extern uint PdhCloseQuery(IntPtr hQuery);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true, ExactSpelling = true)]
     private static extern IntPtr CreateWindowExW(

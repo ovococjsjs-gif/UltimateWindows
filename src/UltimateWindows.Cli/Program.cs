@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using UltimateWindows.Core.Guards;
 using UltimateWindows.Modules.Cleaner.Browsers;
 using UltimateWindows.Modules.Cleaner.Models;
@@ -15,6 +16,7 @@ using UltimateWindows.Modules.Repair.ErrorCodes;
 using UltimateWindows.Modules.Repair.Models;
 using UltimateWindows.Modules.Repair.Services;
 using UltimateWindows.Modules.Safety.Services;
+using UltimateWindows.Modules.Security.Models;
 using UltimateWindows.Modules.Security.Services;
 using UltimateWindows.NativeInterop.Cleaner;
 using UltimateWindows.NativeInterop.Drivers;
@@ -823,19 +825,27 @@ switch (command)
         break;
     }
 
+    case "security-scan":
     case "miner-scan":
     {
-        var probe = args.Length < 2 || !string.Equals(args[1], "--fast", StringComparison.OrdinalIgnoreCase);
+        var probe = !HasFlag(args, "--fast");
         var report = await security.RunFullSecurityScanAsync(probe);
-        Console.WriteLine($"=== UltimateWindows Phase 5 — Охотник на майнеры (Индекс: {report.SecurityHealthScore}/100) ===");
+        if (HasFlag(args, "--json"))
+        {
+            Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
+            break;
+        }
+
+        Console.WriteLine($"=== Анти-майнер и Защита 2.0 — Полный аудит безопасности (Индекс: {report.SecurityHealthScore}/100) ===");
         Console.WriteLine(report.HeadlineSummary);
+        Console.WriteLine($"Проверено зон закрепления: {report.PersistenceZonesAuditedCount} (записей: {report.SafePersistenceEntries.Count}) | Исключений Defender: {report.SafeDefenderExclusions.Count} | Процессов: {report.SafeProcessSnapshots.Count}");
 
         if (report.Threats.Count > 0)
         {
             Console.WriteLine($"\nОбнаружено угроз ({report.Threats.Count}):");
             foreach (var t in report.Threats)
             {
-                Console.WriteLine($"  - [{t.ConfidenceBadge}] {t.SimpleTitle}");
+                Console.WriteLine($"  - [{t.ConfidenceBadge}] [{t.EffectiveCategoryLabel}] {t.SimpleTitle}");
                 Console.WriteLine($"      {t.SimpleExplanation}");
                 Console.WriteLine($"      Доказательство: {t.ExpertTechnicalEvidence}");
             }
@@ -852,6 +862,82 @@ switch (command)
         break;
     }
 
+    case "persistence-audit":
+    {
+        var onlyAnomalies = HasFlag(args, "--anomalies");
+        var report = await security.RunFullSecurityScanAsync(enableDropOnInspectProbe: false);
+        var entries = onlyAnomalies
+            ? report.SafePersistenceEntries.Where(e => e.IsAnomaly).ToList()
+            : report.SafePersistenceEntries.ToList();
+
+        Console.WriteLine($"=== Ревизия 18 зон автозакрепления Windows (показано: {entries.Count} из {report.SafePersistenceEntries.Count}) ===");
+        foreach (var e in entries)
+        {
+            Console.WriteLine($"  [{e.StatusBadge,-14}] {e.ZoneTitle,-36} | {e.EntryName,-28} | {e.PayloadCommandOrPath}");
+        }
+        break;
+    }
+
+    case "defender-audit":
+    {
+        var report = await security.RunFullSecurityScanAsync(enableDropOnInspectProbe: false);
+        Console.WriteLine($"=== Аудит исключений Microsoft Defender (всего: {report.SafeDefenderExclusions.Count}) ===");
+        if (report.SafeDefenderExclusions.Count == 0)
+        {
+            Console.WriteLine("Исключений Защитника Windows не обнаружено (или требуется запуск от имени администратора).");
+            break;
+        }
+
+        foreach (var ex in report.SafeDefenderExclusions)
+        {
+            Console.WriteLine($"  [{ex.RiskBadge,-20}] {ex.KindLabel,-13} | {ex.Value,-36} | {ex.Reason}");
+        }
+        break;
+    }
+
+    case "defender-clean-exclusions":
+    {
+        var report = await security.RunFullSecurityScanAsync(enableDropOnInspectProbe: false);
+        var res = await security.RemoveDangerousDefenderExclusionsAsync(report.SafeDefenderExclusions);
+        Console.WriteLine(res.UserFriendlyMessage);
+        return res.Succeeded ? 0 : 1;
+    }
+
+    case "defender-scan":
+    {
+        var targetPath = GetOptionValue(args, "--path");
+        var mode = !string.IsNullOrWhiteSpace(targetPath) ? DefenderScanMode.CustomPathScan : DefenderScanMode.QuickScan;
+        var (ok, msg) = await security.StartDefenderScanAsync(mode, targetPath);
+        Console.WriteLine(msg);
+        return ok ? 0 : 1;
+    }
+
+    case "quarantine-list":
+    {
+        var list = await security.GetQuarantineHistoryAsync();
+        Console.WriteLine($"=== Журнал карантина .uwq раздела Анти-майнер ({list.Count}) ===");
+        foreach (var q in list)
+        {
+            var status = q.IsReverted ? "[ВОССТАНОВЛЕНО]" : "[В КАРАНТИНЕ ]";
+            Console.WriteLine($"  {q.TimestampLocalText} {status} {q.SessionId} | {q.FriendlyTitle} | {q.PrimaryPath}");
+        }
+        break;
+    }
+
+    case "quarantine-restore":
+    {
+        if (args.Length < 2 || !Guid.TryParse(args[1], out var qId))
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli quarantine-restore <GUID-транзакции>");
+            return 1;
+        }
+
+        var res = await security.RestoreFromQuarantineAsync(qId);
+        Console.WriteLine(res.UserFriendlyMessage);
+        return res.Succeeded ? 0 : 1;
+    }
+
+    case "security-heal":
     case "miner-heal-os":
     {
         var report = await security.RunFullSecurityScanAsync(enableDropOnInspectProbe: false);
@@ -985,7 +1071,7 @@ switch (command)
 
     default:
     {
-        Console.WriteLine("Доступные команды: status | smart-audit | hardware-audit | stress-test [сек] | drivers-audit [--online] | driver-backup <oemXX.inf> | clean-scan | clean-run | clean-apps-scan [--winapp2 <ini>] | clean-apps-run [--rule <id>] [--winapp2 <ini>] | browser-scan [--keep-cookies <домены>] | browser-clean [--history] [--downloads] [--cookies] [--sessions] [--keep-cookies <домены>] | disk-map [путь] | pe-doctor <exe> | deps-scan-installed | runtime-list | runtime-install <key> | repair-scan [раздел] [--issues] | repair-fix <id|--all-found> [--force] | error-lookup <код> | cbs-scan | bsod-scan | bsod-file <dmp> | repair-list | repair-run <id> | tweak-list [раздел] [--on|--off] | tweak-info <id> | tweak-enable <id> [--force] | tweak-disable <id> | preset-list | preset-apply <набор> [--dry-run] [--force] | tweak-export [yaml] | tweak-import <yaml> [--dry-run] [--force] | service-list [--third-party] [--running] | service-set <имя> <auto|delayed|manual|disabled> | task-list [--third-party] [--enabled] | task-enable <путь> | task-disable <путь> | startup-list | unlock-check <path> | miner-scan [--fast] | miner-heal-os | history | cleanup-blobs | rollback <id> | check-path <path>");
+        Console.WriteLine("Доступные команды: status | smart-audit | hardware-audit | stress-test [сек] | drivers-audit [--online] | driver-backup <oemXX.inf> | clean-scan | clean-run | clean-apps-scan [--winapp2 <ini>] | clean-apps-run [--rule <id>] [--winapp2 <ini>] | browser-scan [--keep-cookies <домены>] | browser-clean [--history] [--downloads] [--cookies] [--sessions] [--keep-cookies <домены>] | disk-map [путь] | pe-doctor <exe> | deps-scan-installed | runtime-list | runtime-install <key> | repair-scan [раздел] [--issues] | repair-fix <id|--all-found> [--force] | error-lookup <код> | cbs-scan | bsod-scan | bsod-file <dmp> | repair-list | repair-run <id> | tweak-list [раздел] [--on|--off] | tweak-info <id> | tweak-enable <id> [--force] | tweak-disable <id> | preset-list | preset-apply <набор> [--dry-run] [--force] | tweak-export [yaml] | tweak-import <yaml> [--dry-run] [--force] | service-list [--third-party] [--running] | service-set <имя> <auto|delayed|manual|disabled> | task-list [--third-party] [--enabled] | task-enable <путь> | task-disable <путь> | startup-list | unlock-check <path> | security-scan [--fast] [--json] | persistence-audit [--anomalies] | defender-audit | defender-clean-exclusions | defender-scan [--path <путь>] | quarantine-list | quarantine-restore <id> | security-heal | history | cleanup-blobs | rollback <id> | check-path <path>");
         break;
     }
 }

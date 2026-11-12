@@ -136,6 +136,30 @@ public sealed class MainWindowSmokeTests
             notes.Add($"ремонт-диагностика: {repairVm.DiagnosticsSummaryText}");
             notes.Add($"ремонт-пакеты: {repairVm.RuntimeCatalogHeadline}");
 
+            reached = "анти-майнер и защита 2.0: все 5 вкладок и живая ревизия 18 зон";
+            main.SelectedDomain = SystemDomain.AntiMiner;
+            var securityVm = main.AntiMinerStudio;
+            await securityVm.RunQuickScanAsync();
+
+            window.Width = 1024;
+            window.Height = 768;
+            securityVm.SelectedSubTabIndex = 0;
+            await surface.SettleAsync();
+            surface.Save("security-tab-0-1024");
+
+            window.Width = 1360;
+            window.Height = 840;
+            for (var stab = 0; stab <= 4; stab++)
+            {
+                securityVm.SelectedSubTabIndex = stab;
+                await surface.SettleAsync();
+                surface.Save($"security-tab-{stab}");
+            }
+
+            Assert.Empty(trace.Errors);
+            notes.Add($"защита-сводка: {securityVm.ScanHeadline}");
+            notes.Add($"защита-kpi: {securityVm.KpiSummaryStrip}");
+
             reached = "конец";
         }
         finally

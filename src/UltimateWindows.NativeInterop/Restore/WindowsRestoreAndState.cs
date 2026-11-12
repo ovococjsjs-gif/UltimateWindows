@@ -231,6 +231,55 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
                 return;
             }
 
+            if (delta.TargetPath.StartsWith("DefenderExclusion:", StringComparison.OrdinalIgnoreCase))
+            {
+                using var doc = JsonDocument.Parse(delta.PreviousStateJson);
+                var kind = doc.RootElement.TryGetProperty("Kind", out var kEl) ? kEl.GetString() : "Path";
+                var val = doc.RootElement.TryGetProperty("Value", out var vEl) ? vEl.GetString() : null;
+                var isPolicy = doc.RootElement.TryGetProperty("IsPolicyEnforced", out var polEl) && polEl.ValueKind == JsonValueKind.True;
+                var regPath = doc.RootElement.TryGetProperty("RegistryPath", out var rpEl) ? rpEl.GetString() : null;
+                if (!string.IsNullOrWhiteSpace(val))
+                {
+                    if (isPolicy && !string.IsNullOrWhiteSpace(regPath))
+                    {
+                        var sub = regPath.StartsWith(@"HKLM\", StringComparison.OrdinalIgnoreCase) ? regPath[5..] : regPath;
+                        using var key = Registry.LocalMachine.CreateSubKey(sub, writable: true);
+                        key?.SetValue(val, 0, RegistryValueKind.DWord);
+                    }
+                    else
+                    {
+                        var paramName = kind switch
+                        {
+                            "Process" => "ExclusionProcess",
+                            "Extension" => "ExclusionExtension",
+                            "IpAddress" => "ExclusionIpAddress",
+                            _ => "ExclusionPath"
+                        };
+                        var escaped = val.Replace("'", "''", StringComparison.Ordinal);
+                        _ = UltimateWindows.NativeInterop.SecurityHunter.WindowsSecurityPlatformBridge
+                            .RunShortPowerShell($"Add-MpPreference -{paramName} '{escaped}' -ErrorAction SilentlyContinue", timeoutMs: 6000);
+                    }
+                }
+
+                return;
+            }
+
+            if (delta.TargetPath.StartsWith("FirewallRule:", StringComparison.OrdinalIgnoreCase))
+            {
+                using var doc = JsonDocument.Parse(delta.PreviousStateJson);
+                var ruleId = doc.RootElement.TryGetProperty("RuleId", out var rEl) ? rEl.GetString() : null;
+                var rawVal = doc.RootElement.TryGetProperty("RawRegistryValue", out var vEl) ? vEl.GetString() : null;
+                if (!string.IsNullOrWhiteSpace(ruleId) && !string.IsNullOrWhiteSpace(rawVal))
+                {
+                    using var key = Registry.LocalMachine.OpenSubKey(
+                        @"SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\FirewallRules",
+                        writable: true);
+                    key?.SetValue(ruleId, rawVal, RegistryValueKind.String);
+                }
+
+                return;
+            }
+
             if (delta.TargetPath.StartsWith("DriverInfBackup:", StringComparison.OrdinalIgnoreCase))
             {
                 using var doc = JsonDocument.Parse(delta.PreviousStateJson);

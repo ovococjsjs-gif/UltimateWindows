@@ -272,6 +272,12 @@
 - Среды выполнения: полный каталог с официальных адресов Microsoft с проверкой подписи; поиск недостающих зависимостей по всем установленным программам.
 - Крайняя ступень: переход к «Reinstall now».
 
+**Состояние на 11 ноября 2026 — выполнено:**
+- **Декларативный диагностический движок.** 107 проверок и рецептов ремонта в 16 тематических JSON-файлах данных (`docs/08-REPAIR-CATALOG.md`) с автоматической проверкой применимости, объяснением причины, пошаговым исправлением и записью отката в «Машину времени».
+- **PE-доктор, среды выполнения и установленные программы.** Полный каталог из 23 официальных пакетов сред выполнения (Visual C++ 2005–2022 x86/x64, .NET Desktop Runtime 6/8/9/10, .NET Framework 4.8.1, DirectX, XNA, OpenAL, WebView2, VCLibs) с проверкой цифровой подписи `WinVerifyTrust`, поддержкой ядерного перенаправления UCRT `api-ms-win-crt-*.dll -> ucrtbase.dll` и пакетным сканером недостающих DLL по всем установленным в системе программам.
+- **Журналы сбоев, CBS.log и справочник ошибок.** Добавлены анализатор падений приложений `AppCrashAnalyzer` (Event ID 1000/1002 с фильтрацией по провайдеру), парсер повреждённых файлов из `CBS.log` (`[SR] Cannot repair member file`), справочник на 160 кодов ошибок (`HRESULT`, `NTSTATUS`, BSOD, Windows Update) и переход к штатному переустановочному восстановлению Windows с сохранением файлов и программ.
+- **Проверка на Windows (CI, 11 ноября 2026):** 0 ошибок, 0 предупреждений, 102 теста из 102, 0 ошибок привязки WPF на всех 5 вкладках раздела в разрешениях `1024×768` и `1360×840`.
+
 ### Этап 4. Анти-майнер 2.0
 - Полная ревизия закрепления по категориям Autoruns и 14 разделам реестра MinerSearch.
 - Анализаторы служб, задач, WMI, брандмауэра, hosts, пользователей, каталогов.
@@ -279,6 +285,12 @@
 - Поведенческий детект с учётом GPU и настоящим запуском системного монитора.
 - Поиск внедрённого кода и сигнатуры (pe-sieve, YARA) как подключаемые компоненты.
 - Окно обзора угроз с действием по каждой находке; расширенный карантин.
+
+**Состояние на 11 ноября 2026 — выполнено:**
+- **18 зон автозакрепления (`PersistenceZoneCatalog`).** Собственная чистая реализация охватывает `Run`/`RunOnce`/`RunOnceEx`/`RunServices` (`HKLM` 64/32 + `HKCU`), `Policies\Explorer\Run`, папки `Startup` и перенаправление `User Shell Folders`, `Winlogon` (`Shell`, `Userinit`, `Taskman`), `IFEO Debugger` + `SilentProcessExit`, `Session Manager\BootExecute` + `AppCertDlls`, `AppInit_DLLs`, `Active Setup\StubPath`, перехват COM-классов `HKCU\Software\Classes\CLSID\*\InprocServer32` & `LocalServer32`, перехват `.NET CLR` (`COR_PROFILER` / `CORECLR_PROFILER` / `DOTNET_STARTUP_HOOKS`), пакеты `LSA`, мониторы печати и `NetSh`, службы Windows (включая подмену `Parameters\ServiceDll` и драйверы `WinRing0x64.sys`), скрытые задачи планировщика (`Schedule.Service` `TASK_ENUM_HIDDEN` + задачи со стёртым дескриптором `SD` в `TaskCache\Tree`), постоянные подписки WMI (`root\subscription`), задания `BITS`, оболочку `ShellServiceObjectDelayLoad` и профили PowerShell (`docs/09-SECURITY-CATALOG.md`).
+- **Поведенческий детект CPU + GPU + системный монитор и анализ памяти.** `WindowsSecurityPlatformBridge` замеряет нагрузку CPU и вычислительных/3D-движков GPU по каждому процессу через нативный `pdh.dll` (`\GPU Engine(*)\Utilization Percentage`), создаёт окна-приманки и кратковременно запускает системный монитор, извлекает командные строки и родительский PID через `NtQueryInformationProcess`, проверяет таблицы TCP `IPv4` + `IPv6` и DNS-кэш на 60+ пулов майнинга, а также сканирует память процессов-доноров (`VirtualQueryEx`) на не привязанные к диску исполняемые регионы (`Process Hollowing`).
+- **Защитник Windows, брандмауэр, учётные записи и staging-папки.** Добавлены ревизия и пакетная очистка слепых зон `Microsoft Defender` (включая ветку групповых политик) с откатом в «Машине времени», запуск быстрой и выборочной проверки через `MpCmdRun.exe`, поиск правил брандмауэра, блокирующих выход антивирусов и обновлений в сеть, поиск скрытых пользователей (`NetUserEnum` + `SpecialAccounts\UserList`), разблокировка политик `DisableAntiSpyware` / `DisableRealtimeMonitoring` / `MRT\DontOfferThroughWUAU` и поиск раздутых пустыми байтами неподписанных дропперов (`>= 250 МБ`).
+- **Подключаемые сканеры, 5-вкладочный интерфейс и CLI.** Реализован `ExternalScannerCoordinator` для опциональных пермиссивных сканеров `PE-sieve` (`BSD-2-Clause`) и `YARA` (`BSD-3-Clause`), обновлён интерфейс раздела из 5 вкладок с поштучным комплексным обезвреживанием (остановка процесса + снятие закрепления + карантин `.uwq` с восстановлением в 1 клик) и добавлены команды CLI `security-scan`, `persistence-audit`, `defender-audit`, `defender-clean-exclusions`, `defender-scan`, `quarantine-list`, `quarantine-restore`, `security-heal`.
 
 ### Этап 5. Драйверы 2.0
 - Версии, даты и поставщики для всех устройств; поиск по Hardware ID в Windows Update и Каталоге Microsoft.

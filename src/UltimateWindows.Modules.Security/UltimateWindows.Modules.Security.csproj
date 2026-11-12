@@ -2,8 +2,12 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>UltimateWindows.Modules.Security</RootNamespace>
-    <Description>Модуль Фазы 5: стелс-детектор скрытых майнеров (Drop-on-Inspect), анализ Stratum-соединений и маскировки под системные процессы, ревизор закрепления (IFEO, скрытые задачи без SD, Winlogon) и реабилитация системы после майнера с карантином .uwq.</Description>
+    <Description>Анти-майнер и Защита 2.0: поведенческий детектор CPU+GPU с приманкой Drop-on-Inspect, аудит 18 зон автозакрепления, проверка памяти и pe-sieve/YARA, ревизия исключений Защитника Windows, брандмауэра, hosts и карантин .uwq.</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Data\*.json" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\UltimateWindows.Core\UltimateWindows.Core.csproj" />
