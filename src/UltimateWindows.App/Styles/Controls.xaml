@@ -8,6 +8,7 @@
   <Geometry x:Key="IconSecurity">M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1ZM10,17L6,13L7.41,11.59L10,14.17L16.59,7.58L18,9L10,17Z</Geometry>
   <Geometry x:Key="IconRepair">M22.7,19L13.6,9.9C14.5,7.6 14,4.9 12.1,3C10.1,1 7.1,0.6 4.7,1.7L9,6L6,9L1.6,4.7C0.4,7.1 0.9,10.1 2.9,12.1C4.8,14 7.5,14.5 9.8,13.6L18.9,22.7C19.3,23.1 19.9,23.1 20.3,22.7L22.6,20.4C23.1,20 23.1,19.3 22.7,19Z</Geometry>
   <Geometry x:Key="IconHardware">M9,3V5H7A2,2 0 0,0 5,7V9H3V11H5V13H3V15H5V17A2,2 0 0,0 7,19H9V21H11V19H13V21H15V19H17A2,2 0 0,0 19,17V15H21V13H19V11H21V9H19V7A2,2 0 0,0 17,5H15V3H13V5H11V3H9ZM9,9H15V15H9V9Z</Geometry>
+  <Geometry x:Key="IconApps">M4,8H8V4H4V8ZM10,20H14V16H10V20ZM4,20H8V16H4V20ZM4,14H8V10H4V14ZM10,14H14V10H10V14ZM16,4V8H20V4H16ZM10,8H14V4H10V8ZM16,14H20V10H16V14ZM16,20H20V16H16V20Z</Geometry>
   <Geometry x:Key="IconVault">M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3ZM12,8V13L16.28,15.54L17,14.33L13.5,12.25V8H12Z</Geometry>
   <Geometry x:Key="IconFolder">M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z</Geometry>
 
@@ -139,7 +140,7 @@
   <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
     <Setter Property="Background" Value="{DynamicResource DangerSubtleBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource DangerCoralBrush}" />
-    <Setter Property="Foreground" Value="#FCA5A5" />
+    <Setter Property="Foreground" Value="{DynamicResource DangerTextBrush}" />
   </Style>
 
   <Style x:Key="CompactButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
@@ -444,6 +445,8 @@
                               IsHitTestVisible="False"
                               Content="{TemplateBinding SelectionBoxItem}"
                               ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                              ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
                               Margin="10,5,30,5"
                               VerticalAlignment="Center"
                               HorizontalAlignment="Left" />
@@ -482,7 +485,7 @@
     <Setter Property="FontSize" Value="12" />
   </Style>
 
-  <!-- ==================== 6. КАРТОЧКИ, ТАБЛИЦЫ DATAGRID И ДЕРЕВО WIZTREE ==================== -->
+  <!-- ==================== 6. КАРТОЧКИ, ТАБЛИЦЫ DATAGRID И ДЕРЕВО ПАПОК ==================== -->
   <Style x:Key="CardBorderStyle" TargetType="Border">
     <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource SurfaceBorderBrush}" />
@@ -534,6 +537,7 @@
   </Style>
 
   <Style TargetType="DataGridCell">
+    <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="8,5" />
     <Setter Property="Template">
@@ -547,6 +551,7 @@
     </Setter>
     <Style.Triggers>
       <Trigger Property="IsSelected" Value="True">
+        <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
       </Trigger>
     </Style.Triggers>
@@ -563,6 +568,273 @@
     <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     <Setter Property="Padding" Value="2,3" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+  </Style>
+
+  <!-- ==================== 7. МЕТКИ, ПОИСК, СПИСОК РАЗДЕЛОВ, ПЕРЕКЛЮЧАТЕЛИ ФИЛЬТРОВ ==================== -->
+
+  <!-- Значок поиска: окружность и ручка. Рисуется обводкой -->
+  <GeometryGroup x:Key="IconSearch">
+    <EllipseGeometry Center="6,6" RadiusX="4.6" RadiusY="4.6" />
+    <LineGeometry StartPoint="9.5,9.5" EndPoint="13.6,13.6" />
+  </GeometryGroup>
+
+  <!-- Метка: скруглённая подложка с коротким текстом. Цвет текста наследуют вложенные TextBlock -->
+  <Style x:Key="ChipBaseStyle" TargetType="Border">
+    <Setter Property="CornerRadius" Value="9" />
+    <Setter Property="Padding" Value="8,2,8,3" />
+    <Setter Property="Margin" Value="0,0,6,4" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    <Setter Property="TextElement.FontSize" Value="10.5" />
+    <Setter Property="TextElement.FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- Метка, цвет которой задаёт свойство Tone объекта данных: Neutral, Safe, Caution, Danger, Accent -->
+  <Style x:Key="ToneChipStyle" TargetType="Border" BasedOn="{StaticResource ChipBaseStyle}">
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding Tone}" Value="Safe">
+        <Setter Property="Background" Value="{DynamicResource SafeEmeraldSubtleBrush}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource SafeTextBrush}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Tone}" Value="Caution">
+        <Setter Property="Background" Value="{DynamicResource AmberSubtleBrush}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource AmberTextBrush}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Tone}" Value="Danger">
+        <Setter Property="Background" Value="{DynamicResource DangerSubtleBrush}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource DangerTextBrush}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Tone}" Value="Accent">
+        <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource AccentTextBrush}" />
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- Шаблон метки для объекта с полями Text, Tone и ToolTip -->
+  <DataTemplate x:Key="ChipTemplate">
+    <Border Style="{StaticResource ToneChipStyle}" ToolTip="{Binding ToolTip}">
+      <TextBlock Text="{Binding Text}" />
+    </Border>
+  </DataTemplate>
+
+  <!-- Поле поиска: значок слева, подсказка из свойства Tag, пока поле пустое -->
+  <Style x:Key="SearchBoxStyle" TargetType="TextBox">
+    <Setter Property="Background" Value="{DynamicResource SurfaceInputBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="CaretBrush" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SurfaceBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="FontSize" Value="12.5" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TextBox">
+          <Border x:Name="SearchBd"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="6">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="30" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Path Grid.Column="0"
+                    Data="{StaticResource IconSearch}"
+                    Stroke="{DynamicResource TextMutedBrush}"
+                    StrokeThickness="1.6"
+                    StrokeStartLineCap="Round"
+                    StrokeEndLineCap="Round"
+                    Width="15"
+                    Height="15"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center" />
+              <TextBlock x:Name="SearchHint"
+                         Grid.Column="1"
+                         Text="{TemplateBinding Tag}"
+                         Foreground="{DynamicResource TextMutedBrush}"
+                         VerticalAlignment="Center"
+                         IsHitTestVisible="False"
+                         Visibility="Collapsed"
+                         Margin="2,0,8,0"
+                         TextTrimming="CharacterEllipsis" />
+              <ScrollViewer x:Name="PART_ContentHost"
+                            Grid.Column="1"
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="Text" Value="">
+              <Setter TargetName="SearchHint" Property="Visibility" Value="Visible" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Setter TargetName="SearchBd" Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Список разделов в боковой колонке -->
+  <Style x:Key="CategoryListBoxStyle" TargetType="ListBox">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="FontSize" Value="12.5" />
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+    <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+  </Style>
+
+  <Style x:Key="CategoryListItemStyle" TargetType="ListBoxItem">
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ListBoxItem">
+          <Border x:Name="CatBd"
+                  Background="Transparent"
+                  CornerRadius="6"
+                  Padding="10,7"
+                  Margin="0,1">
+            <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="CatBd" Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+              <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter TargetName="CatBd" Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+              <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+              <Setter Property="FontWeight" Value="SemiBold" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Переключатель фильтра: ряд скруглённых кнопок, выбрана одна -->
+  <Style x:Key="SegmentRadioStyle" TargetType="RadioButton">
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Margin" Value="0,0,5,0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="RadioButton">
+          <Border x:Name="SegBd"
+                  Background="Transparent"
+                  BorderBrush="{DynamicResource SurfaceBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="13"
+                  Padding="11,4">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="SegBd" Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+              <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="SegBd" Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
+              <Setter TargetName="SegBd" Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+              <Setter Property="Foreground" Value="#FFFFFF" />
+              <Setter Property="FontWeight" Value="SemiBold" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Кнопка-ссылка: только текст -->
+  <Style x:Key="LinkButtonStyle" TargetType="Button">
+    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border Background="Transparent" Padding="2,1">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter Property="Foreground" Value="{DynamicResource AccentPrimaryHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.45" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Карточка готового набора: кнопка с заголовком и строкой состояния -->
+  <Style x:Key="PresetCardButtonStyle" TargetType="Button">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Margin" Value="0,0,8,6" />
+    <Setter Property="MinWidth" Value="150" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="PresetBd"
+                  Background="{DynamicResource SurfaceCardBrush}"
+                  BorderBrush="{DynamicResource CardBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="12,8">
+            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="PresetBd" Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+              <Setter TargetName="PresetBd" Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Тонкая полоса «идёт загрузка» -->
+  <Style x:Key="LoadingBarStyle" TargetType="ProgressBar">
+    <Setter Property="Height" Value="2" />
+    <Setter Property="IsIndeterminate" Value="True" />
+    <Setter Property="Foreground" Value="{DynamicResource AccentPrimaryBrush}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+
+  <!-- Заголовок блока внутри карточки -->
+  <Style x:Key="CardTitleTextStyle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="13.5" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Margin" Value="0,0,0,8" />
+  </Style>
+
+  <!-- Пояснение мелким приглушённым текстом -->
+  <Style x:Key="HintTextStyle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
   </Style>
 
 </ResourceDictionary>

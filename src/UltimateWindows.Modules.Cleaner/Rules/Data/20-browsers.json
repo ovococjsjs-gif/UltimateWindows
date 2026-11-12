@@ -1,0 +1,1047 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "browser.chrome.cache",
+      "section": "Browsers",
+      "app": "Google Chrome",
+      "title": "Кэш",
+      "explanation": "Копии страниц, картинок и скриптов, сохранённые для ускорения загрузки сайтов. Браузер скачает их заново; пароли, история, закладки и вход на сайтах сохраняются.",
+      "kind": "Cache",
+      "default": true,
+      "processes": [
+        "chrome"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\Cache\\Cache_Data"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\Code Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\GPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\DawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\DawnGraphiteCache"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\DawnWebGPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\GrShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\GraphiteDawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\ShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\Service Worker\\CacheStorage"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\Service Worker\\ScriptCache"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\Application Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\Media Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\extensions_crx_cache"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\GrShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\GraphiteDawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\ShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\component_crx_cache"
+        }
+      ]
+    },
+    {
+      "id": "browser.chrome.crash-reports",
+      "section": "Browsers",
+      "app": "Google Chrome",
+      "title": "Отчёты о сбоях и статистика",
+      "explanation": "Отчёты о сбоях браузера и служебная статистика его работы. Нужны только разработчикам браузера.",
+      "kind": "Dumps",
+      "default": true,
+      "processes": [
+        "chrome"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\Crashpad\\reports"
+        },
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\BrowserMetrics",
+          "match": [
+            "*.pma"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "browser.chrome.ai-model",
+      "section": "Browsers",
+      "app": "Google Chrome",
+      "title": "Локальная модель ИИ",
+      "explanation": "Модель для встроенных в Chrome функций ИИ. Занимает несколько гигабайт и хранится на диске, даже если этими функциями не пользуются.",
+      "kind": "Other",
+      "default": false,
+      "warning": "Если функции ИИ в Chrome включены, браузер скачает модель заново.",
+      "processes": [
+        "chrome"
+      ],
+      "skipWhileRunning": true,
+      "files": [
+        {
+          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\OptGuideOnDeviceModel"
+        }
+      ]
+    },
+    {
+      "id": "browser.edge.cache",
+      "section": "Browsers",
+      "app": "Microsoft Edge",
+      "title": "Кэш",
+      "explanation": "Копии страниц, картинок и скриптов, сохранённые для ускорения загрузки сайтов. Браузер скачает их заново; пароли, история, закладки и вход на сайтах сохраняются.",
+      "kind": "Cache",
+      "default": true,
+      "processes": [
+        "msedge"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\Cache\\Cache_Data"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\Code Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\GPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\DawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\DawnGraphiteCache"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\DawnWebGPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\GrShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\GraphiteDawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\ShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\Service Worker\\CacheStorage"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\Service Worker\\ScriptCache"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\Application Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\Media Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\extensions_crx_cache"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\GrShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\GraphiteDawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\ShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\component_crx_cache"
+        }
+      ]
+    },
+    {
+      "id": "browser.edge.crash-reports",
+      "section": "Browsers",
+      "app": "Microsoft Edge",
+      "title": "Отчёты о сбоях и статистика",
+      "explanation": "Отчёты о сбоях браузера и служебная статистика его работы. Нужны только разработчикам браузера.",
+      "kind": "Dumps",
+      "default": true,
+      "processes": [
+        "msedge"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\Crashpad\\reports"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\BrowserMetrics",
+          "match": [
+            "*.pma"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "browser.yandex.cache",
+      "section": "Browsers",
+      "app": "Яндекс Браузер",
+      "title": "Кэш",
+      "explanation": "Копии страниц, картинок и скриптов, сохранённые для ускорения загрузки сайтов. Браузер скачает их заново; пароли, история, закладки и вход на сайтах сохраняются.",
+      "kind": "Cache",
+      "default": true,
+      "processes": [
+        "browser"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\Cache\\Cache_Data"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\Code Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\GPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\DawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\DawnGraphiteCache"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\DawnWebGPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\GrShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\GraphiteDawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\ShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\Service Worker\\CacheStorage"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\Service Worker\\ScriptCache"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\Application Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\Media Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\extensions_crx_cache"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\GrShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\GraphiteDawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\ShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\component_crx_cache"
+        }
+      ]
+    },
+    {
+      "id": "browser.yandex.crash-reports",
+      "section": "Browsers",
+      "app": "Яндекс Браузер",
+      "title": "Отчёты о сбоях и статистика",
+      "explanation": "Отчёты о сбоях браузера и служебная статистика его работы. Нужны только разработчикам браузера.",
+      "kind": "Dumps",
+      "default": true,
+      "processes": [
+        "browser"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\Crashpad\\reports"
+        },
+        {
+          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\BrowserMetrics",
+          "match": [
+            "*.pma"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "browser.brave.cache",
+      "section": "Browsers",
+      "app": "Brave",
+      "title": "Кэш",
+      "explanation": "Копии страниц, картинок и скриптов, сохранённые для ускорения загрузки сайтов. Браузер скачает их заново; пароли, история, закладки и вход на сайтах сохраняются.",
+      "kind": "Cache",
+      "default": true,
+      "processes": [
+        "brave"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\Cache\\Cache_Data"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\Code Cache"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\GPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\DawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\DawnGraphiteCache"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\DawnWebGPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\GrShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\GraphiteDawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\ShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\Service Worker\\CacheStorage"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\Service Worker\\ScriptCache"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\Application Cache"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\Media Cache"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\extensions_crx_cache"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\GrShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\GraphiteDawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\ShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\component_crx_cache"
+        }
+      ]
+    },
+    {
+      "id": "browser.brave.crash-reports",
+      "section": "Browsers",
+      "app": "Brave",
+      "title": "Отчёты о сбоях и статистика",
+      "explanation": "Отчёты о сбоях браузера и служебная статистика его работы. Нужны только разработчикам браузера.",
+      "kind": "Dumps",
+      "default": true,
+      "processes": [
+        "brave"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\Crashpad\\reports"
+        },
+        {
+          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\BrowserMetrics",
+          "match": [
+            "*.pma"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "browser.vivaldi.cache",
+      "section": "Browsers",
+      "app": "Vivaldi",
+      "title": "Кэш",
+      "explanation": "Копии страниц, картинок и скриптов, сохранённые для ускорения загрузки сайтов. Браузер скачает их заново; пароли, история, закладки и вход на сайтах сохраняются.",
+      "kind": "Cache",
+      "default": true,
+      "processes": [
+        "vivaldi"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\Cache\\Cache_Data"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\Code Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\GPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\DawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\DawnGraphiteCache"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\DawnWebGPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\GrShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\GraphiteDawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\ShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\Service Worker\\CacheStorage"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\Service Worker\\ScriptCache"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\Application Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\Media Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\extensions_crx_cache"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\GrShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\GraphiteDawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\ShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\component_crx_cache"
+        }
+      ]
+    },
+    {
+      "id": "browser.vivaldi.crash-reports",
+      "section": "Browsers",
+      "app": "Vivaldi",
+      "title": "Отчёты о сбоях и статистика",
+      "explanation": "Отчёты о сбоях браузера и служебная статистика его работы. Нужны только разработчикам браузера.",
+      "kind": "Dumps",
+      "default": true,
+      "processes": [
+        "vivaldi"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\Crashpad\\reports"
+        },
+        {
+          "path": "%LocalAppData%\\Vivaldi\\User Data\\BrowserMetrics",
+          "match": [
+            "*.pma"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "browser.chromium.cache",
+      "section": "Browsers",
+      "app": "Chromium",
+      "title": "Кэш",
+      "explanation": "Копии страниц, картинок и скриптов, сохранённые для ускорения загрузки сайтов. Браузер скачает их заново; пароли, история, закладки и вход на сайтах сохраняются.",
+      "kind": "Cache",
+      "default": true,
+      "processes": [
+        "chromium"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\*\\Cache\\Cache_Data"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\*\\Code Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\*\\GPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\*\\DawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\*\\DawnGraphiteCache"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\*\\DawnWebGPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\*\\GrShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\*\\GraphiteDawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\*\\ShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\*\\Service Worker\\CacheStorage"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\*\\Service Worker\\ScriptCache"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\*\\Application Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\*\\Media Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\*\\extensions_crx_cache"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\GrShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\GraphiteDawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\ShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\component_crx_cache"
+        }
+      ]
+    },
+    {
+      "id": "browser.chromium.crash-reports",
+      "section": "Browsers",
+      "app": "Chromium",
+      "title": "Отчёты о сбоях и статистика",
+      "explanation": "Отчёты о сбоях браузера и служебная статистика его работы. Нужны только разработчикам браузера.",
+      "kind": "Dumps",
+      "default": true,
+      "processes": [
+        "chromium"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\Crashpad\\reports"
+        },
+        {
+          "path": "%LocalAppData%\\Chromium\\User Data\\BrowserMetrics",
+          "match": [
+            "*.pma"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "browser.opera.cache",
+      "section": "Browsers",
+      "app": "Opera",
+      "title": "Кэш",
+      "explanation": "Копии страниц, картинок и скриптов, сохранённые для ускорения загрузки сайтов. Браузер скачает их заново; пароли, история, закладки и вход на сайтах сохраняются.",
+      "kind": "Cache",
+      "default": true,
+      "processes": [
+        "opera"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\Cache\\Cache_Data"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\Code Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\GPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\DawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\DawnGraphiteCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\DawnWebGPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\GrShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\GraphiteDawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\ShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\Service Worker\\CacheStorage"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\Service Worker\\ScriptCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\Application Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\Media Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\extensions_crx_cache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\Cache\\Cache_Data"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\Code Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\GPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\DawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\DawnGraphiteCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\DawnWebGPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\GrShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\GraphiteDawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\ShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\Service Worker\\CacheStorage"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\Service Worker\\ScriptCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\Application Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\Media Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\extensions_crx_cache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\Cache\\Cache_Data"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\Code Cache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\GPUCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\DawnCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\DawnGraphiteCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\DawnWebGPUCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\GrShaderCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\GraphiteDawnCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\ShaderCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\Service Worker\\CacheStorage"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\Service Worker\\ScriptCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\Application Cache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\Media Cache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\extensions_crx_cache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\*\\Cache\\Cache_Data"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\*\\Code Cache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\*\\GPUCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\*\\DawnCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\*\\DawnGraphiteCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\*\\DawnWebGPUCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\*\\GrShaderCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\*\\GraphiteDawnCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\*\\ShaderCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\*\\Service Worker\\CacheStorage"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\*\\Service Worker\\ScriptCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\*\\Application Cache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\*\\Media Cache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\*\\extensions_crx_cache"
+        }
+      ]
+    },
+    {
+      "id": "browser.opera.crash-reports",
+      "section": "Browsers",
+      "app": "Opera",
+      "title": "Отчёты о сбоях",
+      "explanation": "Отчёты о сбоях браузера и служебная статистика его работы. Нужны только разработчикам браузера.",
+      "kind": "Dumps",
+      "default": true,
+      "processes": [
+        "opera"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\Crash Reports"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\Crash Reports"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera Stable\\Crashpad\\reports"
+        }
+      ]
+    },
+    {
+      "id": "browser.opera-gx.cache",
+      "section": "Browsers",
+      "app": "Opera GX",
+      "title": "Кэш",
+      "explanation": "Копии страниц, картинок и скриптов, сохранённые для ускорения загрузки сайтов. Браузер скачает их заново; пароли, история, закладки и вход на сайтах сохраняются.",
+      "kind": "Cache",
+      "default": true,
+      "processes": [
+        "opera"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\Cache\\Cache_Data"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\Code Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\GPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\DawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\DawnGraphiteCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\DawnWebGPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\GrShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\GraphiteDawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\ShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\Service Worker\\CacheStorage"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\Service Worker\\ScriptCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\Application Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\Media Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\extensions_crx_cache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\Cache\\Cache_Data"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\Code Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\GPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\DawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\DawnGraphiteCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\DawnWebGPUCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\GrShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\GraphiteDawnCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\ShaderCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\Service Worker\\CacheStorage"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\Service Worker\\ScriptCache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\Application Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\Media Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\extensions_crx_cache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\Cache\\Cache_Data"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\Code Cache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\GPUCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\DawnCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\DawnGraphiteCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\DawnWebGPUCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\GrShaderCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\GraphiteDawnCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\ShaderCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\Service Worker\\CacheStorage"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\Service Worker\\ScriptCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\Application Cache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\Media Cache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\extensions_crx_cache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\Cache\\Cache_Data"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\Code Cache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\GPUCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\DawnCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\DawnGraphiteCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\DawnWebGPUCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\GrShaderCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\GraphiteDawnCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\ShaderCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\Service Worker\\CacheStorage"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\Service Worker\\ScriptCache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\Application Cache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\Media Cache"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\extensions_crx_cache"
+        }
+      ]
+    },
+    {
+      "id": "browser.opera-gx.crash-reports",
+      "section": "Browsers",
+      "app": "Opera GX",
+      "title": "Отчёты о сбоях",
+      "explanation": "Отчёты о сбоях браузера и служебная статистика его работы. Нужны только разработчикам браузера.",
+      "kind": "Dumps",
+      "default": true,
+      "processes": [
+        "opera"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\Crash Reports"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\Crash Reports"
+        },
+        {
+          "path": "%AppData%\\Opera Software\\Opera GX Stable\\Crashpad\\reports"
+        }
+      ]
+    },
+    {
+      "id": "browser.firefox.cache",
+      "section": "Browsers",
+      "app": "Mozilla Firefox",
+      "title": "Кэш",
+      "explanation": "Копии страниц, картинок и скриптов, сохранённые для ускорения загрузки сайтов. Браузер скачает их заново; пароли, история, закладки и вход на сайтах сохраняются.",
+      "kind": "Cache",
+      "default": true,
+      "processes": [
+        "firefox"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Mozilla\\Firefox\\Profiles\\*\\cache2"
+        },
+        {
+          "path": "%LocalAppData%\\Mozilla\\Firefox\\Profiles\\*\\startupCache"
+        },
+        {
+          "path": "%LocalAppData%\\Mozilla\\Firefox\\Profiles\\*\\jumpListCache"
+        },
+        {
+          "path": "%LocalAppData%\\Mozilla\\Firefox\\Profiles\\*\\thumbnails"
+        },
+        {
+          "path": "%LocalAppData%\\Mozilla\\Firefox\\Profiles\\*\\shader-cache"
+        },
+        {
+          "path": "%LocalAppData%\\Mozilla\\Firefox\\Profiles\\*\\OfflineCache"
+        }
+      ]
+    },
+    {
+      "id": "browser.firefox.crash-reports",
+      "section": "Browsers",
+      "app": "Mozilla Firefox",
+      "title": "Отчёты о сбоях и статистика",
+      "explanation": "Отчёты о сбоях браузера и служебная статистика его работы. Нужны только разработчикам браузера.",
+      "kind": "Dumps",
+      "default": true,
+      "processes": [
+        "firefox"
+      ],
+      "files": [
+        {
+          "path": "%AppData%\\Mozilla\\Firefox\\Crash Reports\\pending"
+        },
+        {
+          "path": "%AppData%\\Mozilla\\Firefox\\Crash Reports\\submitted"
+        },
+        {
+          "path": "%AppData%\\Mozilla\\Firefox\\Crash Reports\\events"
+        },
+        {
+          "path": "%AppData%\\Mozilla\\Firefox\\Profiles\\*\\crashes"
+        },
+        {
+          "path": "%AppData%\\Mozilla\\Firefox\\Profiles\\*\\minidumps"
+        },
+        {
+          "path": "%AppData%\\Mozilla\\Firefox\\Profiles\\*\\datareporting\\archived"
+        },
+        {
+          "path": "%AppData%\\Mozilla\\Firefox\\Profiles\\*\\saved-telemetry-pings"
+        }
+      ]
+    }
+  ]
+}

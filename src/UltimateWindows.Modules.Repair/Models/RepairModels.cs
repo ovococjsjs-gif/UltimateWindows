@@ -26,7 +26,10 @@ public enum SystemCrashEventKind
     GpuTdrReset4101 = 2,
     UnexpectedKernelPower41 = 3,
     HardwareWheaError = 4,
-    BsodBugCheck1001 = 5
+    BsodBugCheck1001 = 5,
+    ApplicationHang1002 = 6,
+    DotNetUnhandledException1026 = 7,
+    AppxActivationFailure = 8
 }
 
 public enum RepairPlaybookId
@@ -40,8 +43,15 @@ public enum RepairPlaybookId
     WmiRepositoryVerifyAndSalvage = 6
 }
 
+public enum RuntimeInstallStatus
+{
+    Unknown = 0,
+    Installed = 1,
+    NotInstalled = 2
+}
+
 /// <summary>
-/// Описание официального подписанного пакета среды выполнения (VC++, DirectX, .NET, OpenAL, XNA).
+/// Описание официального подписанного пакета среды выполнения (VC++ 2005–2026, DirectX, .NET, WebView2, OpenAL, XNA, Vulkan).
 /// </summary>
 public sealed record OfficialRuntimePackage(
     string PackageKey,
@@ -51,7 +61,11 @@ public sealed record OfficialRuntimePackage(
     PeArchitecture TargetArchitecture,
     string SilentInstallArgs,
     string OfficialDownloadPageUrl,
-    IReadOnlyList<string> ProvidedDllNamesLower)
+    IReadOnlyList<string> ProvidedDllNamesLower,
+    string? DirectDownloadUrl = null,
+    string? OptionalWindowsFeatureName = null,
+    string Category = "Visual C++",
+    bool IsRecommendedBaseline = false)
 {
     public string ArchitectureBadge => TargetArchitecture switch
     {
@@ -59,6 +73,30 @@ public sealed record OfficialRuntimePackage(
         PeArchitecture.X64 => "64-бит (x64 / System32)",
         PeArchitecture.Arm64 => "ARM64",
         _ => "Универсальный"
+    };
+
+    public string DeliveryMethodBadge => !string.IsNullOrWhiteSpace(OptionalWindowsFeatureName)
+        ? $"Компонент Windows ({OptionalWindowsFeatureName})"
+        : !string.IsNullOrWhiteSpace(DirectDownloadUrl)
+            ? "Прямая загрузка + проверка подписи"
+            : "Пакет WinGet + проверка подписи";
+}
+
+/// <summary>
+/// Сведения об установленности конкретного пакета среды выполнения на текущем ПК.
+/// </summary>
+public sealed record OfficialRuntimeStatusReport(
+    OfficialRuntimePackage Package,
+    RuntimeInstallStatus Status,
+    string DetectedDetails)
+{
+    public bool IsInstalled => Status == RuntimeInstallStatus.Installed;
+
+    public string StatusBadge => Status switch
+    {
+        RuntimeInstallStatus.Installed => string.IsNullOrWhiteSpace(DetectedDetails) ? "Установлен" : $"Установлен ({DetectedDetails})",
+        RuntimeInstallStatus.NotInstalled => "Не установлен",
+        _ => "Не определено"
     };
 }
 
@@ -113,6 +151,41 @@ public sealed record ExecutableDiagnosisReport(
     int TotalDirectImportsCount,
     IReadOnlyList<PeDependencyIssue> Issues,
     IReadOnlyList<OfficialRuntimePackage> RecommendedPackages);
+
+/// <summary>
+/// Сведения об установленной программе для массовой проверки зависимостей DLL.
+/// </summary>
+public sealed record InstalledProgramInfo(
+    string DisplayName,
+    string? DisplayVersion,
+    string? Publisher,
+    string ExecutablePath,
+    string InstallDirectory);
+
+/// <summary>
+/// Найденная проблема зависимостей у конкретной установленной программы.
+/// </summary>
+public sealed record InstalledProgramDependencyFinding(
+    InstalledProgramInfo Program,
+    ExecutableDiagnosisReport Diagnosis)
+{
+    public string MissingOrConflictingDllsSummary =>
+        string.Join(", ", Diagnosis.Issues.Select(i => i.ImportedDllName).Distinct(StringComparer.OrdinalIgnoreCase));
+
+    public string RecommendedPackagesSummary => Diagnosis.RecommendedPackages.Count == 0
+        ? "Локальная DLL программы (переустановите программу)"
+        : string.Join("; ", Diagnosis.RecommendedPackages.Select(p => p.FriendlyName));
+}
+
+/// <summary>
+/// Итог массовой проверки всех установленных программ на ошибки 0xC000007B и отсутствие сред выполнения.
+/// </summary>
+public sealed record InstalledProgramsScanSummary(
+    int TotalProgramsFound,
+    int ExecutablesInspected,
+    TimeSpan Elapsed,
+    IReadOnlyList<InstalledProgramDependencyFinding> BrokenPrograms,
+    IReadOnlyList<OfficialRuntimePackage> DistinctRecommendedPackages);
 
 /// <summary>
 /// Вид файла дампа: дамп ядра после синего экрана или дамп упавшей программы.
@@ -254,7 +327,7 @@ public sealed record CrashHistoryScanResult(
 }
 
 /// <summary>
-/// Критическое событие сбоя программы или подсистемы Windows из системного журнала событий.
+/// Критическое событие сбоя программы или подсистемы Windows из системного журнала событий с подсказкой причины.
 /// </summary>
 public sealed record SystemCrashEventEntry(
     SystemCrashEventKind Kind,
@@ -262,11 +335,50 @@ public sealed record SystemCrashEventEntry(
     int EventId,
     string SourceProvider,
     string SimpleSummary,
-    string TechnicalRawDetails)
+    string TechnicalRawDetails,
+    string? FaultingExecutablePath = null,
+    string? FaultingModuleName = null,
+    uint? ExceptionCode = null,
+    string? RootCauseHint = null,
+    string? RecommendedRuntimeKey = null,
+    string? RecommendedRepairRuleId = null)
 {
     public string TimeLocalDisplay => TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
     public string EventBadge => $"Event ID {EventId} • {SourceProvider}";
+    public string ExceptionHex => ExceptionCode.HasValue ? $"0x{ExceptionCode.Value:X8}" : "—";
+    public bool CanInspectExecutableInPeDoctor =>
+        !string.IsNullOrWhiteSpace(FaultingExecutablePath) && File.Exists(FaultingExecutablePath);
+    public string AdviceDisplay => string.IsNullOrWhiteSpace(RootCauseHint) ? SimpleSummary : RootCauseHint;
 }
+
+/// <summary>
+/// Итог разбора системного журнала C:\Windows\Logs\CBS\CBS.log после проверок SFC / DISM.
+/// </summary>
+public sealed record CbsLogSummary(
+    bool LogExists,
+    bool LogAccessible,
+    DateTimeOffset? LastServicingTimestampUtc,
+    IReadOnlyList<string> UnrepairableFiles,
+    IReadOnlyList<string> RepairedFiles,
+    int TotalCorruptMentions,
+    string HumanVerdict)
+{
+    public bool HasUnrepairableCorruption => UnrepairableFiles.Count > 0;
+}
+
+/// <summary>
+/// Оценка готовности к крайней ступени ремонта: «Устранение неполадок с помощью Центра обновления Windows → Переустановить сейчас»
+/// (Windows 11) или обновление на месте с сохранением программ и файлов (Windows 10).
+/// </summary>
+public sealed record InPlaceReinstallReadiness(
+    bool SupportsWindowsUpdateReinstallNow,
+    int OsBuild,
+    double FreeSystemDriveGb,
+    bool HasEnoughDiskSpace,
+    bool IsOnBatteryPower,
+    string RecommendedMethodTitle,
+    string StepByStepInstructions,
+    string SettingsUri);
 
 /// <summary>
 /// Описание безопасного одно-кликового рецепта ремонта подсистем Windows.

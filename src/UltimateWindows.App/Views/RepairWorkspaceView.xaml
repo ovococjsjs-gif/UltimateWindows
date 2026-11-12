@@ -8,194 +8,452 @@
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <!-- Верхние вкладки раздела Ремонта -->
+    <!-- Верхние вкладки раздела «Ремонт и DLL 2.0» (5 вкладок, компактно помещаются в 1024×768) -->
     <Border Grid.Row="0"
             Background="{DynamicResource SurfaceSidebarBrush}"
             BorderBrush="{DynamicResource CardBorderBrush}"
             BorderThickness="0,0,0,1"
-            Padding="14,0">
-      <StackPanel Orientation="Horizontal">
+            Padding="12,0">
+      <WrapPanel Orientation="Horizontal">
         <RadioButton GroupName="RepairSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
                      IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=0}"
-                     Content="Рецепты ремонта Windows (DISM / SFC / Сеть)" />
+                     Content="Диагностика ОС" />
         <RadioButton GroupName="RepairSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
                      IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=1}"
-                     Content="PE-Доктор (0xC000007B) и Пакеты VC++ / DirectX" />
+                     Content="DLL и пакеты VC++" />
         <RadioButton GroupName="RepairSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
                      IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=2}"
-                     Content="Синие экраны (BSOD) и Журнал сбоев" />
-      </StackPanel>
+                     Content="Сбои и BSOD" />
+        <RadioButton GroupName="RepairSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=3}"
+                     Content="Коды ошибок" />
+        <RadioButton GroupName="RepairSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=4}"
+                     Content="DISM, CBS и восстановление" />
+      </WrapPanel>
     </Border>
 
     <Border Grid.Row="1"
             Visibility="{Binding HasRepairActionBanner, Converter={StaticResource BoolToVis}}"
             Background="{DynamicResource AccentSubtleBrush}"
-            Padding="16,6">
+            Padding="14,5">
       <TextBlock Text="{Binding LastRepairActionBanner}" FontSize="12" TextTrimming="CharacterEllipsis" />
     </Border>
 
-    <!-- ВКЛАДКА 0: РЕЦЕПТЫ РЕМОНТА ОС -->
-    <ScrollViewer Grid.Row="2"
-                  VerticalScrollBarVisibility="Auto"
-                  Padding="14,12"
-                  Visibility="{Binding IsPlaybooksTab, Converter={StaticResource BoolToVis}}">
-      <ItemsControl ItemsSource="{Binding Playbooks}">
-        <ItemsControl.ItemsPanel>
-          <ItemsPanelTemplate>
-            <UniformGrid Columns="2" />
-          </ItemsPanelTemplate>
-        </ItemsControl.ItemsPanel>
-        <ItemsControl.ItemTemplate>
-          <DataTemplate>
-            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,10,10">
-              <DockPanel>
-                <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
-                  <TextBlock DockPanel.Dock="Right" Text="{Binding AccessBadge}" FontSize="11"
-                             Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
-                  <Button HorizontalAlignment="Left" Style="{StaticResource PrimaryButtonStyle}"
-                          Padding="12,5" FontSize="12"
-                          Command="{Binding RunPlaybookCommand}" Content="Выполнить рецепт" />
-                </DockPanel>
-                <StackPanel>
-                  <TextBlock Text="{Binding FriendlyTitle}" FontSize="13.5" FontWeight="SemiBold" />
-                  <TextBlock Text="{Binding FriendlyDescription}" FontSize="12"
-                             Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,6" />
-                  <TextBlock Text="{Binding ExpertCommandsPreview}" FontFamily="Consolas" FontSize="10.5"
-                             Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-              </DockPanel>
-            </Border>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-    </ScrollViewer>
+    <!-- ==================== ВКЛАДКА 0: ДИАГНОСТИКА И РЕМОНТ ОС (107 ПРАВИЛ) ==================== -->
+    <Grid Grid.Row="2"
+          Margin="12,10"
+          Visibility="{Binding IsDiagnosticsTab, Converter={StaticResource BoolToVis}}">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
 
-    <!-- ВКЛАДКА 1: PE DOCTOR + ОФИЦИАЛЬНЫЕ ПАКЕТЫ MICROSOFT -->
+      <!-- Панель фильтров и запуска -->
+      <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="10,8" Margin="0,0,0,6">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="205" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <ComboBox Grid.Column="0"
+                    ItemsSource="{Binding SectionOptions}"
+                    SelectedItem="{Binding SelectedSectionOption}"
+                    Margin="0,0,6,0" />
+          <TextBox Grid.Column="1"
+                   Text="{Binding DiagnosticSearchText, UpdateSourceTrigger=PropertyChanged}"
+                   ToolTip="Поиск по названию, симптому или коду ошибки (например 0x80070422, Пуск, прокси, .lnk)"
+                   Margin="0,0,8,0" />
+          <CheckBox Grid.Column="2"
+                    IsChecked="{Binding OnlyIssuesFilter}"
+                    Content="Только найденные"
+                    VerticalAlignment="Center"
+                    Margin="0,0,10,0" />
+          <Button Grid.Column="3"
+                  Style="{StaticResource PrimaryButtonStyle}"
+                  Command="{Binding ScanSystemHealthCommand}"
+                  Content="Проверить систему"
+                  Margin="0,0,6,0" />
+          <Button Grid.Column="4"
+                  Style="{StaticResource CompactButtonStyle}"
+                  Command="{Binding FixSelectedIssuesCommand}"
+                  Content="Исправить отмеченные" />
+        </Grid>
+      </Border>
+
+      <TextBlock Grid.Row="1"
+                 Text="{Binding DiagnosticsSummaryText}"
+                 FontSize="11.5"
+                 Foreground="{DynamicResource TextSecondaryBrush}"
+                 Margin="2,0,2,6"
+                 TextTrimming="CharacterEllipsis" />
+
+      <!-- Список правил слева + подробная карточка «Обнаружить → Объяснить → Исправить → Проверить» справа -->
+      <Grid Grid.Row="2">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="1.45*" />
+          <ColumnDefinition Width="10" />
+          <ColumnDefinition Width="1*" />
+        </Grid.ColumnDefinitions>
+
+        <DataGrid Grid.Column="0"
+                  ItemsSource="{Binding FilteredDiagnosticRules}"
+                  SelectedItem="{Binding SelectedDiagnosticRule}">
+          <DataGrid.Columns>
+            <DataGridCheckBoxColumn Header="✓" Binding="{Binding IsSelectedForFix, UpdateSourceTrigger=PropertyChanged}" Width="34" />
+            <DataGridTextColumn Header="Статус" Binding="{Binding StateBadge}" Width="88" />
+            <DataGridTextColumn Header="Узел и проверка" Binding="{Binding Title}" Width="*" />
+            <DataGridTextColumn Header="Риск" Binding="{Binding RiskBadge}" Width="96" />
+          </DataGrid.Columns>
+        </DataGrid>
+
+        <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}" Padding="12,10">
+          <ScrollViewer VerticalScrollBarVisibility="Auto"
+                        Visibility="{Binding HasSelectedDiagnosticRule, Converter={StaticResource BoolToVis}}">
+            <StackPanel DataContext="{Binding SelectedDiagnosticRule}">
+              <TextBlock Text="{Binding SectionTitle}" FontSize="11" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding Title}" FontSize="13.5" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,2,0,8" />
+
+              <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="5" Padding="8,6" Margin="0,0,0,8">
+                <StackPanel>
+                  <TextBlock Text="1. Что обнаружено на этом ПК:" FontSize="11" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Evidence}" FontSize="11.5" TextWrapping="Wrap" Margin="0,2,0,0" />
+                </StackPanel>
+              </Border>
+
+              <TextBlock Text="Типичный симптом:" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" />
+              <TextBlock Text="{Binding Symptom}" FontSize="11.5" TextWrapping="Wrap" Margin="0,2,0,6" />
+
+              <TextBlock Text="2. Почему это происходит:" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" />
+              <TextBlock Text="{Binding Explanation}" FontSize="11.5" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,6" />
+
+              <TextBlock Text="3. Что сделает исправление:" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" />
+              <TextBlock Text="{Binding FixSummary}" FontSize="11.5" TextWrapping="Wrap" Margin="0,2,0,6" />
+
+              <TextBlock Text="{Binding RollbackBadge}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,4" />
+              <TextBlock FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,10">
+                <Run Text="Связанные коды: " />
+                <Run Text="{Binding ErrorCodesDisplay, Mode=OneWay}" />
+              </TextBlock>
+
+              <Button HorizontalAlignment="Left"
+                      Style="{StaticResource PrimaryButtonStyle}"
+                      Padding="12,5"
+                      Command="{Binding FixSingleCommand}"
+                      Content="Исправить и проверить узел" />
+            </StackPanel>
+          </ScrollViewer>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <!-- ==================== ВКЛАДКА 1: PE-ДОКТОР (0xC000007B), ПРОГРАММЫ И ПАКЕТЫ VC++ / DIRECTX / .NET ==================== -->
     <Grid Grid.Row="2"
           Margin="12,10"
           Visibility="{Binding IsPeDoctorTab, Converter={StaticResource BoolToVis}}">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="1.2*" />
-        <ColumnDefinition Width="12" />
-        <ColumnDefinition Width="1*" />
-      </Grid.ColumnDefinitions>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="0.95*" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="1.15*" />
+      </Grid.RowDefinitions>
 
-      <Grid Grid.Column="0">
-        <Grid.RowDefinitions>
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="12,10" Margin="0,0,0,8">
-          <Grid>
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="*" />
-              <ColumnDefinition Width="Auto" />
-              <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBox Grid.Column="0" Text="{Binding TargetExecutablePath, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,6,0" />
-            <Button Grid.Column="1" Style="{StaticResource CompactButtonStyle}" Command="{Binding BrowseExecutableCommand}" Content="Обзор .exe" Margin="0,0,6,0" />
-            <Button Grid.Column="2" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding DiagnoseExecutableCommand}" Content="Проверить DLL" />
-          </Grid>
-        </Border>
-
-        <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="12,8" Margin="0,0,0,8">
-          <DockPanel>
-            <Border DockPanel.Dock="Right" Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="4" Padding="8,3" Margin="8,0,0,0">
-              <TextBlock Text="{Binding TargetArchitectureBadge}" FontSize="11" Foreground="{DynamicResource AccentBrush}" />
-            </Border>
-            <TextBlock Text="{Binding PeDiagnosisHeadline}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
-          </DockPanel>
-        </Border>
-
-        <DataGrid Grid.Row="2" ItemsSource="{Binding DependencyIssues}">
-          <DataGrid.Columns>
-            <DataGridTextColumn Header="Библиотека DLL" Binding="{Binding ImportedDllName}" Width="155" />
-            <DataGridTextColumn Header="Диагноз" Binding="{Binding SimpleExplanation}" Width="*" />
-            <DataGridTemplateColumn Header="Лечение" Width="165">
-              <DataGridTemplateColumn.CellTemplate>
-                <DataTemplate>
-                  <StackPanel Orientation="Horizontal">
-                    <Button Style="{StaticResource CompactButtonStyle}" Padding="7,2" FontSize="11"
-                            Visibility="{Binding CanQuarantineConflictingLocalDll, Converter={StaticResource BoolToVis}}"
-                            Command="{Binding QuarantineCommand}" Content="В карантин" Margin="0,0,4,0" />
-                    <Button Style="{StaticResource PrimaryButtonStyle}" Padding="7,2" FontSize="11"
-                            Visibility="{Binding CanInstallOfficialRuntime, Converter={StaticResource BoolToVis}}"
-                            Command="{Binding InstallPackageCommand}" Content="Пакет" />
-                  </StackPanel>
-                </DataTemplate>
-              </DataGridTemplateColumn.CellTemplate>
-            </DataGridTemplateColumn>
-          </DataGrid.Columns>
-        </DataGrid>
-      </Grid>
-
-      <!-- Правая таблица официальных пакетов VC++ / DirectX / .NET -->
-      <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}">
-        <DockPanel>
-          <TextBlock DockPanel.Dock="Top" Text="Официальные пакеты Microsoft (WinGet)" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,8" />
-          <DataGrid ItemsSource="{Binding OfficialRuntimes}">
-            <DataGrid.Columns>
-              <DataGridTextColumn Header="Пакет" Binding="{Binding FriendlyName}" Width="*" />
-              <DataGridTextColumn Header="Разрядность" Binding="{Binding ArchitectureBadge}" Width="120" />
-              <DataGridTemplateColumn Header="" Width="100">
-                <DataGridTemplateColumn.CellTemplate>
-                  <DataTemplate>
-                    <Button Style="{StaticResource CompactButtonStyle}" Padding="8,2" FontSize="11"
-                            Command="{Binding InstallCommand}" Content="Установить" />
-                  </DataTemplate>
-                </DataGridTemplateColumn.CellTemplate>
-              </DataGridTemplateColumn>
-            </DataGrid.Columns>
-          </DataGrid>
-        </DockPanel>
+      <!-- Строка выбора .exe + массовая проверка установленных программ -->
+      <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="10,8" Margin="0,0,0,6">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBox Grid.Column="0" Text="{Binding TargetExecutablePath, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,6,0" />
+          <Button Grid.Column="1" Style="{StaticResource CompactButtonStyle}" Command="{Binding BrowseExecutableCommand}" Content="Обзор .exe" Margin="0,0,6,0" />
+          <Button Grid.Column="2" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding DiagnoseExecutableCommand}" Content="Проверить .exe" Margin="0,0,6,0" />
+          <Button Grid.Column="3" Style="{StaticResource CompactButtonStyle}" Command="{Binding ScanInstalledProgramsCommand}" Content="Проверить все программы" />
+        </Grid>
       </Border>
+
+      <DockPanel Grid.Row="1" Margin="2,0,2,5">
+        <Border DockPanel.Dock="Right" Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="4" Padding="8,2" Margin="8,0,0,0">
+          <TextBlock Text="{Binding TargetArchitectureBadge}" FontSize="11" Foreground="{DynamicResource AccentBrush}" />
+        </Border>
+        <TextBlock Text="{Binding PeDiagnosisHeadline}" FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+      </DockPanel>
+
+      <DataGrid Grid.Row="2" ItemsSource="{Binding DependencyIssues}" Margin="0,0,0,8">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Программа" Binding="{Binding ContextExecutable}" Width="145" />
+          <DataGridTextColumn Header="Библиотека DLL" Binding="{Binding ImportedDllName}" Width="140" />
+          <DataGridTextColumn Header="Диагноз PE-Доктора" Binding="{Binding SimpleExplanation}" Width="*" />
+          <DataGridTemplateColumn Header="Лечение" Width="155">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal">
+                  <Button Style="{StaticResource CompactButtonStyle}" Padding="7,2" FontSize="11"
+                          Visibility="{Binding CanQuarantineConflictingLocalDll, Converter={StaticResource BoolToVis}}"
+                          Command="{Binding QuarantineCommand}" Content="В карантин" Margin="0,0,4,0" />
+                  <Button Style="{StaticResource PrimaryButtonStyle}" Padding="7,2" FontSize="11"
+                          Visibility="{Binding CanInstallOfficialRuntime, Converter={StaticResource BoolToVis}}"
+                          Command="{Binding InstallPackageCommand}" Content="Установить пакет" />
+                </StackPanel>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+        </DataGrid.Columns>
+      </DataGrid>
+
+      <!-- Заголовок каталога 22 подписанных сред выполнения -->
+      <DockPanel Grid.Row="3" Margin="2,0,2,5">
+        <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButtonStyle}" Padding="10,4" FontSize="11.5"
+                Command="{Binding InstallMissingBaselineRuntimesCommand}" Content="Доустановить базовый набор" />
+        <Button DockPanel.Dock="Right" Style="{StaticResource CompactButtonStyle}" Padding="9,4" FontSize="11.5" Margin="0,0,6,0"
+                Command="{Binding RefreshRuntimeStatusesCommand}" Content="Проверить установленные" />
+        <TextBlock Text="{Binding RuntimeCatalogHeadline}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+      </DockPanel>
+
+      <DataGrid Grid.Row="4" ItemsSource="{Binding OfficialRuntimes}">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Официальный пакет среды выполнения" Binding="{Binding FriendlyName}" Width="*" />
+          <DataGridTextColumn Header="Разрядность" Binding="{Binding ArchitectureBadge}" Width="135" />
+          <DataGridTextColumn Header="Состояние в ОС" Binding="{Binding InstallStatusBadge}" Width="155" />
+          <DataGridTextColumn Header="Проверка и доставка" Binding="{Binding DeliveryMethodBadge}" Width="195" />
+          <DataGridTemplateColumn Header="" Width="95">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <Button Style="{StaticResource CompactButtonStyle}" Padding="8,2" FontSize="11"
+                        Command="{Binding InstallCommand}" Content="Установить" />
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+        </DataGrid.Columns>
+      </DataGrid>
     </Grid>
 
-    <!-- ВКЛАДКА 2: АНАЛИЗАТОР СИНИХ ЭКРАНОВ BSOD -->
+    <!-- ==================== ВКЛАДКА 2: СБОИ ПРОГРАММ (EVENT LOG) И СИНИЕ ЭКРАНЫ (BSOD) ==================== -->
     <Grid Grid.Row="2"
           Margin="12,10"
           Visibility="{Binding IsBsodTab, Converter={StaticResource BoolToVis}}">
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
-        <RowDefinition Height="*" />
-        <RowDefinition Height="*" />
+        <RowDefinition Height="0.9*" />
+        <RowDefinition Height="1.15*" />
       </Grid.RowDefinitions>
 
-      <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="14,9" Margin="0,0,0,8">
+      <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="12,8" Margin="0,0,0,8">
         <DockPanel>
           <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButtonStyle}"
                   Command="{Binding ScanBsodAndCrashesCommand}" Content="Проверить дампы и журнал" />
           <Button DockPanel.Dock="Right" Style="{StaticResource CompactButtonStyle}" Margin="0,0,8,0"
-                  Command="{Binding OpenDumpFileCommand}" Content="Открыть файл дампа…"
-                  ToolTip="Разобрать один файл .dmp, например принесённый с другого компьютера" />
-          <TextBlock Text="{Binding BsodScanHeadline}" FontSize="12.5" VerticalAlignment="Center"
-                     TextWrapping="Wrap" />
+                  Command="{Binding OpenDumpFileCommand}" Content="Открыть файл .dmp…" />
+          <TextBlock Text="{Binding BsodScanHeadline}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
         </DockPanel>
       </Border>
 
       <DataGrid Grid.Row="1" ItemsSource="{Binding Minidumps}" Margin="0,0,0,8">
         <DataGrid.Columns>
-          <DataGridTextColumn Header="Время сбоя" Binding="{Binding CrashLocalDisplay}" Width="130" />
-          <DataGridTextColumn Header="Код" Binding="{Binding BugCheckHex}" Width="95" />
-          <DataGridTextColumn Header="Имя ошибки" Binding="{Binding BugCheckName}" Width="230" />
-          <DataGridTextColumn Header="Источник сбоя" Binding="{Binding CulpritBadge}" Width="190" />
-          <DataGridTextColumn Header="Что произошло" Binding="{Binding SimpleHumanExplanation}" Width="*" />
-          <DataGridTextColumn Header="Что делать" Binding="{Binding RecommendedUserAction}" Width="*" />
+          <DataGridTextColumn Header="Время BSOD" Binding="{Binding CrashLocalDisplay}" Width="122" />
+          <DataGridTextColumn Header="Код" Binding="{Binding BugCheckHex}" Width="92" />
+          <DataGridTextColumn Header="Имя остановки" Binding="{Binding BugCheckName}" Width="195" />
+          <DataGridTextColumn Header="Виновник" Binding="{Binding CulpritBadge}" Width="165" />
+          <DataGridTextColumn Header="Рекомендация" Binding="{Binding RecommendedUserAction}" Width="*" />
         </DataGrid.Columns>
       </DataGrid>
 
       <DataGrid Grid.Row="2" ItemsSource="{Binding CrashEvents}">
         <DataGrid.Columns>
-          <DataGridTextColumn Header="Время" Binding="{Binding TimeLocalDisplay}" Width="135" />
-          <DataGridTextColumn Header="Источник" Binding="{Binding EventBadge}" Width="215" />
-          <DataGridTextColumn Header="Описание критического сбоя" Binding="{Binding SimpleSummary}" Width="*" />
+          <DataGridTextColumn Header="Время" Binding="{Binding TimeLocalDisplay}" Width="122" />
+          <DataGridTextColumn Header="Событие" Binding="{Binding EventBadge}" Width="175" />
+          <DataGridTextColumn Header="Исключение" Binding="{Binding ExceptionHex}" Width="92" />
+          <DataGridTextColumn Header="Анализ причины вылета" Binding="{Binding SimpleSummary}" Width="*" />
+          <DataGridTemplateColumn Header="Переход" Width="150">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal">
+                  <Button Style="{StaticResource CompactButtonStyle}" Padding="6,2" FontSize="10.5"
+                          Visibility="{Binding CanInspectInPeDoctor, Converter={StaticResource BoolToVis}}"
+                          Command="{Binding InspectInPeDoctorCommand}" Content="PE-Доктор" Margin="0,0,4,0" />
+                  <Button Style="{StaticResource PrimaryButtonStyle}" Padding="6,2" FontSize="10.5"
+                          Visibility="{Binding HasJumpTarget, Converter={StaticResource BoolToVis}}"
+                          Command="{Binding JumpToRepairOrCodeCommand}" Content="К решению" />
+                </StackPanel>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
         </DataGrid.Columns>
       </DataGrid>
     </Grid>
+
+    <!-- ==================== ВКЛАДКА 3: СПРАВОЧНИК КОДОВ ОШИБОК WINDOWS ==================== -->
+    <Grid Grid.Row="2"
+          Margin="12,10"
+          Visibility="{Binding IsErrorCatalogTab, Converter={StaticResource BoolToVis}}">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+
+      <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="10,8" Margin="0,0,0,6">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="230" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <ComboBox Grid.Column="0"
+                    ItemsSource="{Binding ErrorFamilyOptions}"
+                    SelectedItem="{Binding SelectedErrorFamilyOption}"
+                    Margin="0,0,8,0" />
+          <TextBox Grid.Column="1"
+                   Text="{Binding ErrorSearchQuery, UpdateSourceTrigger=PropertyChanged}"
+                   ToolTip="Введите код (0xC000007B, 0x80070005, 0x800F081F, -2147024891, 1603, 0x00000116) или текст ошибки" />
+        </Grid>
+      </Border>
+
+      <TextBlock Grid.Row="1"
+                 Text="{Binding ErrorCatalogSummaryText}"
+                 FontSize="11.5"
+                 Foreground="{DynamicResource TextSecondaryBrush}"
+                 Margin="2,0,2,6"
+                 TextTrimming="CharacterEllipsis" />
+
+      <Grid Grid.Row="2">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="1.2*" />
+          <ColumnDefinition Width="10" />
+          <ColumnDefinition Width="1*" />
+        </Grid.ColumnDefinitions>
+
+        <DataGrid Grid.Column="0"
+                  ItemsSource="{Binding FilteredErrorCodes}"
+                  SelectedItem="{Binding SelectedErrorCode}">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="Код" Binding="{Binding DisplayCode}" Width="105" />
+            <DataGridTextColumn Header="Символьное имя" Binding="{Binding SymbolicName}" Width="175" />
+            <DataGridTextColumn Header="Краткая расшифровка" Binding="{Binding ShortTitle}" Width="*" />
+          </DataGrid.Columns>
+        </DataGrid>
+
+        <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}" Padding="12,10">
+          <ScrollViewer VerticalScrollBarVisibility="Auto"
+                        Visibility="{Binding HasSelectedErrorCode, Converter={StaticResource BoolToVis}}">
+            <StackPanel DataContext="{Binding SelectedErrorCode}">
+              <TextBlock Text="{Binding FamilyTitle}" FontSize="11" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold" />
+              <TextBlock FontSize="14" FontWeight="Bold" Margin="0,2,0,2">
+                <Run Text="{Binding DisplayCode, Mode=OneWay}" />
+                <Run Text=" — " />
+                <Run Text="{Binding SymbolicName, Mode=OneWay}" />
+              </TextBlock>
+              <TextBlock Text="{Binding ShortTitle}" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,8" />
+
+              <TextBlock Text="Что означает этот код:" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" />
+              <TextBlock Text="{Binding DetailedExplanation}" FontSize="11.5" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,8" />
+
+              <TextBlock Text="Пошаговое решение:" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" />
+              <TextBlock Text="{Binding RecommendedFixSteps}" FontSize="11.5" TextWrapping="Wrap" Margin="0,2,0,12" />
+
+              <WrapPanel Orientation="Horizontal">
+                <Button Style="{StaticResource PrimaryButtonStyle}"
+                        Padding="10,5"
+                        Margin="0,0,6,6"
+                        Visibility="{Binding DataContext.SelectedErrorHasRepairLink, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                        Command="{Binding DataContext.JumpToLinkedRepairRuleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        Content="Открыть связанное правило ремонта" />
+                <Button Style="{StaticResource CompactButtonStyle}"
+                        Padding="10,5"
+                        Margin="0,0,0,6"
+                        Visibility="{Binding DataContext.SelectedErrorHasRuntimeLink, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                        Command="{Binding DataContext.InstallLinkedRuntimeFromErrorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        Content="Установить нужный пакет VC++ / .NET" />
+              </WrapPanel>
+            </StackPanel>
+          </ScrollViewer>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <!-- ==================== ВКЛАДКА 4: DISM / SFC, CBS.LOG, ТЯЖЁЛЫЕ РЕЦЕПТЫ И ПЕРЕУСТАНОВКА ПОВЕРХ ==================== -->
+    <ScrollViewer Grid.Row="2"
+                  VerticalScrollBarVisibility="Auto"
+                  Padding="12,10"
+                  Visibility="{Binding IsPlaybooksTab, Converter={StaticResource BoolToVis}}">
+      <StackPanel>
+        <!-- Карточка CBS.log + крайняя ступень переустановки поверх через Центр обновления -->
+        <Grid Margin="0,0,0,10">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="1*" />
+            <ColumnDefinition Width="10" />
+            <ColumnDefinition Width="1.15*" />
+          </Grid.ColumnDefinitions>
+
+          <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="12,10">
+            <DockPanel>
+              <Button DockPanel.Dock="Bottom" HorizontalAlignment="Left" Style="{StaticResource CompactButtonStyle}"
+                      Padding="10,4" Margin="0,8,0,0"
+                      Command="{Binding CheckCbsLogCommand}" Content="Перечитать журнал CBS.log" />
+              <StackPanel>
+                <TextBlock Text="Журнал целостности компонентов (CBS.log)" FontSize="13" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding CbsLogHeadline}" FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
+              </StackPanel>
+            </DockPanel>
+          </Border>
+
+          <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}" Padding="12,10">
+            <DockPanel>
+              <WrapPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                <Button Style="{StaticResource PrimaryButtonStyle}" Padding="10,4" Margin="0,0,10,2"
+                        Command="{Binding OpenWindowsRecoveryCommand}" Content="Открыть Восстановление ОС" />
+                <TextBlock Text="{Binding ReinstallSpaceBadge}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+              </WrapPanel>
+              <StackPanel>
+                <TextBlock Text="{Binding ReinstallTitle}" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding ReinstallDetails}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
+              </StackPanel>
+            </DockPanel>
+          </Border>
+        </Grid>
+
+        <!-- 7 тяжёлых рецептов ремонта подсистем -->
+        <ItemsControl ItemsSource="{Binding Playbooks}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <UniformGrid Columns="2" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,8,8">
+                <DockPanel>
+                  <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding AccessBadge}" FontSize="11"
+                               Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                    <Button HorizontalAlignment="Left" Style="{StaticResource PrimaryButtonStyle}"
+                            Padding="12,5" FontSize="12"
+                            Command="{Binding RunPlaybookCommand}" Content="Выполнить рецепт" />
+                  </DockPanel>
+                  <StackPanel>
+                    <TextBlock Text="{Binding FriendlyTitle}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding FriendlyDescription}" FontSize="11.5"
+                               Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,6" />
+                    <TextBlock Text="{Binding ExpertCommandsPreview}" FontFamily="Consolas" FontSize="10.5"
+                               Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                </DockPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </ScrollViewer>
   </Grid>
 </UserControl>

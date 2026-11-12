@@ -1,0 +1,386 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "win.temp-user",
+      "section": "Windows",
+      "app": "Windows",
+      "title": "Временные файлы пользователя",
+      "explanation": "Файлы, которые программы и установщики оставили во временной папке. Удаляются только те, что не менялись больше суток.",
+      "kind": "Temp",
+      "default": true,
+      "minAgeHours": 24,
+      "files": [
+        {
+          "path": "%Temp%"
+        }
+      ],
+      "exclude": [
+        {
+          "path": "%Temp%\\.net"
+        },
+        {
+          "path": "%Temp%\\_MEI*"
+        }
+      ]
+    },
+    {
+      "id": "win.temp-system",
+      "section": "Windows",
+      "app": "Windows",
+      "title": "Временные файлы Windows",
+      "explanation": "Временная папка самой системы и программ, работающих от имени администратора. Удаляются только файлы старше суток.",
+      "kind": "Temp",
+      "default": true,
+      "minAgeHours": 24,
+      "files": [
+        {
+          "path": "%WinDir%\\Temp"
+        }
+      ]
+    },
+    {
+      "id": "win.temp-services",
+      "section": "Windows",
+      "app": "Windows",
+      "title": "Временные файлы системных служб",
+      "explanation": "Временные папки служб Windows. Удаляются только файлы старше суток.",
+      "kind": "Temp",
+      "default": true,
+      "minAgeHours": 24,
+      "files": [
+        {
+          "path": "%WinDir%\\ServiceProfiles\\LocalService\\AppData\\Local\\Temp"
+        },
+        {
+          "path": "%WinDir%\\ServiceProfiles\\NetworkService\\AppData\\Local\\Temp"
+        }
+      ]
+    },
+    {
+      "id": "win.error-reports",
+      "section": "Windows",
+      "app": "Windows",
+      "title": "Отчёты об ошибках программ",
+      "explanation": "Сведения о сбоях программ, которые Windows собрала для отправки в Microsoft. Для работы системы не нужны.",
+      "kind": "Dumps",
+      "default": true,
+      "minAgeHours": 12,
+      "files": [
+        {
+          "path": "%ProgramData%\\Microsoft\\Windows\\WER\\ReportArchive"
+        },
+        {
+          "path": "%ProgramData%\\Microsoft\\Windows\\WER\\ReportQueue"
+        },
+        {
+          "path": "%ProgramData%\\Microsoft\\Windows\\WER\\Temp"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Windows\\WER\\ReportArchive"
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\Windows\\WER\\ReportQueue"
+        }
+      ]
+    },
+    {
+      "id": "win.crash-dumps-user",
+      "section": "Windows",
+      "app": "Windows",
+      "title": "Дампы упавших программ",
+      "explanation": "Снимки памяти программ, завершившихся с ошибкой. Нужны только разработчикам этих программ.",
+      "kind": "Dumps",
+      "default": true,
+      "minAgeHours": 12,
+      "files": [
+        {
+          "path": "%LocalAppData%\\CrashDumps",
+          "match": [
+            "*.dmp"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "win.memory-dumps",
+      "section": "Windows",
+      "app": "Windows",
+      "title": "Дампы памяти после синих экранов",
+      "explanation": "Снимки памяти, которые Windows сохраняет при синем экране. Полный дамп занимает столько же, сколько оперативная память.",
+      "kind": "Dumps",
+      "default": false,
+      "warning": "После удаления программа не сможет показать причину прошлых синих экранов.",
+      "files": [
+        {
+          "path": "%WinDir%",
+          "match": [
+            "MEMORY.DMP"
+          ],
+          "recurse": false
+        },
+        {
+          "path": "%WinDir%\\Minidump",
+          "match": [
+            "*.dmp"
+          ],
+          "recurse": false
+        },
+        {
+          "path": "%WinDir%\\LiveKernelReports",
+          "match": [
+            "*.dmp"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "win.update-downloads",
+      "section": "Windows",
+      "app": "Windows",
+      "title": "Скачанные файлы обновлений Windows",
+      "explanation": "Установочные файлы обновлений, скачанные больше двух суток назад. Если обновление понадобится снова, Windows скачает его заново.",
+      "kind": "Leftovers",
+      "default": true,
+      "minAgeHours": 48,
+      "files": [
+        {
+          "path": "%WinDir%\\SoftwareDistribution\\Download"
+        }
+      ]
+    },
+    {
+      "id": "win.delivery-optimization",
+      "section": "Windows",
+      "app": "Windows",
+      "title": "Кэш оптимизации доставки",
+      "explanation": "Части обновлений, которые Windows хранит, чтобы раздавать их другим компьютерам в сети.",
+      "kind": "Cache",
+      "default": true,
+      "files": [
+        {
+          "path": "%WinDir%\\ServiceProfiles\\NetworkService\\AppData\\Local\\Microsoft\\Windows\\DeliveryOptimization\\Cache"
+        }
+      ]
+    },
+    {
+      "id": "win.setup-logs",
+      "section": "Windows",
+      "app": "Windows",
+      "title": "Журналы установки и обновления Windows",
+      "explanation": "Журналы, которые Windows ведёт при установке обновлений и компонентов. Нужны только при поиске причин сбоя установки. Удаляются журналы старше суток.",
+      "kind": "Logs",
+      "default": true,
+      "minAgeHours": 24,
+      "files": [
+        {
+          "path": "%WinDir%\\Logs\\CBS",
+          "match": [
+            "CbsPersist_*"
+          ],
+          "recurse": false
+        },
+        {
+          "path": "%WinDir%\\Logs\\DISM",
+          "match": [
+            "*.log"
+          ],
+          "recurse": false
+        },
+        {
+          "path": "%WinDir%\\Logs\\MoSetup"
+        },
+        {
+          "path": "%WinDir%\\Logs\\WindowsUpdate",
+          "match": [
+            "*.etl"
+          ]
+        },
+        {
+          "path": "%WinDir%\\Logs\\SIH",
+          "match": [
+            "*.etl",
+            "*.log"
+          ]
+        },
+        {
+          "path": "%WinDir%\\Logs\\NetSetup",
+          "match": [
+            "*.etl",
+            "*.log"
+          ]
+        },
+        {
+          "path": "%WinDir%\\Logs\\DPX",
+          "match": [
+            "*.log"
+          ]
+        },
+        {
+          "path": "%WinDir%\\Panther",
+          "match": [
+            "*.log",
+            "*.etl"
+          ]
+        },
+        {
+          "path": "%WinDir%\\debug",
+          "match": [
+            "*.log"
+          ],
+          "recurse": false
+        },
+        {
+          "path": "%WinDir%\\Performance\\WinSAT",
+          "match": [
+            "*.log"
+          ],
+          "recurse": false
+        },
+        {
+          "path": "%WinDir%",
+          "match": [
+            "*.log"
+          ],
+          "recurse": false
+        }
+      ]
+    },
+    {
+      "id": "win.inet-cache",
+      "section": "Windows",
+      "app": "Windows",
+      "title": "Кэш системных веб-компонентов",
+      "explanation": "Файлы, которые скачали встроенные в Windows веб-компоненты и старые программы. При необходимости скачаются заново.",
+      "kind": "Cache",
+      "default": true,
+      "files": [
+        {
+          "path": "%LocalAppData%\\Microsoft\\Windows\\INetCache"
+        }
+      ]
+    },
+    {
+      "id": "win.store-apps-temp",
+      "section": "Windows",
+      "app": "Windows",
+      "title": "Временные файлы приложений из Microsoft Store",
+      "explanation": "Временные папки приложений, установленных из Microsoft Store. Удаляются только файлы старше суток.",
+      "kind": "Temp",
+      "default": true,
+      "minAgeHours": 24,
+      "files": [
+        {
+          "path": "%LocalAppData%\\Packages\\*\\AC\\Temp"
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\TempState"
+        },
+        {
+          "path": "%LocalAppData%\\Packages\\*\\AC\\INetCache"
+        }
+      ]
+    },
+    {
+      "id": "win.winget-logs",
+      "section": "Windows",
+      "app": "Windows",
+      "title": "Журналы установщика программ winget",
+      "explanation": "Журналы установки и обновления программ через winget. Нужны только при поиске причин неудачной установки.",
+      "kind": "Logs",
+      "default": true,
+      "minAgeHours": 24,
+      "files": [
+        {
+          "path": "%LocalAppData%\\Packages\\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\\LocalState\\DiagOutputDir"
+        }
+      ]
+    },
+    {
+      "id": "win.dotnet-usage-logs",
+      "section": "Windows",
+      "app": "Windows",
+      "title": "Журналы запуска программ .NET",
+      "explanation": "Служебные журналы, которые .NET ведёт при каждом запуске программ. На работу программ не влияют.",
+      "kind": "Logs",
+      "default": true,
+      "files": [
+        {
+          "path": "%LocalAppData%\\Microsoft\\CLR_v4.0\\UsageLogs",
+          "match": [
+            "*.log"
+          ]
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\CLR_v4.0_32\\UsageLogs",
+          "match": [
+            "*.log"
+          ]
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\CLR_v2.0\\UsageLogs",
+          "match": [
+            "*.log"
+          ]
+        },
+        {
+          "path": "%LocalAppData%\\Microsoft\\CLR_v2.0_32\\UsageLogs",
+          "match": [
+            "*.log"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "win.rdp-cache",
+      "section": "Windows",
+      "app": "Windows",
+      "title": "Кэш подключений к удалённому рабочему столу",
+      "explanation": "Фрагменты изображений экрана удалённых компьютеров. Ускоряют повторное подключение и создаются заново.",
+      "kind": "Cache",
+      "default": true,
+      "files": [
+        {
+          "path": "%LocalAppData%\\Microsoft\\Terminal Server Client\\Cache"
+        }
+      ]
+    },
+    {
+      "id": "win.thumbnails",
+      "section": "Windows",
+      "app": "Windows",
+      "title": "Кэш эскизов и значков",
+      "explanation": "Уменьшенные копии картинок и значки, которые Проводник хранит, чтобы быстрее показывать папки. Проводник создаст их заново; файлы, занятые им в этот момент, останутся.",
+      "kind": "Cache",
+      "default": false,
+      "files": [
+        {
+          "path": "%LocalAppData%\\Microsoft\\Windows\\Explorer",
+          "match": [
+            "thumbcache_*.db",
+            "iconcache_*.db"
+          ],
+          "recurse": false
+        }
+      ]
+    },
+    {
+      "id": "win.recent-documents",
+      "section": "Windows",
+      "app": "Windows",
+      "title": "Список недавних документов",
+      "explanation": "Ярлыки недавно открытых файлов и папок в Проводнике. Сами файлы не затрагиваются; закреплённые элементы остаются.",
+      "kind": "History",
+      "default": false,
+      "files": [
+        {
+          "path": "%AppData%\\Microsoft\\Windows\\Recent",
+          "match": [
+            "*.lnk"
+          ],
+          "recurse": false
+        }
+      ]
+    }
+  ]
+}

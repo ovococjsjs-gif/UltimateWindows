@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 2,
+
+  "tweaks": [
+    {
+      "id": "disk.no-last-access-time",
+      "category": "DiskAndStorage",
+      "title": "Не обновлять время последнего обращения к файлам",
+      "explanation": "NTFS перестаёт записывать на диск время каждого чтения файла — мелких записей становится меньше. Программы, которые ищут давно не открывавшиеся файлы, перестанут видеть, когда файл читали.",
+      "risk": "Safe",
+      "restart": "reboot",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\FileSystem", "name": "NtfsDisableLastAccessUpdate", "kind": "dword", "value": "0x80000001", "default": "0x80000002" }
+      ]
+    },
+    {
+      "id": "disk.no-short-names",
+      "category": "DiskAndStorage",
+      "title": "Не создавать короткие имена файлов (8.3)",
+      "explanation": "Для новых файлов не создаётся второе имя в стиле MS-DOS. Папки с тысячами файлов работают быстрее; очень старые 16-разрядные установщики могут не найти свои файлы.",
+      "risk": "Low",
+      "restart": "reboot",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\FileSystem", "name": "NtfsDisable8dot3NameCreation", "kind": "dword", "value": 1, "default": 2 }
+      ]
+    },
+    {
+      "id": "disk.long-paths",
+      "category": "DiskAndStorage",
+      "title": "Разрешить пути длиннее 260 символов",
+      "explanation": "Программы, которые это поддерживают — Git, Node.js, Python, 7-Zip, — смогут работать с глубоко вложенными папками. Проводник и старые программы ограничение сохраняют.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\FileSystem", "name": "LongPathsEnabled", "kind": "dword", "value": 1, "default": 0 }
+      ]
+    },
+    {
+      "id": "disk.disable-sysmain",
+      "category": "DiskAndStorage",
+      "title": "Отключить SysMain (Superfetch)",
+      "explanation": "Windows перестаёт заранее подгружать в память часто используемые программы. На SSD разница почти незаметна, а фоновых обращений к диску становится меньше.",
+      "risk": "Low",
+      "restart": "reboot",
+      "requirements": { "bestOnSolidStateSystemDrive": true },
+      "actions": [
+        { "type": "service", "name": "SysMain", "startup": "disabled", "default": "automatic" }
+      ]
+    },
+    {
+      "id": "disk.disable-hibernation",
+      "category": "DiskAndStorage",
+      "title": "Отключить гибернацию",
+      "explanation": "Windows перестаёт сохранять содержимое памяти на диск: после перезагрузки исчезает файл hiberfil.sys размером в несколько гигабайт, а вместе с ним режим гибернации и быстрый запуск.",
+      "risk": "Low",
+      "restart": "reboot",
+      "requirements": { "batteryWarning": "Это устройство с батареей. Без гибернации при полной разрядке во сне несохранённые данные будут потеряны." },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\Power", "name": "HibernateEnabled", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "disk.disable-search-indexing",
+      "category": "DiskAndStorage",
+      "title": "Отключить индексирование поиска",
+      "explanation": "Windows перестаёт в фоне читать файлы для поискового индекса. Диск и процессор загружены меньше, но поиск в «Пуске», Проводнике и Outlook станет медленным и перестанет искать по содержимому файлов.",
+      "risk": "Moderate",
+      "restart": "reboot",
+      "actions": [
+        { "type": "service", "name": "WSearch", "startup": "disabled", "default": "automaticDelayed" }
+      ]
+    }
+  ]
+}

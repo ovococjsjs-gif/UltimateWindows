@@ -1,230 +1,529 @@
 using System.Text.Json;
 using UltimateWindows.Core.Contracts;
 using UltimateWindows.Core.Enums;
-using UltimateWindows.Core.Guards;
 using UltimateWindows.Modules.Security.Analyzers;
-using UltimateWindows.Modules.Security.Contracts;
 using UltimateWindows.Modules.Security.Models;
+using UltimateWindows.Modules.Security.Scanners;
 
 namespace UltimateWindows.Modules.Security.Services;
 
 /// <summary>
-/// Базовый безопасный платформенный мост Фазы 5 (для изолированных модульных тестов и не-Windows окружений).
-/// </summary>
-public class DefaultSecurityPlatformBridge : ISecurityPlatformBridge
-{
-    public virtual bool IsRunningAsAdministrator() => false;
-
-    public virtual string GetWindowsDirectory() =>
-        Environment.GetFolderPath(Environment.SpecialFolder.Windows) is { Length: > 0 } w ? w : @"C:\Windows";
-
-    public virtual Task<IReadOnlyList<ProcessTelemetrySample>> CaptureDropOnInspectSamplesAsync(
-        bool runDecoyTrigger,
-        CancellationToken ct = default) =>
-        Task.FromResult<IReadOnlyList<ProcessTelemetrySample>>(Array.Empty<ProcessTelemetrySample>());
-
-    public virtual Task<IReadOnlyList<ProcessTcpConnectionInfo>> GetActiveTcpConnectionsAsync(CancellationToken ct = default) =>
-        Task.FromResult<IReadOnlyList<ProcessTcpConnectionInfo>>(Array.Empty<ProcessTcpConnectionInfo>());
-
-    public virtual Task<IReadOnlyList<PersistenceAnomalyRecord>> ScanPersistenceAnomaliesAsync(CancellationToken ct = default) =>
-        Task.FromResult<IReadOnlyList<PersistenceAnomalyRecord>>(Array.Empty<PersistenceAnomalyRecord>());
-
-    public virtual Task<IReadOnlyList<OsSabotageFinding>> ScanOsSabotageLocksAsync(CancellationToken ct = default) =>
-        Task.FromResult<IReadOnlyList<OsSabotageFinding>>(Array.Empty<OsSabotageFinding>());
-
-    public virtual Task<bool> TerminateSuspectProcessAsync(int processId, CancellationToken ct = default) =>
-        Task.FromResult(false);
-
-    public virtual Task<(bool Succeeded, string? OriginalHostsBackupContent)> RepairSabotageLockAsync(
-        OsSabotageFinding lockFinding,
-        CancellationToken ct = default) =>
-        Task.FromResult((false, (string?)null));
-
-    public virtual string GetHostsFilePath() =>
-        Path.Combine(GetWindowsDirectory(), "System32", "drivers", "etc", "hosts");
-}
-
-/// <summary>
-/// Главный сервис Фазы 5: поиск скрытых майнеров (включая прячущиеся от Диспетчера задач процессы),
-/// безопасная изоляция угроз в зашифрованный карантин Машины времени (.uwq) и разблокировка заблокированных майнером компонентов ОС.
+/// Оркестратор модуля «Анти-майнер и Защита 2.0»:
+/// 1) Полный многовекторный аудит (CPU+GPU Drop-on-Inspect с реальным монитором, 18 зон автозакрепления, Stratum IPv4/IPv6 + DNS-кэш,
+///    исключения Защитника Windows, правила брандмауэра, скрытые учетные записи, staging-папки и блокировки ОС);
+/// 2) Комплексное обезвреживание в 1 клик (остановка процесса + удаление закрепления + карантин .uwq с полным откатом в «Машине времени»);
+/// 3) Интеграция с Microsoft Defender (удаление опасных слепых зон, запуск быстрой и выборочной проверки) и опциональными PE-sieve / YARA.
 /// </summary>
 public sealed class AntiMinerSecurityService
 {
     private readonly IVaultService _vaultService;
-    private readonly ISecurityPlatformBridge _platformBridge;
+    private readonly ISecurityPlatformBridge _bridge;
     private readonly MinerThreatHeuristicEngine _heuristicEngine;
+    private readonly ExternalScannerCoordinator _externalScanners;
 
     public AntiMinerSecurityService(
         IVaultService vaultService,
-        ISecurityPlatformBridge? platformBridge = null,
-        MinerThreatHeuristicEngine? heuristicEngine = null)
+        ISecurityPlatformBridge? bridge = null,
+        MinerThreatHeuristicEngine? heuristicEngine = null,
+        ExternalScannerCoordinator? externalScanners = null)
     {
         _vaultService = vaultService ?? throw new ArgumentNullException(nameof(vaultService));
-        _platformBridge = platformBridge ?? new DefaultSecurityPlatformBridge();
+        _bridge = bridge ?? new DefaultSecurityPlatformBridge();
         _heuristicEngine = heuristicEngine ?? new MinerThreatHeuristicEngine();
+        _externalScanners = externalScanners ?? new ExternalScannerCoordinator();
     }
 
+    public ExternalScannerCoordinator ExternalScanners => _externalScanners;
+
     /// <summary>
-    /// Проводит комплексную многовекторную проверку ПК на скрытые майнеры, подмену системных процессов и последствия саботажа.
+    /// Запускает полный многоуровневый аудит безопасности ПК.
     /// </summary>
     public async Task<SecurityScanReport> RunFullSecurityScanAsync(
         bool enableDropOnInspectProbe = true,
         CancellationToken ct = default)
     {
-        var processesTask = _platformBridge.CaptureDropOnInspectSamplesAsync(enableDropOnInspectProbe, ct);
-        var tcpTask = _platformBridge.GetActiveTcpConnectionsAsync(ct);
-        var persistenceTask = _platformBridge.ScanPersistenceAnomaliesAsync(ct);
-        var sabotageTask = _platformBridge.ScanOsSabotageLocksAsync(ct);
+        var isAdmin = _bridge.IsRunningAsAdministrator();
+        var winDir = _bridge.GetWindowsDirectory();
 
-        await Task.WhenAll(processesTask, tcpTask, persistenceTask, sabotageTask).ConfigureAwait(false);
+        var telemetryTask = _bridge.CaptureDropOnInspectSamplesAsync(enableDropOnInspectProbe, ct);
+        var tcpTask = _bridge.GetActiveTcpConnectionsAsync(ct);
+        var persistenceTask = _bridge.ScanPersistenceAnomaliesAsync(ct);
+        var sabotageTask = _bridge.ScanOsSabotageLocksAsync(ct);
+        var defenderExclTask = _bridge.ScanDefenderExclusionsAsync(ct);
+        var firewallTask = _bridge.ScanFirewallRuleAnomaliesAsync(ct);
+        var usersTask = _bridge.ScanSuspiciousUserAccountsAsync(ct);
+        var artifactsTask = _bridge.ScanStagingDirectoriesAsync(ct);
+        var dnsCacheTask = _bridge.ScanDnsCacheMiningPoolDomainsAsync(ct);
 
-        var threats = _heuristicEngine.AnalyzeTelemetry(
-            processesTask.Result,
-            tcpTask.Result,
-            persistenceTask.Result,
-            _platformBridge.GetWindowsDirectory());
+        await Task.WhenAll(
+            telemetryTask, tcpTask, persistenceTask, sabotageTask,
+            defenderExclTask, firewallTask, usersTask, artifactsTask, dnsCacheTask).ConfigureAwait(false);
 
+        var processes = telemetryTask.Result;
+        var tcpConnections = tcpTask.Result;
+        var allPersistence = persistenceTask.Result;
         var sabotageLocks = sabotageTask.Result;
+        var defenderExclusions = defenderExclTask.Result;
+        var firewallAnomalies = firewallTask.Result;
+        var suspiciousUsers = usersTask.Result;
+        var directoryArtifacts = artifactsTask.Result;
+        var dnsPoolDomains = dnsCacheTask.Result;
+        var scannerStatuses = _externalScanners.ProbeAvailableScanners();
 
-        var penalty = (threats.Count * 28) + (sabotageLocks.Count * 12);
-        var score = Math.Clamp(100 - penalty, 5, 100);
+        var threats = _heuristicEngine.AnalyzeFullEcosystem(
+            processes,
+            tcpConnections,
+            allPersistence,
+            defenderExclusions,
+            firewallAnomalies,
+            suspiciousUsers,
+            directoryArtifacts,
+            dnsPoolDomains,
+            winDir);
 
-        string headline;
-        if (threats.Count == 0 && sabotageLocks.Count == 0)
+        int penalty = threats.Sum(t => t.Severity switch
         {
-            headline = "✅ Скрытых майнеров, маскирующихся процессов и блокировок системы не обнаружено!";
-        }
-        else
-        {
-            headline = $"🚨 Обнаружено угроз майнеров/закрепления: {threats.Count} • Блокировок саботажа ОС: {sabotageLocks.Count}. Доступно лечение.";
-        }
+            RiskLevel.Critical => 30,
+            RiskLevel.High => 18,
+            _ => 10
+        }) + sabotageLocks.Count * 12;
+
+        int healthScore = Math.Clamp(100 - penalty, 0, 100);
+        int dangerousExclusions = defenderExclusions.Count(e => e.IsDangerousMinerExclusion);
+        int anomalousPersistence = allPersistence.Count(p => p.IsAnomaly);
+
+        string headline = threats.Count == 0 && sabotageLocks.Count == 0
+            ? $"Угроз и скрытых майнеров не обнаружено (проверено 18 зон автозакрепления: {allPersistence.Count} записей, исключений Defender: {defenderExclusions.Count})."
+            : $"Найдено угроз: {threats.Count} (аномалий закрепления: {anomalousPersistence}, опасных исключений Defender: {dangerousExclusions}), блокировок ОС: {sabotageLocks.Count}.";
 
         return new SecurityScanReport(
             ScannedAtUtc: DateTimeOffset.UtcNow,
-            SecurityHealthScore: score,
-            UsedDropOnInspectProbe: enableDropOnInspectProbe,
-            HeadlineSummary: headline,
+            RanWithAdministratorPrivileges: isAdmin,
+            RanDropOnInspectDecoy: enableDropOnInspectProbe,
             Threats: threats,
-            SabotageLocks: sabotageLocks);
+            SabotageLocks: sabotageLocks,
+            SecurityHealthScore: healthScore,
+            HeadlineSummary: headline,
+            AllPersistenceEntries: allPersistence,
+            DefenderExclusions: defenderExclusions,
+            FirewallAnomalies: firewallAnomalies,
+            SuspiciousUsers: suspiciousUsers,
+            DirectoryArtifacts: directoryArtifacts,
+            ProcessSnapshots: processes,
+            ExternalScanners: scannerStatuses,
+            DnsCachedPoolDomains: dnsPoolDomains,
+            PersistenceZonesAuditedCount: PersistenceZoneCatalog.AllZones.Count);
     }
 
     /// <summary>
-    /// Останавливает обнаруженный процесс майнера и изолирует его исполняемый файл в сжатый шифрованный карантин (.uwq)
-    /// с возможностью 100% возврата одной кнопкой из Машины времени.
+    /// Комплексно обезвреживает найденную угрозу в один шаг:
+    /// 1) Блокирует удаление любых штатных системных бинарников внутри C:\Windows;
+    /// 2) При наличии подозрительного процесса завершает его дерево;
+    /// 3) При наличии связанной точки автозакрепления, опасного исключения Defender или правила брандмауэра снимает их с записью отката;
+    /// 4) Помещает вредоносный исполняемый файл в шифрованный дедуплицированный карантин .uwq.
     /// </summary>
     public async Task<SecurityRemediationResult> QuarantineThreatAsync(
-        SecurityThreatFinding threat,
+        SecurityThreatFinding finding,
         CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(threat);
+        ArgumentNullException.ThrowIfNull(finding);
 
-        if (string.IsNullOrWhiteSpace(threat.SuspectFilePath) || !File.Exists(threat.SuspectFilePath))
-        {
-            return new SecurityRemediationResult(false, "Подозрительный файл уже удален или недоступен на диске.");
-        }
+        var winPrefix = _bridge.GetWindowsDirectory().TrimEnd('\\', '/') + @"\";
+        bool hasFileTarget = !string.IsNullOrWhiteSpace(finding.SuspectFilePath);
+        bool isUnderWindows = hasFileTarget &&
+                              Path.GetFullPath(finding.SuspectFilePath!).StartsWith(winPrefix, StringComparison.OrdinalIgnoreCase);
 
-        var fullPath = Path.GetFullPath(threat.SuspectFilePath);
+        bool hasNonFileAction =
+            (finding.PersistenceRecord?.CanRemediate ?? false) ||
+            finding.LinkedExclusion is not null ||
+            finding.LinkedFirewallRule is not null ||
+            finding.Vector is ThreatDetectionVector.ProcessHollowingOrImplant or ThreatDetectionVector.ExternalPeSieveImplant;
 
-        // 1. Жесткая защита настоящей системной папки C:\Windows и баз паролей браузеров!
-        var normWin = _platformBridge.GetWindowsDirectory().Replace('/', '\\').TrimEnd('\\');
-        if (MinerThreatHeuristicEngine.IsInsideGenuineWindowsSystemFolder(fullPath.Replace('/', '\\'), normWin))
+        // Строгая защита от самострела: никогда не удаляем и не помещаем в карантин файлы из папки C:\Windows!
+        if (isUnderWindows && !hasNonFileAction)
         {
             return new SecurityRemediationResult(
                 false,
-                "Защитный барьер: карантин никогда не удаляет файлы внутри настоящей системной папки Windows.");
+                null,
+                0,
+                $"Защита безопасности: файл внутри системного каталога Windows («{finding.SuspectFilePath}») запрещено помещать в карантин.");
         }
 
-        BrowserVaultGuard.ThrowIfProtected(fullPath);
-
-        // 2. Останавливаем активный процесс майнера перед переносом файла в карантин
-        if (threat.SuspectProcessId is int pid and > 4)
+        if (!hasFileTarget && !hasNonFileAction && finding.SuspectProcessId is null or <= 4)
         {
-            _ = await _platformBridge.TerminateSuspectProcessAsync(pid, ct).ConfigureAwait(false);
+            return new SecurityRemediationResult(
+                false,
+                null,
+                0,
+                "Для данной находки не требуется автоматическое удаление файла.");
         }
 
         await using var tx = _vaultService.BeginTransaction(
             SystemDomain.AntiMiner,
-            friendlyTitle: $"Карантин скрытой угрозы: {Path.GetFileName(fullPath)}",
-            friendlySummary: threat.SimpleTitle,
-            technicalDetails: threat.ExpertTechnicalEvidence);
+            $"Обезвреживание угрозы: {finding.SimpleTitle}",
+            finding.SimpleExplanation,
+            finding.ExpertTechnicalEvidence);
 
-        var sha256 = await tx.QuarantineFileAsync(fullPath, ct).ConfigureAwait(false);
-        var committed = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
+        int actionsDone = 0;
+        var summaryParts = new List<string>();
 
+        // 1. Завершаем активный подозрительный процесс (или донор с имплантом памяти)
+        if (finding.SuspectProcessId is int pid and > 4)
+        {
+            if (await _bridge.TerminateSuspectProcessAsync(pid, ct).ConfigureAwait(false))
+            {
+                actionsDone++;
+                summaryParts.Add($"остановлен процесс PID {pid}");
+            }
+        }
+
+        // 2. Снимаем точку автозакрепления (реестр / служба / задача / WMI / BITS)
+        if (finding.PersistenceRecord is { CanRemediate: true } persistence)
+        {
+            var (removed, rbKind, rbTarget, prevJson) = await _bridge.RemovePersistenceEntryAsync(persistence, ct).ConfigureAwait(false);
+            if (removed)
+            {
+                if (rbKind.HasValue && !string.IsNullOrWhiteSpace(rbTarget))
+                {
+                    tx.RecordStateDelta(rbKind.Value, rbTarget, prevJson, null);
+                }
+
+                actionsDone++;
+                summaryParts.Add($"снято закрепление «{persistence.EntryName}»");
+            }
+        }
+
+        // 3. Удаляем опасное исключение Защитника Windows
+        if (finding.LinkedExclusion is not null)
+        {
+            if (await _bridge.RemoveDefenderExclusionAsync(finding.LinkedExclusion, ct).ConfigureAwait(false))
+            {
+                var prevExclJson = JsonSerializer.Serialize(new
+                {
+                    Kind = finding.LinkedExclusion.Kind.ToString(),
+                    finding.LinkedExclusion.Value,
+                    finding.LinkedExclusion.IsPolicyEnforced,
+                    finding.LinkedExclusion.RegistryPath
+                });
+                tx.RecordStateDelta(
+                    StateTargetKind.SystemSetting,
+                    $"DefenderExclusion:{finding.LinkedExclusion.Kind}:{finding.LinkedExclusion.Value}",
+                    prevExclJson,
+                    null);
+                actionsDone++;
+                summaryParts.Add($"удалено исключение Defender «{finding.LinkedExclusion.Value}»");
+            }
+        }
+
+        // 4. Удаляем вредоносное правило Брандмауэра Windows
+        if (finding.LinkedFirewallRule is not null)
+        {
+            if (await _bridge.RemoveFirewallRuleAsync(finding.LinkedFirewallRule, ct).ConfigureAwait(false))
+            {
+                var prevFwJson = JsonSerializer.Serialize(new
+                {
+                    finding.LinkedFirewallRule.RuleId,
+                    finding.LinkedFirewallRule.RawRegistryValue
+                });
+                tx.RecordStateDelta(
+                    StateTargetKind.SystemSetting,
+                    $"FirewallRule:{finding.LinkedFirewallRule.RuleId}",
+                    prevFwJson,
+                    null);
+                actionsDone++;
+                summaryParts.Add($"удалено правило брандмауэра «{finding.LinkedFirewallRule.DisplayName}»");
+            }
+        }
+
+        // 5. Изолируем тело угрозы в шифрованный карантин .uwq (строго вне C:\Windows)
+        if (hasFileTarget && !isUnderWindows && finding.CanQuarantineFileSafely)
+        {
+            var fullPath = Path.GetFullPath(finding.SuspectFilePath!);
+            if (File.Exists(fullPath))
+            {
+                try
+                {
+                    File.SetAttributes(fullPath, FileAttributes.Normal);
+                    // QuarantineFileAsync шифрует/дедуплицирует файл в .uwq и сразу удаляет оригинал с диска
+                    await tx.QuarantineFileAsync(fullPath, ct).ConfigureAwait(false);
+                    actionsDone++;
+                    summaryParts.Add($"файл «{Path.GetFileName(fullPath)}» изолирован в карантин (.uwq)");
+                }
+                catch (Exception ex)
+                {
+                    return new SecurityRemediationResult(
+                        false,
+                        null,
+                        actionsDone,
+                        $"Не удалось изолировать заблокированный файл «{fullPath}»: {ex.Message}");
+                }
+            }
+            else if (actionsDone == 0)
+            {
+                return new SecurityRemediationResult(false, null, 0, $"Файл «{fullPath}» уже не существует на диске.");
+            }
+        }
+
+        if (actionsDone == 0)
+        {
+            return new SecurityRemediationResult(
+                false,
+                null,
+                0,
+                "Не удалось выполнить автоматическое действие (возможно, требуются права администратора).");
+        }
+
+        var record = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
         return new SecurityRemediationResult(
-            Succeeded: true,
-            UserFriendlyMessage: $"🛡️ Объект «{Path.GetFileName(fullPath)}» остановлен и изолирован в зашифрованный карантин (.uwq)! При необходимости его можно вернуть из Машины времени.",
-            TechnicalDetails: $"SHA-256: {sha256}",
-            RollbackSessionId: committed.SessionId);
+            true,
+            record.SessionId,
+            actionsDone,
+            $"Угроза обезврежена ({string.Join(", ", summaryParts)}). Откат доступен в «Машине времени».");
     }
 
     /// <summary>
-    /// Снимает все обнаруженные блокировки после атаки майнера (разблокирует Диспетчер задач, Редактор реестра,
-    /// командную строку, удаляет перехваты IFEO и очищает блокировки антивирусов в файле hosts) с записью отката.
+    /// Снимает выбранную точку автозакрепления напрямую со вкладки «Автозакрепление (18 зон)».
     /// </summary>
-    public async Task<SecurityRemediationResult> HealAllSabotageLocksAsync(
-        IReadOnlyList<OsSabotageFinding> sabotageLocks,
+    public async Task<SecurityRemediationResult> RemovePersistenceAnomalyAsync(
+        PersistenceAnomalyRecord anomaly,
         CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(sabotageLocks);
-        if (sabotageLocks.Count == 0)
+        ArgumentNullException.ThrowIfNull(anomaly);
+        if (!anomaly.CanRemediate)
         {
-            return new SecurityRemediationResult(true, "Активных блокировок системы не обнаружено.");
+            return new SecurityRemediationResult(false, null, 0, "Эта запись является штатной и не требует удаления.");
         }
 
         await using var tx = _vaultService.BeginTransaction(
             SystemDomain.AntiMiner,
-            friendlyTitle: $"Реабилитация системы после майнера ({sabotageLocks.Count} блокировок снято)",
-            friendlySummary: "Восстановлен доступ к Диспетчеру задач, Реестру, обновлениям Windows и сайтам антивирусов.",
-            technicalDetails: string.Join("; ", sabotageLocks.Select(s => s.TargetDisplayPath)));
+            $"Снятие автозакрепления: {anomaly.EntryName}",
+            $"{anomaly.ZoneTitle} — {anomaly.PayloadCommandOrPath}",
+            anomaly.RegistryOrTaskPath);
 
-        var healed = 0;
-        foreach (var item in sabotageLocks)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            if (item.Kind != OsSabotageKind.SecurityDomainsBlockedInHosts)
-            {
-                var snapJson = JsonSerializer.Serialize(new
-                {
-                    Hive = item.Hive,
-                    SubKey = item.SubKeyPath,
-                    ValueName = item.ValueName,
-                    ExistedBefore = true,
-                    ValueKind = item.Kind == OsSabotageKind.SystemToolIfeoBlocked ? 1 : 4,
-                    SerializedData = item.CurrentMaliciousValue
-                });
-
-                tx.RecordStateDelta(StateTargetKind.RegistryValue, item.TargetDisplayPath, snapJson, null);
-            }
-
-            var (ok, originalHosts) = await _platformBridge.RepairSabotageLockAsync(item, ct).ConfigureAwait(false);
-            if (ok)
-            {
-                if (originalHosts is not null)
-                {
-                    tx.RecordStateDelta(
-                        StateTargetKind.SystemSetting,
-                        "HostsSabotageCleanup",
-                        previousStateJson: JsonSerializer.Serialize(new { Path = _platformBridge.GetHostsFilePath(), Content = originalHosts }),
-                        newStateJson: null);
-                }
-
-                healed++;
-            }
-        }
-
-        if (healed == 0)
+        var (removed, rbKind, rbTarget, prevJson) = await _bridge.RemovePersistenceEntryAsync(anomaly, ct).ConfigureAwait(false);
+        if (!removed)
         {
             return new SecurityRemediationResult(
                 false,
-                "Для снятия системных блокировок политик и очистки hosts требуются права Администратора.");
+                null,
+                0,
+                $"Не удалось снять точку закрепления «{anomaly.EntryName}» (проверьте запуск от имени администратора).");
         }
 
-        var committed = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
+        if (rbKind.HasValue && !string.IsNullOrWhiteSpace(rbTarget))
+        {
+            tx.RecordStateDelta(rbKind.Value, rbTarget, prevJson, null);
+        }
+
+        var record = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
         return new SecurityRemediationResult(
-            Succeeded: true,
-            UserFriendlyMessage: $"✨ Реабилитация выполнена: снято блокировок системы — {healed} из {sabotageLocks.Count}!",
-            RollbackSessionId: committed.SessionId);
+            true,
+            record.SessionId,
+            1,
+            $"Точка автозакрепления «{anomaly.EntryName}» отключена. Изменение сохранено в «Машине времени».");
+    }
+
+    /// <summary>
+    /// Пакетно удаляет опасные слепые зоны (исключения) Microsoft Defender с сохранением отката.
+    /// </summary>
+    public async Task<SecurityRemediationResult> RemoveDangerousDefenderExclusionsAsync(
+        IReadOnlyList<DefenderExclusionFinding> exclusions,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(exclusions);
+        var targets = exclusions.Where(e => e.IsDangerousMinerExclusion).ToList();
+        if (targets.Count == 0)
+        {
+            return new SecurityRemediationResult(true, null, 0, "Опасных исключений Защитника Windows не найдено.");
+        }
+
+        await using var tx = _vaultService.BeginTransaction(
+            SystemDomain.AntiMiner,
+            "Очистка опасных исключений Microsoft Defender",
+            $"Удаление слепых зон антивируса ({targets.Count} шт.)",
+            string.Join("; ", targets.Select(t => $"{t.Kind}:{t.Value}")));
+
+        int removed = 0;
+        foreach (var item in targets)
+        {
+            if (await _bridge.RemoveDefenderExclusionAsync(item, ct).ConfigureAwait(false))
+            {
+                var prevJson = JsonSerializer.Serialize(new
+                {
+                    Kind = item.Kind.ToString(),
+                    item.Value,
+                    item.IsPolicyEnforced,
+                    item.RegistryPath
+                });
+                tx.RecordStateDelta(
+                    StateTargetKind.SystemSetting,
+                    $"DefenderExclusion:{item.Kind}:{item.Value}",
+                    prevJson,
+                    null);
+                removed++;
+            }
+        }
+
+        if (removed == 0)
+        {
+            return new SecurityRemediationResult(
+                false,
+                null,
+                0,
+                "Не удалось удалить исключения Защитника Windows (требуются права администратора и отключённая защита от подделки Tamper Protection для некоторых ключей).");
+        }
+
+        var record = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
+        return new SecurityRemediationResult(
+            true,
+            record.SessionId,
+            removed,
+            $"Удалено опасных исключений Защитника Windows: {removed} из {targets.Count}.");
+    }
+
+    /// <summary>
+    /// Запускает быструю или выборочную проверку Microsoft Defender (MpCmdRun.exe).
+    /// </summary>
+    public Task<(bool Succeeded, string OutputMessage)> StartDefenderScanAsync(
+        DefenderScanMode mode,
+        string? customPath = null,
+        CancellationToken ct = default)
+        => _bridge.StartDefenderScanAsync(mode, customPath, ct);
+
+    /// <summary>
+    /// Запускает глубокую проверку памяти подозрительных процессов внешним сканером PE-sieve (если подключён).
+    /// </summary>
+    public Task<IReadOnlyList<SecurityThreatFinding>> RunPeSieveDeepCheckAsync(
+        IEnumerable<int> suspectPids,
+        CancellationToken ct = default)
+        => _externalScanners.ScanProcessesWithPeSieveAsync(suspectPids, _bridge.GetWindowsDirectory(), ct);
+
+    /// <summary>
+    /// Запускает проверку каталога или процесса внешним сканером YARA (если подключён).
+    /// </summary>
+    public Task<IReadOnlyList<SecurityThreatFinding>> RunYaraScanAsync(
+        string targetPath,
+        CancellationToken ct = default)
+        => _externalScanners.RunYaraScanAsync(targetPath, _bridge.GetWindowsDirectory(), ct);
+
+    /// <summary>
+    /// Снимает все послевирусные блокировки (Диспетчер задач, Реестр, CMD, Защитник, MRT, Брандмауэр, hosts).
+    /// </summary>
+    public async Task<SecurityRemediationResult> HealAllSabotageLocksAsync(
+        IReadOnlyList<OsSabotageFinding> locksToHeal,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(locksToHeal);
+        if (locksToHeal.Count == 0)
+        {
+            return new SecurityRemediationResult(true, null, 0, "Активных блокировок системы не обнаружено.");
+        }
+
+        await using var tx = _vaultService.BeginTransaction(
+            SystemDomain.AntiMiner,
+            "Восстановление системы после саботажа майнера",
+            $"Снятие блокировок с Диспетчера задач, Реестра, Защитника Windows и файла hosts ({locksToHeal.Count} шт.)",
+            "Реабилитация политик безопасности и сетевого доступа");
+
+        int fixedCount = 0;
+        foreach (var lockItem in locksToHeal)
+        {
+            var (ok, origHosts) = await _bridge.RepairSabotageLockAsync(lockItem, ct).ConfigureAwait(false);
+            if (!ok) continue;
+
+            if (lockItem.Kind == OsSabotageKind.SecurityDomainsBlockedInHosts && origHosts is not null)
+            {
+                var prevHostsJson = JsonSerializer.Serialize(new { Path = lockItem.TargetDisplayPath, Content = origHosts });
+                tx.RecordStateDelta(StateTargetKind.SystemSetting, "HostsSabotageCleanup", prevHostsJson, null);
+            }
+            else if (lockItem.Kind == OsSabotageKind.FirewallOutboundSecurityBlock)
+            {
+                var prevFwJson = JsonSerializer.Serialize(new
+                {
+                    RuleId = lockItem.ValueName,
+                    RawRegistryValue = lockItem.CurrentMaliciousValue
+                });
+                tx.RecordStateDelta(StateTargetKind.SystemSetting, $"FirewallRule:{lockItem.ValueName}", prevFwJson, null);
+            }
+            else
+            {
+                // RegistryValueKind: 1 = String (IFEO Debugger), 4 = DWord (политики)
+                int valueKindInt = lockItem.Kind == OsSabotageKind.SystemToolIfeoBlocked ? 1 : 4;
+                var prevJson = JsonSerializer.Serialize(new
+                {
+                    lockItem.Hive,
+                    SubKey = lockItem.SubKeyPath,
+                    lockItem.ValueName,
+                    ExistedBefore = true,
+                    ValueKind = valueKindInt,
+                    SerializedData = lockItem.CurrentMaliciousValue
+                });
+                tx.RecordStateDelta(StateTargetKind.RegistryValue, lockItem.TargetDisplayPath, prevJson, null);
+            }
+
+            fixedCount++;
+        }
+
+        if (fixedCount == 0)
+        {
+            return new SecurityRemediationResult(
+                false,
+                null,
+                0,
+                "Не удалось снять системные блокировки (запустите программу от имени администратора).");
+        }
+
+        var record = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
+        return new SecurityRemediationResult(
+            true,
+            record.SessionId,
+            fixedCount,
+            $"Успешно снято блокировок системы: {fixedCount} из {locksToHeal.Count}. Доступ к утилитам и обновлениям восстановлен.");
+    }
+
+    /// <summary>
+    /// Возвращает список изолированных угроз и действий раздела «Анти-майнер» из хранилища «Машины времени».
+    /// </summary>
+    public async Task<IReadOnlyList<QuarantinedThreatEntry>> GetQuarantineHistoryAsync(CancellationToken ct = default)
+    {
+        var history = await _vaultService.GetHistoryAsync(limit: 100, ct).ConfigureAwait(false);
+        return history
+            .Where(h => h.Domain == SystemDomain.AntiMiner)
+            .Select(h => new QuarantinedThreatEntry(
+                SessionId: h.SessionId,
+                QuarantinedAtUtc: h.CreatedAtUtc,
+                FriendlyTitle: h.FriendlyTitle,
+                FriendlySummary: h.FriendlySummary,
+                QuarantinedPaths: h.Deltas
+                    .Where(d => d.TargetKind == StateTargetKind.QuarantinedFile)
+                    .Select(d => d.TargetPath)
+                    .ToList(),
+                StateDeltaCount: h.Deltas.Count,
+                IsReverted: h.IsReverted))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Восстанавливает элемент из карантина (.uwq) и откатывает связанные изменения в один клик.
+    /// </summary>
+    public async Task<SecurityRemediationResult> RestoreFromQuarantineAsync(Guid sessionId, CancellationToken ct = default)
+    {
+        try
+        {
+            await _vaultService.RollbackTransactionAsync(sessionId, ct).ConfigureAwait(false);
+            return new SecurityRemediationResult(
+                true,
+                sessionId,
+                1,
+                "Объект успешно восстановлен из шифрованного карантина (.uwq) на прежнее место.");
+        }
+        catch (Exception ex)
+        {
+            return new SecurityRemediationResult(
+                false,
+                sessionId,
+                0,
+                $"Не удалось восстановить объект из карантина: {ex.Message}");
+        }
     }
 }

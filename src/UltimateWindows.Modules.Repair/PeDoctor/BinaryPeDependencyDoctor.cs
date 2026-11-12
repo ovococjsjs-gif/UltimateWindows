@@ -180,7 +180,8 @@ public sealed class BinaryPeDependencyDoctor
     public ExecutableDiagnosisReport DiagnoseExecutable(
         string executablePath,
         string system64Directory,
-        string sysWow64Directory)
+        string sysWow64Directory,
+        IReadOnlyList<string>? additionalSearchDirectories = null)
     {
         var exeHeader = InspectFile(executablePath);
         if (!exeHeader.IsValidPeFile)
@@ -200,6 +201,7 @@ public sealed class BinaryPeDependencyDoctor
         var expectedSysDir = exeHeader.Architecture == PeArchitecture.X86 && !string.IsNullOrWhiteSpace(sysWow64Directory)
             ? sysWow64Directory
             : system64Directory;
+        var winSxSDir = TryResolveWinSxSDirectory(system64Directory);
 
         var issues = new List<PeDependencyIssue>();
         var recommendedByKey = new Dictionary<string, OfficialRuntimePackage>(StringComparer.OrdinalIgnoreCase);
@@ -220,9 +222,40 @@ public sealed class BinaryPeDependencyDoctor
             {
                 resolvedPath = localCandidate;
             }
-            else if (!string.IsNullOrWhiteSpace(sysCandidate) && File.Exists(sysCandidate))
+            else if (additionalSearchDirectories is { Count: > 0 })
+            {
+                foreach (var extraDir in additionalSearchDirectories)
+                {
+                    if (string.IsNullOrWhiteSpace(extraDir)) continue;
+                    var extraPath = Path.Combine(extraDir, safeFileName);
+                    if (File.Exists(extraPath))
+                    {
+                        resolvedPath = extraPath;
+                        break;
+                    }
+                }
+            }
+
+            if (resolvedPath is null && !string.IsNullOrWhiteSpace(sysCandidate) && File.Exists(sysCandidate))
             {
                 resolvedPath = sysCandidate;
+            }
+
+            if (resolvedPath is null &&
+                safeFileName.StartsWith("api-ms-win-crt-", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(expectedSysDir))
+            {
+                // В Windows 10 и Windows 11 контракты api-ms-win-crt-*.dll разрешаются ядром через ApiSetSchema напрямую в системную ucrtbase.dll
+                var ucrtCandidate = Path.Combine(expectedSysDir, "ucrtbase.dll");
+                if (File.Exists(ucrtCandidate))
+                {
+                    resolvedPath = ucrtCandidate;
+                }
+            }
+
+            if (resolvedPath is null && winSxSDir is not null && IsSideBySideVc80OrVc90Dll(safeFileName))
+            {
+                resolvedPath = TryFindInWinSxS(winSxSDir, safeFileName, exeHeader.Architecture);
             }
 
             if (resolvedPath is not null)
@@ -382,6 +415,54 @@ public sealed class BinaryPeDependencyDoctor
             "winmm.dll" or "imm32.dll" or "crypt32.dll" or "bcrypt.dll" or "shlwapi.dll" or
             "version.dll" or "setupapi.dll" or "cfgmgr32.dll" or "dwmapi.dll" or "uxtheme.dll" or
             "comdlg32.dll" or "comctl32.dll" or "dxgi.dll" or "d3d11.dll" or "d3d12.dll" or "d3d9.dll" or
-            "opengl32.dll" or "iphlpapi.dll" or "winhttp.dll" or "wininet.dll" or "dbghelp.dll";
+            "opengl32.dll" or "iphlpapi.dll" or "winhttp.dll" or "wininet.dll" or "dbghelp.dll" or
+            "gdiplus.dll" or "oleacc.dll" or "uiautomationcore.dll" or "propsys.dll" or "wtsapi32.dll" or
+            "userenv.dll" or "netapi32.dll" or "secur32.dll" or "ncrypt.dll" or "powrprof.dll" or "psapi.dll";
+    }
+
+    private static string? TryResolveWinSxSDirectory(string system64Directory)
+    {
+        if (string.IsNullOrWhiteSpace(system64Directory)) return null;
+        try
+        {
+            var winDir = Path.GetDirectoryName(system64Directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            if (string.IsNullOrWhiteSpace(winDir)) return null;
+            var candidate = Path.Combine(winDir, "WinSxS");
+            return Directory.Exists(candidate) ? candidate : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool IsSideBySideVc80OrVc90Dll(string fileName)
+    {
+        var lower = fileName.ToLowerInvariant();
+        return lower is "msvcr80.dll" or "msvcp80.dll" or "mfc80.dll" or "mfc80u.dll" or
+                        "msvcr90.dll" or "msvcp90.dll" or "mfc90.dll" or "mfc90u.dll" or "vcomp90.dll";
+    }
+
+    private static string? TryFindInWinSxS(string winSxSDir, string dllFileName, PeArchitecture arch)
+    {
+        try
+        {
+            var archPrefix = arch == PeArchitecture.X86 ? "x86_microsoft.vc" : "amd64_microsoft.vc";
+            var verPart = dllFileName.Contains("80", StringComparison.Ordinal) ? "80." : "90.";
+            foreach (var dir in Directory.EnumerateDirectories(winSxSDir, $"{archPrefix}{verPart}*"))
+            {
+                var candidate = Path.Combine(dir, dllFileName);
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+        catch
+        {
+            // Пропуск недоступных папок
+        }
+
+        return null;
     }
 }

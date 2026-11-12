@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "section": "TimeAndRegion",
+  "rules": [
+    {
+      "id": "time.w32time-service",
+      "title": "Служба точного времени Windows (W32Time)",
+      "symptom": "Часы на компьютере отстают или спешат, браузеры выдают ошибку сертификата SSL (0x800B0101), не входят аккаунты и двухфакторные коды.",
+      "explanation": "Служба W32Time отключена, поэтому система не может автоматически синхронизировать часы по протоколу NTP.",
+      "fixSummary": "Восстанавливает режим запуска службы W32Time и запускает её.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x800B0101"],
+      "services": [
+        { "serviceName": "W32Time", "healthyStartup": "Manual", "startIfStopped": true }
+      ]
+    },
+    {
+      "id": "time.ntp-client-type",
+      "title": "Режим клиента синхронизации NTP (W32Time\\Parameters\\Type != NoSync)",
+      "symptom": "Кнопка «Синхронизировать сейчас» в настройках даты и времени отсутствует или выдаёт сбой.",
+      "explanation": "В разделе W32Time\\Parameters установлено значение Type = NoSync, запрещающее синхронизацию часов по интернету.",
+      "fixSummary": "Переключает параметр Type обратно на штатный NTP.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x800B0101"],
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SYSTEM\\CurrentControlSet\\Services\\W32Time\\Parameters",
+          "valueName": "Type",
+          "expectation": "MustNotEqualString",
+          "expectedString": "NoSync",
+          "fixKind": "SetString",
+          "fixString": "NTP",
+          "onlyIfKeyExists": true
+        }
+      ]
+    },
+    {
+      "id": "time.tzautoupdate-lock",
+      "title": "Доступность смены часового пояса",
+      "symptom": "Часовой пояс показывает неверный регион.",
+      "explanation": "Проверяет отсутствие политики запрета изменения часового пояса.",
+      "fixSummary": "Снимает блокировку управления временем.",
+      "severity": "Info",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\W32Time\\TimeProviders\\NtpClient",
+          "valueName": "Enabled",
+          "expectation": "MustNotEqualDword",
+          "expectedDword": 0,
+          "fixKind": "DeleteValue",
+          "onlyIfKeyExists": true
+        }
+      ]
+    },
+    {
+      "id": "time.ntp-sync-health",
+      "title": "Принудительная пересинхронизация системных часов с NTP-сервером",
+      "symptom": "Системные часы разошлись с реальным временем после разряда батарейки CMOS или двойной загрузки с Linux.",
+      "explanation": "Проверяет настройку NTP-сервера в W32Time и при необходимости выполняет перерегистрацию и синхронизацию w32tm /resync /force.",
+      "fixSummary": "Запускает W32Time, проверяет источник time.windows.com и выполняет принудительную синхронизацию времени.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": false,
+      "errorCodes": ["0x800B0101"],
+      "customProbe": "time-ntp-sync"
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "section": "SystemFilesAndDisk",
+  "rules": [
+    {
+      "id": "sfc.cbs-component-store",
+      "title": "Целостность системных файлов Windows и хранилища компонентов (CBS.log / DISM / SFC)",
+      "symptom": "Случайные вылеты системных процессов, ошибки 0x80073712, 0x800F081F или сообщение SFC о невосстановленных файлах.",
+      "explanation": "Анализирует хвост журнала C:\\Windows\\Logs\\CBS\\CBS.log на наличие повреждённых файлов, которые последняя проверка SFC не смогла восстановить.",
+      "fixSummary": "Запускает связку DISM /Online /Cleanup-Image /RestoreHealth и sfc /scannow, а при неисправимом повреждении предлагает безопасную переустановку поверх через Центр обновления.",
+      "severity": "Critical",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": false,
+      "errorCodes": ["0x80073712", "0x800F081F", "0x800F0831", "0xC000021A", "0xC0000142"],
+      "customProbe": "sfc-cbs-health"
+    },
+    {
+      "id": "disk.dirty-and-temp-health",
+      "title": "Флаг повреждения файловой системы («грязный том» NTFS) и доступность папки TEMP",
+      "symptom": "При каждой загрузке запускается проверка диска, либо установщики падают с ошибкой 0x80070570 / «Не удаётся создать временный файл».",
+      "explanation": "Проверяет доступность записи в %TEMP% и маркер повреждения файловой системы системного тома (fsutil dirty query).",
+      "fixSummary": "Восстанавливает рабочую папку %TEMP% и запускает онлайн-сканирование тома chkdsk /scan без блокировки работы.",
+      "severity": "Critical",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": false,
+      "errorCodes": ["0x80070570", "0x8007045D", "0x80070571", "0x00000024"],
+      "customProbe": "disk-dirty-and-temp"
+    },
+    {
+      "id": "disk.low-free-space",
+      "title": "Критическая нехватка свободного места на системном диске C:\\",
+      "symptom": "Windows тормозит, не ставятся обновления (0x80070070), браузеры и игры вылетают при нехватке файла подкачки.",
+      "explanation": "Проверяет остаток свободного места на системном разделе; при остатке менее 5 ГБ работа ОС и обновлений нарушается.",
+      "fixSummary": "Очищает безопасные системные временные файлы в %TEMP% и Windows\\Temp для немедленного высвобождения резерва.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": false,
+      "reversible": false,
+      "errorCodes": ["0x80070070"],
+      "customProbe": "disk-low-free-space"
+    },
+    {
+      "id": "disk.ssd-trim-enabled",
+      "title": "Поддержка команды TRIM для твердотельных накопителей SSD/NVMe (DisableDeleteNotification = 0)",
+      "symptom": "Скорость записи на SSD со временем резко просела.",
+      "explanation": "Если параметр DisableDeleteNotification равен 1, файловая система NTFS не сообщает контроллеру SSD об освобождённых блоках.",
+      "fixSummary": "Включает штатную передачу TRIM для NTFS (DisableDeleteNotification = 0).",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SYSTEM\\CurrentControlSet\\Control\\FileSystem",
+          "valueName": "DisableDeleteNotification",
+          "expectation": "MustNotEqualDword",
+          "expectedDword": 1,
+          "fixKind": "SetDword",
+          "fixDword": 0,
+          "onlyIfKeyExists": true
+        }
+      ]
+    },
+    {
+      "id": "sys.enable-minidumps",
+      "title": "Запись малых дампов памяти при «синем экране» BSOD (CrashDumpEnabled)",
+      "symptom": "Компьютер перезагружается с синим экраном, но папка C:\\Windows\\Minidump остаётся пустой и причину сбоя нельзя прочитать.",
+      "explanation": "В разделе CrashControl отключена запись дампов аварийной отладки (CrashDumpEnabled = 0).",
+      "fixSummary": "Включает автоматический/малый дамп памяти (CrashDumpEnabled = 3, MinidumpDir = %SystemRoot%\\Minidump).",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SYSTEM\\CurrentControlSet\\Control\\CrashControl",
+          "valueName": "CrashDumpEnabled",
+          "expectation": "MustNotEqualDword",
+          "expectedDword": 0,
+          "fixKind": "SetDword",
+          "fixDword": 3,
+          "onlyIfKeyExists": true
+        }
+      ]
+    },
+    {
+      "id": "sys.path-system32",
+      "title": "Наличие системных каталогов System32 и WindowsPowerShell в переменной среды PATH",
+      "symptom": "В терминале и скриптах базовые команды ipconfig, ping, reg, where пишут «не является внутренней или внешней командой».",
+      "explanation": "Сторонний установщик перезаписал системную переменную PATH в реестре вместо добавления пути в конец, стерев %SystemRoot%\\system32.",
+      "fixSummary": "Бережно дописывает недостающие системные пути (%SystemRoot%\\system32; %SystemRoot%; Wbem; WindowsPowerShell\\v1.0) в системный PATH.",
+      "severity": "Critical",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": true,
+      "customProbe": "sys-path-system32"
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "gpu.directx-shader-cache",
+      "section": "Graphics",
+      "app": "DirectX",
+      "title": "Кэш шейдеров DirectX",
+      "explanation": "Скомпилированные шейдеры игр и программ. Создаются заново; после очистки первые запуски игр могут идти с рывками. Полезно после обновления драйвера или при графических сбоях.",
+      "kind": "Cache",
+      "default": false,
+      "files": [
+        {
+          "path": "%LocalAppData%\\D3DSCache"
+        }
+      ]
+    },
+    {
+      "id": "gpu.nvidia-shader-cache",
+      "section": "Graphics",
+      "app": "NVIDIA",
+      "title": "Кэш шейдеров",
+      "explanation": "Скомпилированные шейдеры игр и программ. Создаются заново; после очистки первые запуски игр могут идти с рывками. Полезно после обновления драйвера или при графических сбоях.",
+      "kind": "Cache",
+      "default": false,
+      "files": [
+        {
+          "path": "%LocalAppData%\\NVIDIA\\DXCache"
+        },
+        {
+          "path": "%LocalAppData%\\NVIDIA\\GLCache"
+        },
+        {
+          "path": "%LocalLow%\\NVIDIA\\PerDriverVersion\\DXCache"
+        },
+        {
+          "path": "%LocalLow%\\NVIDIA\\PerDriverVersion\\GLCache"
+        },
+        {
+          "path": "%AppData%\\NVIDIA\\ComputeCache"
+        },
+        {
+          "path": "%ProgramData%\\NVIDIA Corporation\\NV_Cache"
+        }
+      ]
+    },
+    {
+      "id": "gpu.nvidia-installers",
+      "section": "Graphics",
+      "app": "NVIDIA",
+      "title": "Установочные файлы драйверов",
+      "explanation": "Распакованные и скачанные установщики драйверов, которые уже установлены. Для работы драйвера не нужны.",
+      "kind": "Leftovers",
+      "default": true,
+      "files": [
+        {
+          "path": "%SystemDrive%\\NVIDIA\\DisplayDriver",
+          "removeSelf": true
+        },
+        {
+          "path": "%ProgramData%\\NVIDIA Corporation\\Downloader"
+        }
+      ]
+    },
+    {
+      "id": "gpu.nvidia-app-cache",
+      "section": "Graphics",
+      "app": "NVIDIA",
+      "title": "Кэш приложения NVIDIA",
+      "explanation": "Кэш встроенного браузера в приложении NVIDIA и GeForce Experience. Создаётся заново.",
+      "kind": "Cache",
+      "default": true,
+      "files": [
+        {
+          "path": "%LocalAppData%\\NVIDIA Corporation\\NVIDIA app\\CefCache"
+        },
+        {
+          "path": "%LocalAppData%\\NVIDIA Corporation\\NVIDIA GeForce Experience\\CefCache"
+        }
+      ]
+    },
+    {
+      "id": "gpu.amd-shader-cache",
+      "section": "Graphics",
+      "app": "AMD",
+      "title": "Кэш шейдеров",
+      "explanation": "Скомпилированные шейдеры игр и программ. Создаются заново; после очистки первые запуски игр могут идти с рывками. Полезно после обновления драйвера или при графических сбоях.",
+      "kind": "Cache",
+      "default": false,
+      "files": [
+        {
+          "path": "%LocalAppData%\\AMD\\DxCache"
+        },
+        {
+          "path": "%LocalAppData%\\AMD\\DxcCache"
+        },
+        {
+          "path": "%LocalAppData%\\AMD\\Dx9Cache"
+        },
+        {
+          "path": "%LocalAppData%\\AMD\\GLCache"
+        },
+        {
+          "path": "%LocalAppData%\\AMD\\VkCache"
+        },
+        {
+          "path": "%LocalAppData%\\AMD\\OglCache"
+        }
+      ]
+    },
+    {
+      "id": "gpu.amd-installers",
+      "section": "Graphics",
+      "app": "AMD",
+      "title": "Установочные файлы драйверов",
+      "explanation": "Распакованные установщики драйверов AMD, которые уже установлены. Для работы драйвера не нужны.",
+      "kind": "Leftovers",
+      "default": true,
+      "files": [
+        {
+          "path": "%SystemDrive%\\AMD",
+          "removeSelf": true
+        }
+      ]
+    },
+    {
+      "id": "gpu.intel-shader-cache",
+      "section": "Graphics",
+      "app": "Intel",
+      "title": "Кэш шейдеров",
+      "explanation": "Скомпилированные шейдеры игр и программ. Создаются заново; после очистки первые запуски игр могут идти с рывками. Полезно после обновления драйвера или при графических сбоях.",
+      "kind": "Cache",
+      "default": false,
+      "files": [
+        {
+          "path": "%LocalAppData%\\Intel\\ShaderCache"
+        },
+        {
+          "path": "%LocalLow%\\Intel\\ShaderCache"
+        }
+      ]
+    }
+  ]
+}

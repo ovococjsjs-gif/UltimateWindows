@@ -3,10 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:UltimateWindows.App.ViewModels"
         xmlns:views="clr-namespace:UltimateWindows.App.Views"
-        Title="UltimateWindows v2.0 — Анализатор диска, Оптимизатор, Очистка и Защита ПК"
+        Title="UltimateWindows — диск, очистка, настройка, защита и ремонт Windows"
         Width="1360"
         Height="840"
-        MinWidth="1060"
+        MinWidth="1020"
         MinHeight="660"
         WindowStartupLocation="CenterScreen"
         SnapsToDevicePixels="True"
@@ -58,7 +58,7 @@
               <TextBlock Text="ULTIMATE WINDOWS"
                          FontSize="13"
                          FontWeight="Bold" />
-              <TextBlock Text="v2.0 PRO PORTABLE"
+              <TextBlock Text="v2.1 PRO PORTABLE"
                          FontSize="10"
                          FontWeight="SemiBold"
                          Foreground="{DynamicResource AccentBrush}" />
@@ -79,20 +79,18 @@
                     Padding="10,8"
                     Margin="0,0,0,8">
               <StackPanel>
-                <DockPanel>
-                  <TextBlock DockPanel.Dock="Right"
-                             Text="{Binding VaultUsageText}"
-                             FontSize="11"
-                             FontWeight="Bold"
-                             Foreground="{DynamicResource SafeEmeraldBrush}" />
-                  <TextBlock Text="Zero-Bloat Vault"
-                             FontSize="11"
-                             FontWeight="SemiBold" />
-                </DockPanel>
-                <TextBlock Text="{Binding ActiveCheckpointsCount, StringFormat=Активных точек отката: {0}}"
+                <TextBlock Text="Машина времени"
+                           FontSize="11"
+                           FontWeight="SemiBold" />
+                <TextBlock Text="{Binding ActiveCheckpointsCount, StringFormat=Точек отката: {0}}"
                            FontSize="10.5"
                            Foreground="{DynamicResource TextMutedBrush}"
                            Margin="0,3,0,0" />
+                <TextBlock Text="{Binding VaultUsageText, StringFormat=Занято: {0}}"
+                           FontSize="10.5"
+                           Foreground="{DynamicResource SafeEmeraldBrush}"
+                           TextTrimming="CharacterEllipsis"
+                           Margin="0,2,0,0" />
               </StackPanel>
             </Border>
 
@@ -121,7 +119,7 @@
                        Style="{StaticResource NavRadioButtonStyle}"
                        Tag="{StaticResource IconOptimizer}"
                        IsChecked="{Binding IsOptimizerNav, Mode=TwoWay}"
-                       Content="Оптимизатор и UWP" />
+                       Content="Оптимизатор" />
 
           <RadioButton GroupName="MainNav"
                        Style="{StaticResource NavRadioButtonStyle}"
@@ -143,6 +141,12 @@
 
           <RadioButton GroupName="MainNav"
                        Style="{StaticResource NavRadioButtonStyle}"
+                       Tag="{StaticResource IconApps}"
+                       IsChecked="{Binding IsAppsNav, Mode=TwoWay}"
+                       Content="Программы и Автопилот" />
+
+          <RadioButton GroupName="MainNav"
+                       Style="{StaticResource NavRadioButtonStyle}"
                        Tag="{StaticResource IconVault}"
                        IsChecked="{Binding IsVaultNav, Mode=TwoWay}"
                        Content="Машина времени" />
@@ -160,7 +164,7 @@
         <RowDefinition Height="28" />
       </Grid.RowDefinitions>
 
-      <!-- Компактная верхняя панель в стиле Optimizer 14.7 -->
+      <!-- Компактная верхняя панель: версия Windows, режим работы, системный диск -->
       <Border Grid.Row="0"
               Background="{DynamicResource SurfaceSidebarBrush}"
               BorderBrush="{DynamicResource CardBorderBrush}"
@@ -197,8 +201,11 @@
           </StackPanel>
 
           <TextBlock Text="{Binding OsDisplayHeader}"
+                     ToolTip="{Binding OsDisplayHeader}"
                      FontSize="12.5"
                      FontWeight="SemiBold"
+                     TextTrimming="CharacterEllipsis"
+                     Margin="0,0,12,0"
                      VerticalAlignment="Center" />
         </DockPanel>
       </Border>
@@ -227,11 +234,15 @@
         <views:HardwareWorkspaceView
           Visibility="{Binding IsHardwareVisible, Converter={StaticResource BoolToVis}}" />
 
+        <views:AppsWorkspaceView
+          DataContext="{Binding AppsStudio}"
+          Visibility="{Binding DataContext.IsAppsVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}" />
+
         <views:VaultWorkspaceView
           Visibility="{Binding IsTimeMachineVisible, Converter={StaticResource BoolToVis}}" />
       </Grid>
 
-      <!-- Нижняя строка состояния и телеметрии ПК (как в CCleaner / WizTree) -->
+      <!-- Нижняя строка состояния: последнее действие и краткие сведения о компьютере -->
       <Border Grid.Row="2"
               Background="{DynamicResource SurfaceSidebarBrush}"
               BorderBrush="{DynamicResource CardBorderBrush}"

@@ -2,8 +2,13 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>UltimateWindows.Modules.Optimizer</RootNamespace>
-    <Description>Модуль Фазы 4: декларативный движок обратимых твиков ОС (с YAML-профилями), менеджер автозагрузки и контекстного меню ShellEx, File Lock Hunter, настройка DNS/сети и менеджер программ.</Description>
+    <Description>Оптимизатор: каталог обратимых твиков (реестр, службы, задания планировщика) с наборами и профилями, диспетчеры служб, заданий и автозагрузки, контекстное меню, поиск процессов, держащих файл, DNS и hosts, приложения.</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Каталог твиков — файлы данных, встроенные в сборку. Формат описан в docs/06-TWEAK-CATALOG.md -->
+    <EmbeddedResource Include="Catalog\Data\*.json" LogicalName="UltimateWindows.Optimizer.Catalog.%(Filename)%(Extension)" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\UltimateWindows.Core\UltimateWindows.Core.csproj" />

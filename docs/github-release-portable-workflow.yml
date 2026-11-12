@@ -4,8 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Tag of an existing GitHub Release to attach the build to (for example v2.1.0)"
+        description: "Тег существующего релиза в GitHub Releases (например v2.0.0)"
         required: true
+        default: "v2.0.0"
   release:
     types: [published]
 

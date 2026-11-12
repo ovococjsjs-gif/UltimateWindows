@@ -15,6 +15,96 @@ namespace UltimateWindows.NativeInterop.Cleaner;
 /// </summary>
 public sealed class WindowsCleanerPlatformBridge : DefaultCleanerPlatformBridge
 {
+    public override bool RegistryKeyExists(string keyPath)
+    {
+        if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(keyPath))
+        {
+            return false;
+        }
+
+        if (!TrySplitHiveAndSubKey(keyPath, out var root, out var sub))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var k = root.OpenSubKey(sub, writable: false);
+            return k is not null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public override string? ReadRegistryString(string keyPath, string valueName)
+    {
+        if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(keyPath))
+        {
+            return null;
+        }
+
+        if (!TrySplitHiveAndSubKey(keyPath, out var root, out var sub))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var k = root.OpenSubKey(sub, writable: false);
+            return k?.GetValue(valueName) as string;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public override Task<DiskSpaceAnalysisReport?> TryAnalyzeNtfsVolumeViaMftAsync(
+        string rootPath,
+        int topDirectoryLimit = 12,
+        int largestFilesLimit = 15,
+        CancellationToken ct = default)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return Task.FromResult<DiskSpaceAnalysisReport?>(null);
+        }
+
+        return Task.Run(
+            () => WindowsNtfsMftScanner.TryScanNtfsVolume(rootPath, topDirectoryLimit, largestFilesLimit, ct),
+            ct);
+    }
+
+    private static bool TrySplitHiveAndSubKey(string full, out RegistryKey hive, out string subKey)
+    {
+        hive = Registry.CurrentUser;
+        subKey = "";
+        var clean = full.Trim().Replace('/', '\\').TrimEnd('\\');
+        var slash = clean.IndexOf('\\');
+        if (slash <= 0 || slash >= clean.Length - 1)
+        {
+            return false;
+        }
+
+        var head = clean[..slash].ToUpperInvariant();
+        subKey = clean[(slash + 1)..];
+        switch (head)
+        {
+            case "HKCU":
+            case "HKEY_CURRENT_USER":
+                hive = Registry.CurrentUser;
+                return true;
+            case "HKLM":
+            case "HKEY_LOCAL_MACHINE":
+                hive = Registry.LocalMachine;
+                return true;
+            default:
+                return false;
+        }
+    }
+
     public override bool IsFileLockedByAnotherProcess(string filePath)
     {
         if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
@@ -181,6 +271,19 @@ public sealed class WindowsCleanerPlatformBridge : DefaultCleanerPlatformBridge
             // 7. Пользовательские деинсталляторы с мертвым путем (HKCU Uninstall)
             ScanDeadUninstallValues(Registry.CurrentUser, "HKCU", @"Software\Microsoft\Windows\CurrentVersion\Uninstall", fixedDriveRoots, orphans, ct);
 
+            // 7б. Сироты списка одобренной автозагрузки (HKCU StartupApproved\Run): запись в StartupApproved осталась, а самого значения в Run уже нет
+            ScanBrokenStartupApproved(
+                Registry.CurrentUser, "HKCU",
+                @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run",
+                @"Software\Microsoft\Windows\CurrentVersion\Run",
+                orphans, ct);
+
+            // 7в. Отсутствующие пользовательские шрифты (HKCU Fonts)
+            ScanMissingFontsSubKey(
+                Registry.CurrentUser, "HKCU",
+                @"Software\Microsoft\Windows NT\CurrentVersion\Fonts",
+                fixedDriveRoots, orphans, ct);
+
             // Категории HKLM (сканируем при наличии прав Администратора, чтобы каждая найденная запись гарантированно исправлялась)
             if (isAdmin)
             {
@@ -208,6 +311,22 @@ public sealed class WindowsCleanerPlatformBridge : DefaultCleanerPlatformBridge
 
                 // 12. Правила брандмауэра для удаленных программ
                 ScanFirewallRulesSubKey(fixedDriveRoots, orphans, ct);
+
+                // 13. Отсутствующие системные шрифты (HKLM Fonts)
+                ScanMissingFontsSubKey(
+                    Registry.LocalMachine, "HKLM",
+                    @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts",
+                    fixedDriveRoots, orphans, ct);
+
+                // 14. Несуществующие папки установщика Windows Installer (HKLM Installer\Folders)
+                ScanMissingInstallerFoldersSubKey(fixedDriveRoots, orphans, ct);
+
+                // 15. Сироты системного StartupApproved\Run
+                ScanBrokenStartupApproved(
+                    Registry.LocalMachine, "HKLM",
+                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run",
+                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
+                    orphans, ct);
             }
 
             return orphans;
@@ -235,16 +354,25 @@ public sealed class WindowsCleanerPlatformBridge : DefaultCleanerPlatformBridge
                     continue;
                 }
 
-                if (File.Exists(item.MissingReferencedFilePath) || Directory.Exists(item.MissingReferencedFilePath))
-                {
-                    continue;
-                }
-
                 try
                 {
                     var rootHive = string.Equals(item.HiveName, "HKLM", StringComparison.OrdinalIgnoreCase)
                         ? Registry.LocalMachine
                         : Registry.CurrentUser;
+
+                    if (item.Kind == RegistryOrphanKind.BrokenStartupApprovedEntry)
+                    {
+                        const string correspondingRunSubKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
+                        using var runKey = rootHive.OpenSubKey(correspondingRunSubKey, writable: false);
+                        if (runKey?.GetValue(item.ValueName) is not null)
+                        {
+                            continue;
+                        }
+                    }
+                    else if (File.Exists(item.MissingReferencedFilePath) || Directory.Exists(item.MissingReferencedFilePath))
+                    {
+                        continue;
+                    }
 
                     using var key = rootHive.OpenSubKey(item.SubKeyPath, writable: true);
                     if (key?.GetValue(item.ValueName) is not null)
@@ -591,6 +719,152 @@ public sealed class WindowsCleanerPlatformBridge : DefaultCleanerPlatformBridge
                     PreviousValueSerialized: ruleStr,
                     RegistryValueKindCode: (int)RegistryValueKind.String,
                     FriendlyReason: "Правило брандмауэра для удаленного приложения"));
+            }
+        }
+        catch
+        {
+            // Пропуск
+        }
+    }
+
+    private static void ScanMissingFontsSubKey(
+        RegistryKey hiveRoot,
+        string hiveShortName,
+        string subKeyPath,
+        HashSet<string> fixedDrives,
+        List<RegistryOrphanCandidate> sink,
+        CancellationToken ct)
+    {
+        try
+        {
+            using var key = hiveRoot.OpenSubKey(subKeyPath, writable: false);
+            if (key is null) return;
+
+            var winFonts = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts");
+
+            foreach (var valueName in key.GetValueNames())
+            {
+                ct.ThrowIfCancellationRequested();
+                if (string.IsNullOrEmpty(valueName)) continue;
+
+                var valKind = key.GetValueKind(valueName);
+                if (key.GetValue(valueName) is not string rawPath || string.IsNullOrWhiteSpace(rawPath))
+                {
+                    continue;
+                }
+
+                var trimmed = Environment.ExpandEnvironmentVariables(rawPath.Trim().Trim('"'));
+                var resolved = Path.IsPathRooted(trimmed) ? trimmed : Path.Combine(winFonts, trimmed);
+                if (!IsOnReadyFixedDrive(resolved, fixedDrives) || File.Exists(resolved))
+                {
+                    continue;
+                }
+
+                sink.Add(new RegistryOrphanCandidate(
+                    Kind: RegistryOrphanKind.MissingFontReference,
+                    HiveName: hiveShortName,
+                    SubKeyPath: subKeyPath,
+                    ValueName: valueName,
+                    MissingReferencedFilePath: resolved,
+                    PreviousValueSerialized: SerializeRegistryValue(rawPath, valKind),
+                    RegistryValueKindCode: (int)valKind,
+                    FriendlyReason: $"Шрифт «{valueName}» указывает на удалённый файл"));
+            }
+        }
+        catch
+        {
+            // Пропуск
+        }
+    }
+
+    private static void ScanMissingInstallerFoldersSubKey(
+        HashSet<string> fixedDrives,
+        List<RegistryOrphanCandidate> sink,
+        CancellationToken ct)
+    {
+        const string subKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\Folders";
+        var winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(subKeyPath, writable: false);
+            if (key is null) return;
+
+            foreach (var folderPath in key.GetValueNames())
+            {
+                ct.ThrowIfCancellationRequested();
+                if (string.IsNullOrWhiteSpace(folderPath)) continue;
+
+                // Системный каталог Windows и его вложенные папки в Installer\Folders не трогаем
+                if (!string.IsNullOrWhiteSpace(winDir) &&
+                    folderPath.StartsWith(winDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!IsOnReadyFixedDrive(folderPath, fixedDrives) || Directory.Exists(folderPath) || File.Exists(folderPath))
+                {
+                    continue;
+                }
+
+                var valKind = key.GetValueKind(folderPath);
+                var rawObj = key.GetValue(folderPath) ?? "";
+
+                sink.Add(new RegistryOrphanCandidate(
+                    Kind: RegistryOrphanKind.MissingWindowsInstallerFolder,
+                    HiveName: "HKLM",
+                    SubKeyPath: subKeyPath,
+                    ValueName: folderPath,
+                    MissingReferencedFilePath: folderPath,
+                    PreviousValueSerialized: SerializeRegistryValue(rawObj, valKind),
+                    RegistryValueKindCode: (int)valKind,
+                    FriendlyReason: "Папка удалённого MSI-пакета больше не существует на диске"));
+            }
+        }
+        catch
+        {
+            // Пропуск
+        }
+    }
+
+    private static void ScanBrokenStartupApproved(
+        RegistryKey hiveRoot,
+        string hiveShortName,
+        string startupApprovedSubKey,
+        string correspondingRunSubKey,
+        List<RegistryOrphanCandidate> sink,
+        CancellationToken ct)
+    {
+        try
+        {
+            using var approvedKey = hiveRoot.OpenSubKey(startupApprovedSubKey, writable: false);
+            if (approvedKey is null) return;
+
+            using var runKey = hiveRoot.OpenSubKey(correspondingRunSubKey, writable: false);
+            var liveRunNames = runKey is not null
+                ? new HashSet<string>(runKey.GetValueNames(), StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var valueName in approvedKey.GetValueNames())
+            {
+                ct.ThrowIfCancellationRequested();
+                if (string.IsNullOrEmpty(valueName) || liveRunNames.Contains(valueName))
+                {
+                    continue;
+                }
+
+                var valKind = approvedKey.GetValueKind(valueName);
+                var rawObj = approvedKey.GetValue(valueName);
+                if (rawObj is null) continue;
+
+                sink.Add(new RegistryOrphanCandidate(
+                    Kind: RegistryOrphanKind.BrokenStartupApprovedEntry,
+                    HiveName: hiveShortName,
+                    SubKeyPath: startupApprovedSubKey,
+                    ValueName: valueName,
+                    MissingReferencedFilePath: $@"{hiveShortName}\{correspondingRunSubKey}\{valueName}",
+                    PreviousValueSerialized: SerializeRegistryValue(rawObj, valKind),
+                    RegistryValueKindCode: (int)valKind,
+                    FriendlyReason: $"Флаг автозагрузки «{valueName}» остался после удаления самой записи Run"));
             }
         }
         catch

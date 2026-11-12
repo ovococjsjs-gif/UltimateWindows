@@ -10,6 +10,7 @@ using UltimateWindows.Core.Enums;
 using UltimateWindows.Core.Guards;
 using UltimateWindows.Core.Models;
 using UltimateWindows.Modules.Cleaner.Services;
+using UltimateWindows.Modules.Apps.Services;
 using UltimateWindows.Modules.Drivers.Orchestration;
 using UltimateWindows.Modules.Drivers.Services;
 using UltimateWindows.Modules.Hardware.Services;
@@ -18,6 +19,7 @@ using UltimateWindows.Modules.Repair.Services;
 using UltimateWindows.Modules.Safety.Services;
 using UltimateWindows.Modules.Security.Services;
 using UltimateWindows.NativeInterop.Cleaner;
+using UltimateWindows.NativeInterop.Apps;
 using UltimateWindows.NativeInterop.Drivers;
 using UltimateWindows.NativeInterop.Hardware;
 using UltimateWindows.NativeInterop.Optimizer;
@@ -120,19 +122,6 @@ public sealed class MainViewModel : ObservableObject
             }
         });
 
-        JumpToDiskAnalyzerCommand = new AsyncRelayCommand(_ =>
-        {
-            SelectedDomain = SystemDomain.SmartCleaner;
-            CleanerStudio.SelectedSubTabIndex = 0;
-            return CleanerStudio.AnalyzeDiskSpaceAsync();
-        });
-
-        JumpToSpaceSaverCommand = new RelayCommand(_ =>
-        {
-            SelectedDomain = SystemDomain.SmartCleaner;
-            CleanerStudio.SelectedSubTabIndex = 3;
-        });
-
         RunOneClickSmartAuditCommand = new AsyncRelayCommand(_ => RunOneClickSmartAuditAsync());
         RestartAsAdminCommand = new RelayCommand(_ => RestartWithAdministratorRights(), _ => !IsAdmin);
         SaveQuotaPolicyCommand = new AsyncRelayCommand(_ => SaveQuotaPolicyAsync());
@@ -167,10 +156,41 @@ public sealed class MainViewModel : ObservableObject
         AntiMinerStudio = new AntiMinerStudioViewModel(securityService, OnSubModuleActionAsync);
 
         var driverService = new OfficialDriverService(_vaultService, new WindowsDriverPlatformBridge());
-        DriverStudio = new DriverStudioViewModel(driverService, OnSubModuleActionAsync);
+        DriverStudio = new DriverStudioViewModel(
+            driverService,
+            OnSubModuleActionAsync,
+            switchToCatalogTab: () => HardwareStudio.SelectedSubTabIndex = 4);
 
         _smartAuditOrchestrator = new SmartSystemAuditOrchestrator(
             hardwareService, driverService, cleanerService, repairService, optimizerService, securityService);
+
+        var appsService = new AppsAndAutomationService(
+            _vaultService,
+            new WindowsAppsPlatformBridge(),
+            hardwareService,
+            driverService,
+            cleanerService,
+            repairService,
+            securityService,
+            _smartAuditOrchestrator);
+        AppsStudio = new AppsStudioViewModel(appsService, OnSubModuleActionAsync);
+
+        // Команды переходов создаются после разделов, к которым они обращаются
+        JumpToDiskAnalyzerCommand = new AsyncRelayCommand(_ =>
+        {
+            SelectedDomain = SystemDomain.SmartCleaner;
+            CleanerStudio.SelectedSubTabIndex = 0;
+            return CleanerStudio.AnalyzeDiskSpaceAsync();
+        });
+
+        JumpToSpaceSaverCommand = new RelayCommand(_ =>
+        {
+            SelectedDomain = SystemDomain.SmartCleaner;
+            CleanerStudio.SelectedSubTabIndex = 3;
+        });
+
+        // Ошибка, которую команда не обработала сама, показывается в строке состояния, а не закрывает программу
+        AsyncRelayCommand.UnhandledError = ex => StatusNotification = $"Не удалось выполнить действие: {ex.Message}";
 
         RefreshSystemDriveTelemetry();
         _ = InitializeAsync();
@@ -188,9 +208,11 @@ public sealed class MainViewModel : ObservableObject
         {
             var vaultTask = RefreshVaultStateAsync();
             var hwTask = HardwareStudio.RefreshAuditAsync();
+            var drvTask = DriverStudio.InitializeFastAsync();
             var reservesTask = CleanerStudio.RefreshSystemReservesAsync();
             var optTask = OptimizerStudio.RefreshAllAsync();
-            await Task.WhenAll(vaultTask, hwTask, reservesTask, optTask);
+            var appsTask = AppsStudio.InitializeFastAsync();
+            await Task.WhenAll(vaultTask, hwTask, drvTask, reservesTask, optTask, appsTask);
         }
         catch
         {
@@ -214,6 +236,7 @@ public sealed class MainViewModel : ObservableObject
     public OptimizerStudioViewModel OptimizerStudio { get; }
     public AntiMinerStudioViewModel AntiMinerStudio { get; }
     public DriverStudioViewModel DriverStudio { get; }
+    public AppsStudioViewModel AppsStudio { get; }
 
     public ObservableCollection<SmartAuditActionItemViewModel> SmartAuditActions { get; }
     public ObservableCollection<TransactionItemViewModel> Transactions { get; }
@@ -240,6 +263,7 @@ public sealed class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsAntiMinerVisible));
                 OnPropertyChanged(nameof(IsRepairVisible));
                 OnPropertyChanged(nameof(IsHardwareVisible));
+                OnPropertyChanged(nameof(IsAppsVisible));
                 OnPropertyChanged(nameof(IsTimeMachineVisible));
 
                 OnPropertyChanged(nameof(IsOverviewNav));
@@ -248,6 +272,7 @@ public sealed class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsAntiMinerNav));
                 OnPropertyChanged(nameof(IsRepairNav));
                 OnPropertyChanged(nameof(IsHardwareNav));
+                OnPropertyChanged(nameof(IsAppsNav));
                 OnPropertyChanged(nameof(IsVaultNav));
             }
         }
@@ -259,6 +284,7 @@ public sealed class MainViewModel : ObservableObject
     public bool IsAntiMinerVisible => SelectedDomain == SystemDomain.AntiMiner;
     public bool IsRepairVisible => SelectedDomain == SystemDomain.DllAndRepair;
     public bool IsHardwareVisible => SelectedDomain == SystemDomain.HardwareAndDrivers;
+    public bool IsAppsVisible => SelectedDomain == SystemDomain.AppsAndAutomation;
     public bool IsTimeMachineVisible => SelectedDomain == SystemDomain.TimeMachineVault;
 
     public bool IsOverviewNav { get => IsOverviewVisible; set { if (value) SelectedDomain = SystemDomain.HealthOverview; } }
@@ -267,6 +293,7 @@ public sealed class MainViewModel : ObservableObject
     public bool IsAntiMinerNav { get => IsAntiMinerVisible; set { if (value) SelectedDomain = SystemDomain.AntiMiner; } }
     public bool IsRepairNav { get => IsRepairVisible; set { if (value) SelectedDomain = SystemDomain.DllAndRepair; } }
     public bool IsHardwareNav { get => IsHardwareVisible; set { if (value) SelectedDomain = SystemDomain.HardwareAndDrivers; } }
+    public bool IsAppsNav { get => IsAppsVisible; set { if (value) SelectedDomain = SystemDomain.AppsAndAutomation; } }
     public bool IsVaultNav { get => IsTimeMachineVisible; set { if (value) SelectedDomain = SystemDomain.TimeMachineVault; } }
 
     public bool IsExpertMode
@@ -410,9 +437,18 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task RollbackAsync(Guid sessionId)
     {
-        await _vaultService.RollbackTransactionAsync(sessionId);
-        OptimizerStudio.ReloadTweaksAndHosts();
-        StatusNotification = "Изменения успешно отменены — параметры возвращены назад.";
+        try
+        {
+            await Task.Run(() => _vaultService.RollbackTransactionAsync(sessionId));
+            StatusNotification = "Изменения отменены — параметры возвращены в прежнее состояние.";
+        }
+        catch (Exception ex)
+        {
+            // Запись остаётся неотменённой: откат можно повторить, например с правами администратора
+            StatusNotification = $"Отменить изменения удалось не полностью: {ex.Message}";
+        }
+
+        await OptimizerStudio.RefreshAfterRollbackAsync();
         await RefreshVaultStateAsync();
     }
 

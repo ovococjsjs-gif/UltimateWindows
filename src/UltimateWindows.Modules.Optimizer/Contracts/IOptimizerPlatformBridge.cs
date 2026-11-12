@@ -3,9 +3,9 @@ using UltimateWindows.Modules.Optimizer.Models;
 namespace UltimateWindows.Modules.Optimizer.Contracts;
 
 /// <summary>
-/// Платформенный мост Фазы 4 для безопасного чтения/записи реестра твиков,
-/// управления флагами StartupApproved и Shell Extensions\Blocked, разблокировки файлов через Restart Manager,
-/// настройки DNS, редактирования hosts, управления UWP-приложениями и деинсталляции программ.
+/// Платформенный мост Оптимизатора: реестр, службы и задания планировщика для твиков,
+/// автозагрузка (StartupApproved), обработчики контекстного меню (Shell Extensions\Blocked),
+/// поиск процессов, держащих файл (Restart Manager), DNS, файл hosts, приложения Windows и удаление программ.
 /// </summary>
 public interface IOptimizerPlatformBridge
 {
@@ -28,6 +28,47 @@ public interface IOptimizerPlatformBridge
         string valueName,
         RegistryTweakValueKind kind,
         string serializedValue);
+
+    bool RegistryKeyExists(string hive, string subKeyPath);
+
+    /// <summary>
+    /// Самый верхний из ещё не существующих разделов на пути к <paramref name="subKeyPath"/>,
+    /// либо null, если раздел уже есть. Нужен, чтобы откат удалил ровно те разделы, которые создал твик.
+    /// </summary>
+    string? FindFirstMissingRegistryKey(string hive, string subKeyPath);
+
+    /// <summary>
+    /// Удаляет раздел, только если в нём нет ни значений, ни подразделов. Возвращает true, если раздел удалён.
+    /// </summary>
+    bool DeleteRegistryKeyIfEmpty(string hive, string subKeyPath);
+
+    // ---------------------------------------------------------------------------------------------
+    // Службы Windows
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>Тип запуска службы, либо null, если такой службы в системе нет.</summary>
+    ServiceConfigSnapshot? QueryServiceConfig(string serviceName);
+
+    PlatformActionResult SetServiceStartup(string serviceName, ServiceStartupMode mode);
+
+    /// <summary>Запускает или останавливает службу и ждёт результата.</summary>
+    Task<PlatformActionResult> ControlServiceAsync(string serviceName, bool start, CancellationToken ct = default);
+
+    Task<IReadOnlyList<WindowsServiceInfo>> GetServicesAsync(CancellationToken ct = default);
+
+    // ---------------------------------------------------------------------------------------------
+    // Планировщик заданий
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Состояние заданий по их полным путям. Заданий, которых в системе нет, в ответе тоже нет.
+    /// Один вызов — одно подключение к планировщику, поэтому пути передаются разом.
+    /// </summary>
+    IReadOnlyDictionary<string, ScheduledTaskSnapshot> QueryScheduledTasks(IReadOnlyCollection<string> taskPaths);
+
+    PlatformActionResult SetScheduledTaskEnabled(string taskPath, bool enabled);
+
+    Task<IReadOnlyList<ScheduledTaskInfo>> GetScheduledTasksAsync(CancellationToken ct = default);
 
     Task<IReadOnlyList<StartupEntryInfo>> GetStartupEntriesAsync(CancellationToken ct = default);
 

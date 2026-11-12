@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "msg.telegram.cache",
+      "section": "Messengers",
+      "app": "Telegram",
+      "title": "Кэш переписки",
+      "explanation": "Фото, видео и файлы из чатов, сохранённые на диске для быстрого показа. Сама переписка хранится на серверах Telegram: при просмотре чатов всё скачается заново.",
+      "kind": "Cache",
+      "default": false,
+      "processes": [
+        "Telegram"
+      ],
+      "skipWhileRunning": true,
+      "files": [
+        {
+          "path": "%AppData%\\Telegram Desktop\\tdata\\user_data*\\cache"
+        },
+        {
+          "path": "%AppData%\\Telegram Desktop\\tdata\\user_data*\\media_cache"
+        },
+        {
+          "path": "%AppData%\\Telegram Desktop\\tdata\\emoji"
+        },
+        {
+          "path": "%AppData%\\Telegram Desktop\\tdata\\temp"
+        },
+        {
+          "path": "%AppData%\\Telegram Desktop\\tdata\\dumps"
+        }
+      ]
+    },
+    {
+      "id": "msg.thunderbird.cache",
+      "section": "Messengers",
+      "app": "Thunderbird",
+      "title": "Кэш",
+      "explanation": "Копии картинок и страниц из писем, сохранённые для ускорения показа. Письма и учётные записи не затрагиваются.",
+      "kind": "Cache",
+      "default": true,
+      "processes": [
+        "thunderbird"
+      ],
+      "files": [
+        {
+          "path": "%LocalAppData%\\Thunderbird\\Profiles\\*\\cache2"
+        },
+        {
+          "path": "%LocalAppData%\\Thunderbird\\Profiles\\*\\startupCache"
+        },
+        {
+          "path": "%LocalAppData%\\Thunderbird\\Profiles\\*\\thumbnails"
+        }
+      ]
+    },
+    {
+      "id": "msg.zoom.logs",
+      "section": "Messengers",
+      "app": "Zoom",
+      "title": "Журналы",
+      "explanation": "Журналы работы программы. Нужны только при поиске причин неполадок.",
+      "kind": "Logs",
+      "default": true,
+      "processes": [
+        "Zoom"
+      ],
+      "files": [
+        {
+          "path": "%AppData%\\Zoom\\logs"
+        }
+      ]
+    }
+  ]
+}

@@ -24,4 +24,21 @@ public interface ICleanerPlatformBridge
     Task<bool> EmptyRecycleBinAsync(CancellationToken ct = default);
 
     Task<bool> SendPathToRecycleBinAsync(string fullPath, CancellationToken ct = default);
+
+    /// <summary>Проверяет наличие раздела реестра вида «HKCU\Software\...» или «HKLM\Software\...».</summary>
+    bool RegistryKeyExists(string keyPath) => false;
+
+    /// <summary>Читает строковое значение реестра; пустое имя значения — значение по умолчанию.</summary>
+    string? ReadRegistryString(string keyPath, string valueName) => null;
+
+    /// <summary>
+    /// Быстрое чтение таблицы файлов NTFS (<c>$MFT</c>) с правами администратора.
+    /// Возвращает <c>null</c>, если том не NTFS, нет прав или быстрое чтение недоступно — тогда работает многопоточный обход папок.
+    /// </summary>
+    Task<DiskSpaceAnalysisReport?> TryAnalyzeNtfsVolumeViaMftAsync(
+        string rootPath,
+        int topDirectoryLimit = 12,
+        int largestFilesLimit = 15,
+        CancellationToken ct = default)
+        => Task.FromResult<DiskSpaceAnalysisReport?>(null);
 }

@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 2,
+
+  "tweaks": [
+    {
+      "id": "taskbar.hide-widgets",
+      "category": "TaskbarAndStart",
+      "title": "Отключить виджеты и «Новости и интересы»",
+      "explanation": "С панели задач пропадают погода и новости, а панель виджетов (Win+W) перестаёт открываться. Заодно перестаёт работать её фоновый процесс.",
+      "risk": "Low",
+      "restart": "signout",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Dsh", "name": "AllowNewsAndInterests", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Feeds", "name": "EnableFeeds", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "taskbar.hide-task-view",
+      "category": "TaskbarAndStart",
+      "title": "Убрать кнопку «Представление задач»",
+      "explanation": "С панели задач пропадает кнопка переключения окон и рабочих столов. Сочетание Win+Tab работает.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "ShowTaskViewButton", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "taskbar.hide-search",
+      "category": "TaskbarAndStart",
+      "title": "Убрать поле поиска с панели задач",
+      "explanation": "С панели задач пропадает поле или значок поиска. Искать можно как раньше: откройте «Пуск» и начните печатать.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Search", "name": "SearchboxTaskbarMode", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "taskbar.hide-chat",
+      "category": "TaskbarAndStart",
+      "title": "Убрать значок «Чат» с панели задач",
+      "explanation": "С панели задач Windows 11 пропадает значок чата Microsoft Teams.",
+      "risk": "Safe",
+      "requirements": { "minWindowsBuild": 22000, "maxWindowsBuild": 22621 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "TaskbarMn", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "taskbar.align-left",
+      "category": "TaskbarAndStart",
+      "title": "Кнопка «Пуск» слева",
+      "explanation": "Значки на панели задач Windows 11 выравниваются по левому краю, как в Windows 10.",
+      "risk": "Safe",
+      "requirements": { "minWindowsBuild": 22000 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "TaskbarAl", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "taskbar.end-task",
+      "category": "TaskbarAndStart",
+      "title": "Пункт «Завершить задачу» в меню значка на панели задач",
+      "explanation": "Зависшую программу можно закрыть правым щелчком по её значку на панели задач, не открывая диспетчер задач.",
+      "risk": "Safe",
+      "requirements": { "minWindowsBuild": 22631 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced\\TaskbarDeveloperSettings", "name": "TaskbarEndTask", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "taskbar.never-combine",
+      "category": "TaskbarAndStart",
+      "title": "Не группировать кнопки окон на панели задач",
+      "explanation": "Каждое окно получает отдельную кнопку с подписью. В Windows 11 действует начиная с версии 23H2.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "TaskbarGlomLevel", "kind": "dword", "value": 2, "default": 0 }
+      ]
+    },
+    {
+      "id": "taskbar.last-active-click",
+      "category": "TaskbarAndStart",
+      "title": "Щелчок по значку открывает последнее окно программы",
+      "explanation": "Если у программы несколько окон, щелчок по её значку сразу переключает на последнее активное окно, а не показывает эскизы. Повторные щелчки перебирают окна по очереди.",
+      "risk": "Safe",
+      "restart": "explorer",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "LastActiveClick", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "taskbar.show-seconds",
+      "category": "TaskbarAndStart",
+      "title": "Показывать секунды в часах на панели задач",
+      "explanation": "Часы в области уведомлений показывают секунды. На ноутбуке это немного увеличивает расход батареи.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "ShowSecondsInSystemClock", "kind": "dword", "value": 1, "default": 0 }
+      ]
+    },
+    {
+      "id": "taskbar.hide-meet-now",
+      "category": "TaskbarAndStart",
+      "title": "Убрать значок «Провести собрание»",
+      "explanation": "Из области уведомлений Windows 10 пропадает значок быстрого звонка в Skype.",
+      "risk": "Safe",
+      "restart": "explorer",
+      "requirements": { "maxWindowsBuild": 19045 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "name": "HideSCAMeetNow", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "taskbar.hide-people",
+      "category": "TaskbarAndStart",
+      "title": "Убрать значок «Люди» с панели задач",
+      "explanation": "С панели задач Windows 10 пропадает значок контактов.",
+      "risk": "Safe",
+      "requirements": { "maxWindowsBuild": 19045 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced\\People", "name": "PeopleBand", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "taskbar.small-icons",
+      "category": "TaskbarAndStart",
+      "title": "Мелкие значки на панели задач",
+      "explanation": "Панель задач Windows 10 становится ниже: больше места остаётся окнам.",
+      "risk": "Safe",
+      "requirements": { "maxWindowsBuild": 19045 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "TaskbarSmallIcons", "kind": "dword", "value": 1, "default": 0 }
+      ]
+    },
+    {
+      "id": "taskbar.show-all-tray-icons",
+      "category": "TaskbarAndStart",
+      "title": "Показывать все значки в области уведомлений",
+      "explanation": "Значки программ возле часов в Windows 10 видны все сразу и не прячутся под стрелку.",
+      "risk": "Safe",
+      "requirements": { "maxWindowsBuild": 19045 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer", "name": "EnableAutoTray", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "start.more-pins",
+      "category": "TaskbarAndStart",
+      "title": "Больше закреплённых приложений в меню «Пуск»",
+      "explanation": "В меню «Пуск» Windows 11 раздел закреплённых приложений становится больше, а раздел «Рекомендуем» — меньше.",
+      "risk": "Safe",
+      "requirements": { "minWindowsBuild": 22000 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "Start_Layout", "kind": "dword", "value": 1, "default": 0 }
+      ]
+    },
+    {
+      "id": "start.hide-recently-added",
+      "category": "TaskbarAndStart",
+      "title": "Не показывать недавно установленные приложения в «Пуске»",
+      "explanation": "Из меню «Пуск» пропадает список недавно добавленных приложений.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer", "name": "HideRecentlyAddedApps", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "start.hide-recommended-websites",
+      "category": "TaskbarAndStart",
+      "title": "Не показывать сайты в разделе «Рекомендуем»",
+      "explanation": "Из раздела «Рекомендуем» меню «Пуск» Windows 11 пропадают ссылки на сайты из истории браузера.",
+      "risk": "Safe",
+      "requirements": { "minWindowsBuild": 22621 },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer", "name": "HideRecommendedPersonalizedSites", "kind": "dword", "value": 1 }
+      ]
+    }
+  ]
+}

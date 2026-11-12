@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "section": "PrintingAndDevices",
+  "rules": [
+    {
+      "id": "print.spooler-service",
+      "title": "Служба диспетчера печати (Spooler) и виртуальная печать в PDF",
+      "symptom": "Пропали все принтеры и «Microsoft Print to PDF», печать документов выдаёт ошибку 0x000006BA.",
+      "explanation": "Служба Spooler отключена — из-за этого перестаёт работать не только бумажный принтер, но и сохранение документов через «Печать в PDF».",
+      "fixSummary": "Восстанавливает автоматический запуск службы Spooler.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x800706BA"],
+      "services": [
+        { "serviceName": "Spooler", "healthyStartup": "Automatic" }
+      ]
+    },
+    {
+      "id": "print.stuck-spool-queue",
+      "title": "Зависшие задания в очереди печати (SYSTEM32\\spool\\PRINTERS)",
+      "symptom": "Документ висит со статусом «Удаление — Печать» и блокирует всю очередь принтера.",
+      "explanation": "Проверяет наличие застрявших временных файлов *.SPL / *.SHD старше 30 минут в системной очереди печати.",
+      "fixSummary": "Останавливает Spooler, очищает зависшие задания в папке PRINTERS и запускает службу печати заново.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": false,
+      "customProbe": "print-stuck-queue"
+    },
+    {
+      "id": "print.device-install-services",
+      "title": "Службы установки USB-устройств и драйверов (DeviceInstall / PlugPlay)",
+      "symptom": "При подключении новой флешки, геймпада или принтера устройство висит как «Неизвестное устройство» без установки драйвера.",
+      "explanation": "Службы PlugPlay и DeviceInstall отвечают за автоматическую настройку новых Plug-and-Play устройств.",
+      "fixSummary": "Восстанавливает штатный режим запуска PlugPlay и DeviceInstall.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "PlugPlay", "healthyStartup": "Manual" },
+        { "serviceName": "DeviceInstall", "healthyStartup": "Manual" }
+      ]
+    },
+    {
+      "id": "print.wia-scanner-service",
+      "title": "Служба работы со сканерами и фотокамерами (stisvc / WIA)",
+      "symptom": "МФУ печатает, но программа сканирования не видит сканер.",
+      "explanation": "Служба загрузки изображений Windows (stisvc) переведена в состояние «Отключена».",
+      "fixSummary": "Возвращает запуск службы stisvc.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "stisvc", "healthyStartup": "AutomaticDelayed" }
+      ]
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32;
@@ -30,15 +31,81 @@ public sealed class WindowsHardwarePlatformProvider : IHardwarePlatformProvider
     {
         return Task.Run(() =>
         {
-            double? gpuTemp = null;
-            var nvmlList = TryQueryNvidiaNvmlTelemetry();
-            if (nvmlList.Count > 0)
+            var lhm = LibreHardwareSensorBridge.CaptureTelemetry(includeAllSensorRows: false);
+            double? cpuTemp = lhm.CpuPackageTempC;
+            double? gpuTemp = lhm.Gpus
+                .Where(g => g.CoreTempC.HasValue)
+                .Select(g => g.CoreTempC)
+                .Max();
+
+            if (!gpuTemp.HasValue)
             {
-                gpuTemp = nvmlList.Max(x => x.TempC);
+                var nvmlList = TryQueryNvidiaNvmlTelemetry();
+                if (nvmlList.Count > 0)
+                {
+                    gpuTemp = nvmlList.Max(x => x.TempC);
+                }
             }
 
-            return ((double?)null, gpuTemp);
+            return (cpuTemp, gpuTemp);
         }, ct);
+    }
+
+    public Task<HardwareSensorInventory> QuerySensorInventoryAsync(CancellationToken ct = default)
+    {
+        return Task.Run(() =>
+        {
+            var lhm = LibreHardwareSensorBridge.CaptureTelemetry(includeAllSensorRows: true);
+            var readings = new List<HardwareSensorReading>(lhm.AllReadings);
+
+            // Если в песочнице/VM датчики дисков не попали в LHM, дополняем температурами S.M.A.R.T.
+            if (!readings.Any(r => r.Category == SensorCategory.Temperature))
+            {
+                foreach (var d in QueryStorageDrives())
+                {
+                    if (d.TemperatureC is > 0)
+                    {
+                        readings.Add(new HardwareSensorReading(
+                            HardwareGroup: d.Model,
+                            SensorName: "S.M.A.R.T. Temperature",
+                            Category: SensorCategory.Temperature,
+                            CurrentValue: d.TemperatureC.Value,
+                            MinValue: d.TemperatureC.Value,
+                            MaxValue: d.TemperatureC.Value,
+                            Unit: "°C"));
+                    }
+                }
+            }
+
+            return new HardwareSensorInventory(
+                SampledAtUtc: DateTimeOffset.UtcNow,
+                BackendState: lhm.BackendState,
+                BackendHeadline: lhm.BackendHeadline,
+                Readings: readings,
+                ControllableFans: lhm.ControllableFans);
+        }, ct);
+    }
+
+    public Task<IReadOnlyList<PowerPlanInfo>> EnumeratePowerPlansAsync(CancellationToken ct = default)
+    {
+        return Task.Run<IReadOnlyList<PowerPlanInfo>>(EnumeratePowerPlansCore, ct);
+    }
+
+    public Task<(bool Success, Guid? SchemeGuid, string Message)> UnlockUltimatePerformancePlanAsync(CancellationToken ct = default)
+    {
+        return Task.Run(() => UnlockUltimatePerformancePlanCore(), ct);
+    }
+
+    public Task<(bool Success, int AffectedFanCount, string Message)> ApplyFanCoolingPresetAsync(
+        FanCoolingPreset preset,
+        CancellationToken ct = default)
+    {
+        return Task.Run(() => LibreHardwareSensorBridge.ApplyFanPreset(preset), ct);
+    }
+
+    public Task<GpuBenchmarkResult> RunGpuComputeBenchmarkAsync(TimeSpan targetDuration, CancellationToken ct = default)
+    {
+        return Task.Run(() => Direct3D11ComputeBenchmark.Run(targetDuration, ct), ct);
     }
 
     public Task<(bool Success, int PreviousHz, string Message)> TrySetDisplayRefreshRateAsync(
@@ -100,12 +167,30 @@ public sealed class WindowsHardwarePlatformProvider : IHardwarePlatformProvider
     private static HardwareSnapshot CaptureSnapshotCore()
     {
         var smbios = ReadAndParseSmbios();
-        var cpu = QueryCpuHardwareInfo();
+        var lhm = LibreHardwareSensorBridge.CaptureTelemetry(includeAllSensorRows: false);
+
+        var rawCpu = QueryCpuHardwareInfo();
+        var cpu = rawCpu with
+        {
+            PackageTemperatureC = lhm.CpuPackageTempC ?? rawCpu.PackageTemperatureC,
+            TotalLoadPercent = lhm.CpuTotalLoadPercent ?? rawCpu.TotalLoadPercent,
+            CurrentClockMhz = lhm.CpuMaxClockMhz ?? rawCpu.CurrentClockMhz,
+            PackagePowerWatts = lhm.CpuPackagePowerWatts ?? rawCpu.PackagePowerWatts,
+            CoreVoltageVolts = lhm.CpuCoreVoltageVolts ?? rawCpu.CoreVoltageVolts
+        };
+
         var memory = BuildMemorySubsystem(smbios.MemorySlots);
-        var gpus = QueryGpuInventory();
+        var gpus = EnrichGpusWithLibreHardwareMonitor(QueryGpuInventory(), lhm.Gpus);
         var drives = QueryStorageDrives();
         var monitors = QueryDisplaysAndEdid();
-        var battery = QueryBatteryStatus();
+
+        var rawBattery = QueryBatteryStatus();
+        var battery = rawBattery with
+        {
+            DesignCapacityMwh = lhm.BatteryDesignMwh ?? rawBattery.DesignCapacityMwh,
+            FullChargeCapacityMwh = lhm.BatteryFullChargeMwh ?? rawBattery.FullChargeCapacityMwh
+        };
+
         var powerPlan = QueryActivePowerPlan();
 
         return new HardwareSnapshot(
@@ -118,6 +203,48 @@ public sealed class WindowsHardwarePlatformProvider : IHardwarePlatformProvider
             Monitors: monitors,
             Battery: battery,
             ActivePowerPlan: powerPlan);
+    }
+
+    private static IReadOnlyList<GpuHardwareInfo> EnrichGpusWithLibreHardwareMonitor(
+        IReadOnlyList<GpuHardwareInfo> dxgiGpus,
+        IReadOnlyList<LibreHardwareSensorBridge.GpuLhmTelemetry> lhmGpus)
+    {
+        if (dxgiGpus.Count == 0 || lhmGpus.Count == 0)
+        {
+            return dxgiGpus;
+        }
+
+        var result = new List<GpuHardwareInfo>(dxgiGpus.Count);
+        foreach (var gpu in dxgiGpus)
+        {
+            var match = lhmGpus.FirstOrDefault(g =>
+                gpu.Name.Contains(g.Name, StringComparison.OrdinalIgnoreCase) ||
+                g.Name.Contains(gpu.Name, StringComparison.OrdinalIgnoreCase) ||
+                (gpu.Vendor.Contains("NVIDIA", StringComparison.OrdinalIgnoreCase) && g.Type == LibreHardwareMonitor.Hardware.HardwareType.GpuNvidia) ||
+                (gpu.Vendor.Contains("AMD", StringComparison.OrdinalIgnoreCase) && g.Type == LibreHardwareMonitor.Hardware.HardwareType.GpuAmd) ||
+                (gpu.Vendor.Contains("Intel", StringComparison.OrdinalIgnoreCase) && g.Type == LibreHardwareMonitor.Hardware.HardwareType.GpuIntel));
+
+            if (match is null)
+            {
+                result.Add(gpu);
+                continue;
+            }
+
+            result.Add(gpu with
+            {
+                CoreTemperatureC = match.CoreTempC ?? gpu.CoreTemperatureC,
+                HotspotTemperatureC = match.HotspotTempC ?? gpu.HotspotTemperatureC,
+                MemoryTemperatureC = match.MemoryTempC ?? gpu.MemoryTemperatureC,
+                FanSpeedPercent = match.FanPercent ?? gpu.FanSpeedPercent,
+                FanSpeedRpm = match.FanRpm ?? gpu.FanSpeedRpm,
+                PowerDrawWatts = match.PowerWatts ?? gpu.PowerDrawWatts,
+                CoreLoadPercent = match.CoreLoadPercent ?? gpu.CoreLoadPercent,
+                CoreClockMhz = match.CoreClockMhz ?? gpu.CoreClockMhz,
+                MemoryClockMhz = match.MemClockMhz ?? gpu.MemoryClockMhz
+            });
+        }
+
+        return result;
     }
 
     // ==================== 1. SMBIOS ('RSMB') ====================
@@ -917,16 +1044,178 @@ public sealed class WindowsHardwarePlatformProvider : IHardwarePlatformProvider
     private static PowerPlanInfo QueryActivePowerPlan()
     {
         var guid = GetActivePowerSchemeGuidOrDefault();
-        var name = guid == PowerSaverGuid ? "Экономия энергии"
-            : guid == HighPerformanceGuid ? "Высокая производительность"
-            : guid == UltimatePerformanceGuid ? "Максимальная производительность"
-            : "Сбалансированная";
+        var friendly = TryReadSchemeFriendlyName(guid) ?? ResolveDefaultPowerSchemeName(guid);
+        var isUltimate = guid == UltimatePerformanceGuid ||
+            friendly.Contains("Ultimate", StringComparison.OrdinalIgnoreCase) ||
+            friendly.Contains("Максимальная", StringComparison.OrdinalIgnoreCase);
 
         return new PowerPlanInfo(
             SchemeGuid: guid,
-            FriendlyName: name,
+            FriendlyName: friendly,
             IsPowerSaver: guid == PowerSaverGuid,
-            IsHighOrUltimatePerformance: guid == HighPerformanceGuid || guid == UltimatePerformanceGuid);
+            IsHighOrUltimatePerformance: guid == HighPerformanceGuid || isUltimate,
+            IsActive: true);
+    }
+
+    private static List<PowerPlanInfo> EnumeratePowerPlansCore()
+    {
+        var activeGuid = GetActivePowerSchemeGuidOrDefault();
+        if (!OperatingSystem.IsWindows())
+        {
+            return new List<PowerPlanInfo>
+            {
+                new(BalancedGuid, "Сбалансированная", false, false, true)
+            };
+        }
+
+        var plans = new List<PowerPlanInfo>();
+        const int accessScheme = 16; // ACCESS_SCHEME
+        uint index = 0;
+
+        while (index < 64)
+        {
+            uint size = (uint)Marshal.SizeOf<Guid>();
+            IntPtr buffer = Marshal.AllocHGlobal((int)size);
+            try
+            {
+                uint err = PowerEnumerate(IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, accessScheme, index, buffer, ref size);
+                if (err != 0)
+                {
+                    break;
+                }
+
+                var schemeGuid = Marshal.PtrToStructure<Guid>(buffer);
+                var name = TryReadSchemeFriendlyName(schemeGuid) ?? ResolveDefaultPowerSchemeName(schemeGuid);
+                bool isUltimate = schemeGuid == UltimatePerformanceGuid ||
+                    name.Contains("Ultimate", StringComparison.OrdinalIgnoreCase) ||
+                    name.Contains("Максимальная", StringComparison.OrdinalIgnoreCase);
+
+                plans.Add(new PowerPlanInfo(
+                    SchemeGuid: schemeGuid,
+                    FriendlyName: name,
+                    IsPowerSaver: schemeGuid == PowerSaverGuid,
+                    IsHighOrUltimatePerformance: schemeGuid == HighPerformanceGuid || isUltimate,
+                    IsActive: schemeGuid == activeGuid));
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+
+            index++;
+        }
+
+        if (plans.Count == 0)
+        {
+            plans.Add(QueryActivePowerPlan());
+        }
+
+        return plans;
+    }
+
+    private static (bool Success, Guid? SchemeGuid, string Message) UnlockUltimatePerformancePlanCore()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return (false, null, "Доступно только на Windows.");
+        }
+
+        // Проверяем, не разблокирована ли схема уже в реестре PowrProf
+        var existing = EnumeratePowerPlansCore().FirstOrDefault(p =>
+            p.SchemeGuid == UltimatePerformanceGuid ||
+            p.FriendlyName.Contains("Ultimate", StringComparison.OrdinalIgnoreCase) ||
+            p.FriendlyName.Contains("Максимальная", StringComparison.OrdinalIgnoreCase));
+
+        if (existing is not null)
+        {
+            return (true, existing.SchemeGuid, $"Схема «{existing.FriendlyName}» уже присутствует в системе.");
+        }
+
+        var sourceGuid = UltimatePerformanceGuid;
+        if (PowerDuplicateScheme(IntPtr.Zero, ref sourceGuid, out var destPtr) == 0 && destPtr != IntPtr.Zero)
+        {
+            try
+            {
+                var unlockedGuid = Marshal.PtrToStructure<Guid>(destPtr);
+                return (true, unlockedGuid, "Схема «Максимальная производительность» (Ultimate Performance) успешно разблокирована.");
+            }
+            finally
+            {
+                LocalFree(destPtr);
+            }
+        }
+
+        // Запасной путь через штатную утилиту powercfg.exe
+        try
+        {
+            using var proc = Process.Start(new ProcessStartInfo
+            {
+                FileName = "powercfg.exe",
+                Arguments = $"-duplicatescheme {UltimatePerformanceGuid:D}",
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            });
+
+            if (proc is not null)
+            {
+                proc.WaitForExit(5000);
+                var refreshed = EnumeratePowerPlansCore().FirstOrDefault(p =>
+                    p.SchemeGuid == UltimatePerformanceGuid ||
+                    p.FriendlyName.Contains("Ultimate", StringComparison.OrdinalIgnoreCase) ||
+                    p.FriendlyName.Contains("Максимальная", StringComparison.OrdinalIgnoreCase));
+
+                if (refreshed is not null)
+                {
+                    return (true, refreshed.SchemeGuid, $"Схема «{refreshed.FriendlyName}» разблокирована через powercfg.");
+                }
+            }
+        }
+        catch { }
+
+        return (false, null, "Шаблон Ultimate Performance отсутствует на данной редакции/сборке ОС (например, на ноутбуках с Modern Standby S0ix).");
+    }
+
+    private static string ResolveDefaultPowerSchemeName(Guid guid) =>
+        guid == PowerSaverGuid ? "Экономия энергии"
+        : guid == HighPerformanceGuid ? "Высокая производительность"
+        : guid == UltimatePerformanceGuid ? "Максимальная производительность"
+        : guid == BalancedGuid ? "Сбалансированная"
+        : $"Схема питания ({guid.ToString()[..8]})";
+
+    private static string? TryReadSchemeFriendlyName(Guid schemeGuid)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return null;
+        }
+
+        uint size = 0;
+        _ = PowerReadFriendlyName(IntPtr.Zero, ref schemeGuid, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, ref size);
+        if (size is 0 or > 2048)
+        {
+            return null;
+        }
+
+        IntPtr buffer = Marshal.AllocHGlobal((int)size);
+        try
+        {
+            if (PowerReadFriendlyName(IntPtr.Zero, ref schemeGuid, IntPtr.Zero, IntPtr.Zero, buffer, ref size) == 0)
+            {
+                var str = Marshal.PtrToStringUni(buffer)?.Trim('\0', ' ');
+                if (!string.IsNullOrWhiteSpace(str))
+                {
+                    return str;
+                }
+            }
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+
+        return null;
     }
 
     private static Guid GetActivePowerSchemeGuidOrDefault()
@@ -1052,6 +1341,31 @@ public sealed class WindowsHardwarePlatformProvider : IHardwarePlatformProvider
 
     [DllImport("powrprof.dll", ExactSpelling = true)]
     private static extern uint PowerSetActiveScheme(IntPtr UserRootPowerKey, ref Guid SchemeGuid);
+
+    [DllImport("powrprof.dll", ExactSpelling = true)]
+    private static extern uint PowerEnumerate(
+        IntPtr RootPowerKey,
+        IntPtr SchemeGuid,
+        IntPtr SubGroupOfPowerSettingsGuid,
+        int AccessFlags,
+        uint Index,
+        IntPtr Buffer,
+        ref uint BufferSize);
+
+    [DllImport("powrprof.dll", ExactSpelling = true)]
+    private static extern uint PowerReadFriendlyName(
+        IntPtr RootPowerKey,
+        ref Guid SchemeGuid,
+        IntPtr SubGroupOfPowerSettingsGuid,
+        IntPtr PowerSettingGuid,
+        IntPtr Buffer,
+        ref uint BufferSize);
+
+    [DllImport("powrprof.dll", ExactSpelling = true)]
+    private static extern uint PowerDuplicateScheme(
+        IntPtr RootPowerKey,
+        ref Guid SourceSchemeGuid,
+        out IntPtr DestinationSchemeGuid);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

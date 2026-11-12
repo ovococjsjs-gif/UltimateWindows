@@ -10,95 +10,6 @@ using UltimateWindows.Modules.Optimizer.Services;
 
 namespace UltimateWindows.App.ViewModels;
 
-public sealed class TweakItemViewModel : ObservableObject
-{
-    private readonly Func<TweakItemViewModel, bool, Task> _onUserToggleAsync;
-    private bool _isApplied;
-    private bool _suppressCallback;
-
-    public TweakItemViewModel(
-        EvaluatedTweakState state,
-        Func<TweakItemViewModel, bool, Task> onUserToggleAsync)
-    {
-        Rule = state.Rule;
-        Applicability = state.Applicability;
-        _isApplied = state.IsCurrentlyApplied;
-        _onUserToggleAsync = onUserToggleAsync;
-        ToggleCommand = new AsyncRelayCommand(_ => _onUserToggleAsync(this, !IsApplied));
-    }
-
-    public DeclarativeTweakRule Rule { get; }
-
-    public TweakApplicability Applicability { get; }
-
-    /// <summary>
-    /// Предупреждение под названием твика: опасен, не рекомендуется этому компьютеру или не подходит этой версии Windows.
-    /// Пустая строка, если предупреждать не о чем.
-    /// </summary>
-    public string AdvisoryNote
-    {
-        get
-        {
-            if (Applicability.Status == TweakApplicabilityStatus.NotApplicable)
-            {
-                return $"Не подходит этому компьютеру. {Applicability.Reason}";
-            }
-
-            if (Rule.IsDangerous)
-            {
-                return "Опасно: ослабляет защиту или устойчивость Windows. Включается только после отдельного подтверждения.";
-            }
-
-            if (Applicability.Status == TweakApplicabilityStatus.NotRecommended)
-            {
-                return $"Не рекомендуется для этого компьютера. {Applicability.Reason}";
-            }
-
-            return "";
-        }
-    }
-
-    public bool HasAdvisoryNote => AdvisoryNote.Length > 0;
-
-    public bool IsApplied
-    {
-        get => _isApplied;
-        set
-        {
-            if (_isApplied == value) return;
-            _isApplied = value;
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(StateBadge));
-            if (!_suppressCallback)
-            {
-                _ = _onUserToggleAsync(this, value);
-            }
-        }
-    }
-
-    public void SetStateSilently(bool applied)
-    {
-        _suppressCallback = true;
-        try
-        {
-            IsApplied = applied;
-        }
-        finally
-        {
-            _suppressCallback = false;
-        }
-    }
-
-    public string FriendlyTitle => Rule.FriendlyTitle;
-    public string FriendlyExplanation => Rule.FriendlyExplanation;
-    public string ImpactBadge => Rule.ImpactBadge;
-    public bool RequiresAdministrator => Rule.RequiresAdministrator;
-    public string AdminHint => Rule.RequiresAdministrator ? "Admin" : "User";
-    public string ExpertMutationsPreview => Rule.ExpertMutationsPreview;
-    public string StateBadge => IsApplied ? "ВКЛ" : "ВЫКЛ";
-    public ICommand ToggleCommand { get; }
-}
-
 public sealed class StartupItemViewModel : ObservableObject
 {
     private readonly Func<StartupItemViewModel, bool, Task> _onToggleAsync;
@@ -117,6 +28,10 @@ public sealed class StartupItemViewModel : ObservableObject
     public string LocationSource => Info.LocationSource;
     public string CommandOrTarget => Info.CommandOrTarget;
     public string SignatureBadge => Info.SignatureBadge;
+
+    public ChipViewModel SignatureChip => Info.IsSignedTrusted
+        ? new ChipViewModel("Подписан", "Safe", "У файла действительная цифровая подпись издателя.")
+        : new ChipViewModel("Без подписи", "Caution", "У файла нет действительной цифровой подписи. Это не значит, что он вреден, но издателя проверить нельзя.");
 
     public bool IsEnabled
     {
@@ -250,17 +165,17 @@ public sealed class HostsEntryItemViewModel : ObservableObject
     public int LineNumber => Entry.LineNumber;
     public string RedirectIp => Entry.RedirectIp;
     public string DomainHost => Entry.DomainHost;
-    public string SecurityWarning => Entry.IsSuspiciousSecurityBlock ? "ПОДОЗРИТЕЛЬНАЯ БЛОКИРОВКА ЗАЩИТЫ!" : "Пользовательское правило";
+    public bool IsSuspicious => Entry.IsSuspiciousSecurityBlock;
+    public string SecurityWarning => IsSuspicious ? "Подозрительно: закрывает доступ к сайту защиты или обновлений" : "Ваше правило";
     public ICommand RemoveCommand { get; }
 }
 
 /// <summary>
-/// Полноценный ViewModel раздела «Optimizer» (5 суб-вкладок в стиле Optimizer v14.7 + CCleaner Tools):
-/// 0 = Система, Диск и Windows 10/11 (тумблеры),
-/// 1 = Приватность, Телеметрия программ (Office/Chrome/Firefox/Edge/VS/NVIDIA) и Игры,
-/// 2 = UWP Приложения (удаление встроенного ПО Windows),
-/// 3 = Деинсталлятор программ Win32, Автозапуск, Контекстное меню и Разблокировка файлов,
-/// 4 = Пингер (ICMP/TCP), Быстрый DNS и Редактор файла Hosts.
+/// Раздел «Оптимизатор». Вкладки:
+/// 0 — настройки Windows (каталог твиков, наборы, профили),
+/// 1 — службы, 2 — планировщик заданий, 3 — автозагрузка,
+/// 4 — программы и приложения Windows, 5 — сеть (проверка связи, DNS, hosts),
+/// 6 — инструменты (кто держит файл, контекстное меню Проводника).
 /// </summary>
 public sealed class OptimizerStudioViewModel : ObservableObject
 {
@@ -271,6 +186,8 @@ public sealed class OptimizerStudioViewModel : ObservableObject
     private List<UwpPackageInfo> _allUwpPackages = [];
 
     private int _selectedSubTabIndex;
+    private int _appsMode;
+    private bool _hasLoadedLists;
     private string _actionStatusBanner = "";
 
     // UWP
@@ -282,13 +199,13 @@ public sealed class OptimizerStudioViewModel : ObservableObject
     // Win32 Uninstaller & Unlocker
     private string _appSearchFilter = "";
     private string _lockedTargetPath = "";
-    private string _lockHunterHeadline = "Укажите файл или папку, которую не дает удалить открытый процесс.";
+    private string _lockHunterHeadline = "Укажите файл или папку, которую не даёт удалить открытый процесс.";
 
     // Pinger & Hosts
     private string _pingTargetHost = "1.1.1.1";
     private int _pingPacketCount = 6;
     private bool _isPinging;
-    private string _latencyHeadline = "Введите домен или IP (например, 1.1.1.1, ya.ru, store.steampowered.com) и нажмите «Пинговать».";
+    private string _latencyHeadline = "Введите домен или IP (например, 1.1.1.1, ya.ru, store.steampowered.com) и нажмите «Проверить».";
     private string _latencyBadge = "Готов";
     private string _pingStatsSummary = "Мин: —  |  Сред: —  |  Макс: —  |  Джиттер: —  |  Потери: 0%";
 
@@ -303,13 +220,9 @@ public sealed class OptimizerStudioViewModel : ObservableObject
         _optimizerService = optimizerService;
         _onActionCompletedAsync = onActionCompletedAsync;
 
-        SystemTweaks = new ObservableCollection<TweakItemViewModel>();
-        DiskTweaks = new ObservableCollection<TweakItemViewModel>();
-        UiTweaks = new ObservableCollection<TweakItemViewModel>();
-        SecurityTweaks = new ObservableCollection<TweakItemViewModel>();
-        AppTelemetryTweaks = new ObservableCollection<TweakItemViewModel>();
-        PrivacyTweaks = new ObservableCollection<TweakItemViewModel>();
-        GamingTweaks = new ObservableCollection<TweakItemViewModel>();
+        Tweaks = new TweakCatalogViewModel(optimizerService, onActionCompletedAsync, ShowBanner);
+        Services = new ServiceManagerViewModel(optimizerService, onActionCompletedAsync, ShowBanner);
+        Tasks = new TaskManagerViewModel(optimizerService, onActionCompletedAsync, ShowBanner);
 
         UwpPackages = new ObservableCollection<SelectableUwpItemViewModel>();
         FilteredInstalledApps = new ObservableCollection<InstalledAppItemViewModel>();
@@ -326,10 +239,8 @@ public sealed class OptimizerStudioViewModel : ObservableObject
             if (p is string s && int.TryParse(s, out var idx)) SelectedSubTabIndex = idx;
         });
 
-        RefreshAllOptimizerDataCommand = new AsyncRelayCommand(_ => RefreshAllAsync());
-        ApplyPresetCommand = new AsyncRelayCommand(p => ApplyNamedPresetAsync(p as string ?? "recommended"));
-        ExportYamlProfileCommand = new RelayCommand(_ => ExportYamlProfile());
-        ImportYamlProfileCommand = new AsyncRelayCommand(_ => ImportYamlProfileAsync());
+        RefreshAllOptimizerDataCommand = new AsyncRelayCommand(_ => RefreshListsAsync());
+        DismissBannerCommand = new RelayCommand(_ => ActionStatusBanner = "");
 
         // UWP commands
         RefreshUwpCommand = new AsyncRelayCommand(_ => ReloadUwpPackagesAsync());
@@ -362,16 +273,17 @@ public sealed class OptimizerStudioViewModel : ObservableObject
                 new AsyncRelayCommand(_ => ApplyDnsAsync(capturedDns.Id))));
         }
 
-        ReloadTweaksAndHosts();
+        ReloadHostsList();
     }
 
-    public ObservableCollection<TweakItemViewModel> SystemTweaks { get; }
-    public ObservableCollection<TweakItemViewModel> DiskTweaks { get; }
-    public ObservableCollection<TweakItemViewModel> UiTweaks { get; }
-    public ObservableCollection<TweakItemViewModel> SecurityTweaks { get; }
-    public ObservableCollection<TweakItemViewModel> AppTelemetryTweaks { get; }
-    public ObservableCollection<TweakItemViewModel> PrivacyTweaks { get; }
-    public ObservableCollection<TweakItemViewModel> GamingTweaks { get; }
+    /// <summary>Каталог настроек Windows.</summary>
+    public TweakCatalogViewModel Tweaks { get; }
+
+    /// <summary>Диспетчер служб.</summary>
+    public ServiceManagerViewModel Services { get; }
+
+    /// <summary>Диспетчер заданий планировщика.</summary>
+    public TaskManagerViewModel Tasks { get; }
 
     public ObservableCollection<SelectableUwpItemViewModel> UwpPackages { get; }
     public ObservableCollection<InstalledAppItemViewModel> FilteredInstalledApps { get; }
@@ -388,40 +300,84 @@ public sealed class OptimizerStudioViewModel : ObservableObject
         get => _selectedSubTabIndex;
         set
         {
-            if (SetProperty(ref _selectedSubTabIndex, value))
+            if (!SetProperty(ref _selectedSubTabIndex, value))
             {
-                OnPropertyChanged(nameof(IsUniversalTweaksTab));
-                OnPropertyChanged(nameof(IsPrivacyAndGamingTab));
-                OnPropertyChanged(nameof(IsUwpTab));
-                OnPropertyChanged(nameof(IsAppsAndStartupTab));
-                OnPropertyChanged(nameof(IsNetworkAndHostsTab));
+                return;
+            }
 
-                if (value == 2 && _allUwpPackages.Count == 0 && !IsLoadingUwp)
-                {
-                    _ = ReloadUwpPackagesAsync();
-                }
-                else if (value == 3 && _allInstalledApps.Count == 0)
-                {
-                    _ = RefreshAllAsync();
-                }
+            OnPropertyChanged(nameof(IsTweaksTab));
+            OnPropertyChanged(nameof(IsServicesTab));
+            OnPropertyChanged(nameof(IsTasksTab));
+            OnPropertyChanged(nameof(IsStartupTab));
+            OnPropertyChanged(nameof(IsAppsTab));
+            OnPropertyChanged(nameof(IsNetworkTab));
+            OnPropertyChanged(nameof(IsToolsTab));
+
+            // Тяжёлые списки читаются при первом открытии своей вкладки
+            switch (value)
+            {
+                case 1:
+                    _ = Services.EnsureLoadedAsync();
+                    break;
+                case 2:
+                    _ = Tasks.EnsureLoadedAsync();
+                    break;
+                case 3:
+                case 6:
+                    if (!_hasLoadedLists)
+                    {
+                        _ = RefreshListsAsync();
+                    }
+
+                    break;
+                case 4:
+                    if (!_hasLoadedLists)
+                    {
+                        _ = RefreshListsAsync();
+                    }
+
+                    if (IsWindowsAppsMode && _allUwpPackages.Count == 0 && !IsLoadingUwp)
+                    {
+                        _ = ReloadUwpPackagesAsync();
+                    }
+
+                    break;
             }
         }
     }
 
-    public bool IsUniversalTweaksTab => SelectedSubTabIndex == 0;
-    public bool IsPrivacyAndGamingTab => SelectedSubTabIndex == 1;
-    public bool IsUwpTab => SelectedSubTabIndex == 2;
-    public bool IsAppsAndStartupTab => SelectedSubTabIndex == 3;
-    public bool IsNetworkAndHostsTab => SelectedSubTabIndex == 4;
+    public bool IsTweaksTab => SelectedSubTabIndex == 0;
+    public bool IsServicesTab => SelectedSubTabIndex == 1;
+    public bool IsTasksTab => SelectedSubTabIndex == 2;
+    public bool IsStartupTab => SelectedSubTabIndex == 3;
+    public bool IsAppsTab => SelectedSubTabIndex == 4;
+    public bool IsNetworkTab => SelectedSubTabIndex == 5;
+    public bool IsToolsTab => SelectedSubTabIndex == 6;
 
-    public int ActiveTweaksCount =>
-        SystemTweaks.Count(x => x.IsApplied) +
-        DiskTweaks.Count(x => x.IsApplied) +
-        UiTweaks.Count(x => x.IsApplied) +
-        SecurityTweaks.Count(x => x.IsApplied) +
-        AppTelemetryTweaks.Count(x => x.IsApplied) +
-        PrivacyTweaks.Count(x => x.IsApplied) +
-        GamingTweaks.Count(x => x.IsApplied);
+    /// <summary>На вкладке «Приложения»: 0 — установленные программы, 1 — приложения Windows.</summary>
+    public int AppsMode
+    {
+        get => _appsMode;
+        set
+        {
+            if (!SetProperty(ref _appsMode, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(IsProgramsMode));
+            OnPropertyChanged(nameof(IsWindowsAppsMode));
+            if (IsWindowsAppsMode && _allUwpPackages.Count == 0 && !IsLoadingUwp)
+            {
+                _ = ReloadUwpPackagesAsync();
+            }
+        }
+    }
+
+    public bool IsProgramsMode => AppsMode == 0;
+    public bool IsWindowsAppsMode => AppsMode == 1;
+
+    public int ActiveTweaksCount => Tweaks.ActiveTweaksCount;
 
     public string ActionStatusBanner
     {
@@ -485,9 +441,7 @@ public sealed class OptimizerStudioViewModel : ObservableObject
 
     public ICommand SelectSubTabCommand { get; }
     public ICommand RefreshAllOptimizerDataCommand { get; }
-    public ICommand ApplyPresetCommand { get; }
-    public ICommand ExportYamlProfileCommand { get; }
-    public ICommand ImportYamlProfileCommand { get; }
+    public ICommand DismissBannerCommand { get; }
 
     public ICommand RefreshUwpCommand { get; }
     public ICommand RemoveSelectedUwpCommand { get; }
@@ -502,77 +456,76 @@ public sealed class OptimizerStudioViewModel : ObservableObject
     public ICommand AddHostEntryCommand { get; }
     public ICommand OpenHostsInNotepadCommand { get; }
 
+    /// <summary>
+    /// Перечитывает всё, что показывает раздел: состояние настроек и списки автозагрузки, меню и программ.
+    /// </summary>
     public async Task RefreshAllAsync()
     {
-        ReloadTweaksAndHosts();
-
-        var startupsTask = _optimizerService.GetStartupEntriesAsync();
-        var shellExTask = _optimizerService.GetThirdPartyShellExtensionsAsync();
-        var appsTask = _optimizerService.GetInstalledApplicationsAsync();
-
-        await Task.WhenAll(startupsTask, shellExTask, appsTask);
-
-        StartupEntries.Clear();
-        foreach (var s in startupsTask.Result)
-        {
-            StartupEntries.Add(new StartupItemViewModel(s, ToggleStartupAsync));
-        }
-
-        ShellExtensions.Clear();
-        foreach (var sh in shellExTask.Result)
-        {
-            var capturedSh = sh;
-            ShellExtensions.Add(new ShellExItemViewModel(
-                capturedSh,
-                new AsyncRelayCommand(_ => ToggleShellExAsync(capturedSh))));
-        }
-
-        _allInstalledApps = appsTask.Result.ToList();
-        RebuildFilteredApps();
+        await Task.WhenAll(Tweaks.RefreshAsync(), RefreshListsAsync());
     }
 
-    public void ReloadTweaksAndHosts()
+    /// <summary>
+    /// Обновляет раздел после отката в «Машине времени»: откат мог изменить настройки, службы, задания и hosts.
+    /// </summary>
+    public async Task RefreshAfterRollbackAsync()
     {
-        SystemTweaks.Clear();
-        DiskTweaks.Clear();
-        UiTweaks.Clear();
-        SecurityTweaks.Clear();
-        AppTelemetryTweaks.Clear();
-        PrivacyTweaks.Clear();
-        GamingTweaks.Clear();
-
-        foreach (var st in _optimizerService.EvaluateAllTweaks())
+        ReloadHostsList();
+        await Tweaks.RefreshAsync();
+        if (IsServicesTab)
         {
-            var vm = new TweakItemViewModel(st, HandleTweakSwitchAsync);
-            switch (st.Rule.Category)
-            {
-                case TweakCategory.SystemAndPerformance:
-                    SystemTweaks.Add(vm);
-                    break;
-                case TweakCategory.DiskAndFileSystem:
-                    DiskTweaks.Add(vm);
-                    break;
-                case TweakCategory.UiAndResponsiveness:
-                    UiTweaks.Add(vm);
-                    break;
-                case TweakCategory.SecurityAndClarity:
-                    SecurityTweaks.Add(vm);
-                    break;
-                case TweakCategory.AppTelemetry:
-                    AppTelemetryTweaks.Add(vm);
-                    break;
-                case TweakCategory.QuietBackgroundAndAds:
-                    PrivacyTweaks.Add(vm);
-                    break;
-                case TweakCategory.GamingAndLatency:
-                    GamingTweaks.Add(vm);
-                    break;
-            }
+            await Services.RefreshAsync();
         }
 
-        OnPropertyChanged(nameof(ActiveTweaksCount));
-        ReloadHostsList();
+        if (IsTasksTab)
+        {
+            await Tasks.RefreshAsync();
+        }
     }
+
+    private void ShowBanner(string message) => ActionStatusBanner = message;
+
+    private async Task RefreshListsAsync()
+    {
+        _hasLoadedLists = true;
+        try
+        {
+            var startupsTask = _optimizerService.GetStartupEntriesAsync();
+            var shellExTask = _optimizerService.GetThirdPartyShellExtensionsAsync();
+            var appsTask = _optimizerService.GetInstalledApplicationsAsync();
+
+            await Task.WhenAll(startupsTask, shellExTask, appsTask);
+
+            StartupEntries.Clear();
+            foreach (var s in startupsTask.Result)
+            {
+                StartupEntries.Add(new StartupItemViewModel(s, ToggleStartupAsync));
+            }
+
+            ShellExtensions.Clear();
+            foreach (var sh in shellExTask.Result)
+            {
+                var capturedSh = sh;
+                ShellExtensions.Add(new ShellExItemViewModel(
+                    capturedSh,
+                    new AsyncRelayCommand(_ => ToggleShellExAsync(capturedSh))));
+            }
+
+            _allInstalledApps = appsTask.Result.ToList();
+            RebuildFilteredApps();
+            OnPropertyChanged(nameof(StartupSummary));
+            OnPropertyChanged(nameof(HasNoShellExtensions));
+        }
+        catch (Exception ex)
+        {
+            ActionStatusBanner = $"Не удалось обновить списки автозагрузки и программ: {ex.Message}";
+        }
+    }
+
+    public string StartupSummary => StartupEntries.Count == 0
+        ? "Записей автозагрузки не найдено."
+        : $"Записей: {StartupEntries.Count} · включено: {StartupEntries.Count(e => e.IsEnabled)} · без подписи: {StartupEntries.Count(e => !e.Info.IsSignedTrusted)}";
+
+    public bool HasNoShellExtensions => ShellExtensions.Count == 0;
 
     private void ReloadHostsList()
     {
@@ -592,66 +545,6 @@ public sealed class OptimizerStudioViewModel : ObservableObject
             : suspiciousCount > 0
                 ? $"ВНИМАНИЕ: в hosts активно правил — {entries.Count}, подозрительных блокировок антивирусов/обновлений — {suspiciousCount}!"
                 : $"Активных правил перенаправления в файле hosts: {entries.Count}.";
-    }
-
-    private async Task HandleTweakSwitchAsync(TweakItemViewModel item, bool targetState)
-    {
-        var res = await _optimizerService.SetTweakStateAsync(item.Rule.TweakId, enableTweak: targetState);
-
-        // Опасный или не рекомендуемый этому компьютеру твик включается только после явного согласия
-        if (!res.Succeeded && res.ConfirmationRequired != TweakConfirmationKind.None)
-        {
-            if (AskUserToConfirmTweak(res))
-            {
-                res = await _optimizerService.SetTweakStateAsync(
-                    item.Rule.TweakId,
-                    enableTweak: targetState,
-                    options: TweakApplyOptions.AcceptAll);
-            }
-            else
-            {
-                res = res with { UserFriendlyMessage = $"Настройка «{item.FriendlyTitle}» оставлена без изменений." };
-            }
-        }
-
-        ActionStatusBanner = res.UserFriendlyMessage;
-
-        if (!res.Succeeded)
-        {
-            item.SetStateSilently(!targetState);
-            return;
-        }
-
-        OnPropertyChanged(nameof(ActiveTweaksCount));
-        await _onActionCompletedAsync(res.UserFriendlyMessage);
-    }
-
-    private static bool AskUserToConfirmTweak(OptimizerOperationResult pending)
-    {
-        var isDangerous = pending.ConfirmationRequired == TweakConfirmationKind.DangerousTweak;
-        var answer = System.Windows.MessageBox.Show(
-            $"{pending.UserFriendlyMessage}\n\nВсё равно включить? Изменение можно отменить в разделе «Машина времени».",
-            isDangerous ? "Опасная настройка" : "Настройка не рекомендуется",
-            System.Windows.MessageBoxButton.YesNo,
-            isDangerous ? System.Windows.MessageBoxImage.Warning : System.Windows.MessageBoxImage.Question,
-            System.Windows.MessageBoxResult.No);
-
-        return answer == System.Windows.MessageBoxResult.Yes;
-    }
-
-    private async Task ApplyNamedPresetAsync(string presetKey)
-    {
-        var title = presetKey switch
-        {
-            "gaming" => "Максимальный FPS и низкий пинг",
-            "privacy" => "Приватность без телеметрии и рекламы",
-            _ => "Рекомендуемый безопасный стандарт"
-        };
-
-        var res = await _optimizerService.ApplyPresetBatchAsync(presetKey, title);
-        ActionStatusBanner = res.UserFriendlyMessage;
-        ReloadTweaksAndHosts();
-        await _onActionCompletedAsync(res.UserFriendlyMessage);
     }
 
     public async Task ReloadUwpPackagesAsync()
@@ -784,6 +677,7 @@ public sealed class OptimizerStudioViewModel : ObservableObject
             return;
         }
 
+        OnPropertyChanged(nameof(StartupSummary));
         await _onActionCompletedAsync(res.UserFriendlyMessage);
     }
 
@@ -793,7 +687,7 @@ public sealed class OptimizerStudioViewModel : ObservableObject
         ActionStatusBanner = res.UserFriendlyMessage;
         if (res.Succeeded)
         {
-            await RefreshAllAsync();
+            await RefreshListsAsync();
             await _onActionCompletedAsync(res.UserFriendlyMessage);
         }
     }
@@ -924,41 +818,6 @@ public sealed class OptimizerStudioViewModel : ObservableObject
         catch
         {
             // Ignore
-        }
-    }
-
-    private void ExportYamlProfile()
-    {
-        var dlg = new SaveFileDialog
-        {
-            Title = "Экспорт профиля твиков UltimateWindows (.yaml)",
-            Filter = "YAML профиль (*.yaml)|*.yaml",
-            FileName = "ultimatewindows-tweaks.yaml"
-        };
-
-        if (dlg.ShowDialog() == true)
-        {
-            var yaml = _optimizerService.ExportActiveTweaksToYaml(Path.GetFileNameWithoutExtension(dlg.FileName));
-            File.WriteAllText(dlg.FileName, yaml);
-            ActionStatusBanner = $"Профиль сохранен: {dlg.FileName}";
-        }
-    }
-
-    private async Task ImportYamlProfileAsync()
-    {
-        var dlg = new OpenFileDialog
-        {
-            Title = "Импорт YAML-профиля твиков",
-            Filter = "YAML профиль (*.yaml;*.yml)|*.yaml;*.yml"
-        };
-
-        if (dlg.ShowDialog() == true && File.Exists(dlg.FileName))
-        {
-            var yaml = await File.ReadAllTextAsync(dlg.FileName);
-            var res = await _optimizerService.ImportAndApplyYamlProfileAsync(yaml);
-            ActionStatusBanner = res.UserFriendlyMessage;
-            ReloadTweaksAndHosts();
-            await _onActionCompletedAsync(res.UserFriendlyMessage);
         }
     }
 }

@@ -7,8 +7,10 @@ using Microsoft.Win32;
 using UltimateWindows.Core.Contracts;
 using UltimateWindows.Core.Enums;
 using UltimateWindows.Core.Models;
+using UltimateWindows.Modules.Optimizer.Models;
 using UltimateWindows.Modules.Safety.Services;
 using UltimateWindows.Modules.Safety.Storage;
+using UltimateWindows.NativeInterop.Optimizer;
 using UltimateWindows.NativeInterop.Security;
 
 namespace UltimateWindows.NativeInterop.Restore;
@@ -125,16 +127,21 @@ public sealed class WindowsSystemRestoreBridge : IRestorePointProvider
 /// <summary>
 /// Модель сериализации состояния значения реестра для точного отката.
 /// </summary>
+/// <param name="CreatedKeyPath">
+/// Самый верхний раздел, которого не было до изменения. При откате опустевшие разделы от <paramref name="SubKey"/>
+/// до него включительно удаляются: откат убирает ровно то, что создало изменение.
+/// </param>
 public sealed record RegistryValueSnapshot(
     string Hive,
     string SubKey,
     string ValueName,
     bool ExistedBefore,
     RegistryValueKind ValueKind,
-    string? SerializedData);
+    string? SerializedData,
+    string? CreatedKeyPath = null);
 
 /// <summary>
-/// Полноценный исполнитель откатов для Windows: восстанавливает значения реестра, видеорежимы монитора, схемы питания и файлы из карантина.
+/// Полноценный исполнитель откатов для Windows: восстанавливает значения реестра, типы запуска служб, задания планировщика, видеорежимы монитора, схемы питания и файлы из карантина.
 /// </summary>
 public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
 {
@@ -155,6 +162,22 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
                 RestoreRegistrySnapshot(snapshot);
             }
 
+            return;
+        }
+
+        if (delta.TargetKind == StateTargetKind.WindowsService &&
+            OperatingSystem.IsWindows() &&
+            !string.IsNullOrWhiteSpace(delta.PreviousStateJson))
+        {
+            RestoreServiceStartup(delta);
+            return;
+        }
+
+        if (delta.TargetKind == StateTargetKind.ScheduledTask &&
+            OperatingSystem.IsWindows() &&
+            !string.IsNullOrWhiteSpace(delta.PreviousStateJson))
+        {
+            RestoreScheduledTask(delta);
             return;
         }
 
@@ -208,6 +231,55 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
                 return;
             }
 
+            if (delta.TargetPath.StartsWith("DefenderExclusion:", StringComparison.OrdinalIgnoreCase))
+            {
+                using var doc = JsonDocument.Parse(delta.PreviousStateJson);
+                var kind = doc.RootElement.TryGetProperty("Kind", out var kEl) ? kEl.GetString() : "Path";
+                var val = doc.RootElement.TryGetProperty("Value", out var vEl) ? vEl.GetString() : null;
+                var isPolicy = doc.RootElement.TryGetProperty("IsPolicyEnforced", out var polEl) && polEl.ValueKind == JsonValueKind.True;
+                var regPath = doc.RootElement.TryGetProperty("RegistryPath", out var rpEl) ? rpEl.GetString() : null;
+                if (!string.IsNullOrWhiteSpace(val))
+                {
+                    if (isPolicy && !string.IsNullOrWhiteSpace(regPath))
+                    {
+                        var sub = regPath.StartsWith(@"HKLM\", StringComparison.OrdinalIgnoreCase) ? regPath[5..] : regPath;
+                        using var key = Registry.LocalMachine.CreateSubKey(sub, writable: true);
+                        key?.SetValue(val, 0, RegistryValueKind.DWord);
+                    }
+                    else
+                    {
+                        var paramName = kind switch
+                        {
+                            "Process" => "ExclusionProcess",
+                            "Extension" => "ExclusionExtension",
+                            "IpAddress" => "ExclusionIpAddress",
+                            _ => "ExclusionPath"
+                        };
+                        var escaped = val.Replace("'", "''", StringComparison.Ordinal);
+                        _ = UltimateWindows.NativeInterop.SecurityHunter.WindowsSecurityPlatformBridge
+                            .RunShortPowerShell($"Add-MpPreference -{paramName} '{escaped}' -ErrorAction SilentlyContinue", timeoutMs: 6000);
+                    }
+                }
+
+                return;
+            }
+
+            if (delta.TargetPath.StartsWith("FirewallRule:", StringComparison.OrdinalIgnoreCase))
+            {
+                using var doc = JsonDocument.Parse(delta.PreviousStateJson);
+                var ruleId = doc.RootElement.TryGetProperty("RuleId", out var rEl) ? rEl.GetString() : null;
+                var rawVal = doc.RootElement.TryGetProperty("RawRegistryValue", out var vEl) ? vEl.GetString() : null;
+                if (!string.IsNullOrWhiteSpace(ruleId) && !string.IsNullOrWhiteSpace(rawVal))
+                {
+                    using var key = Registry.LocalMachine.OpenSubKey(
+                        @"SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\FirewallRules",
+                        writable: true);
+                    key?.SetValue(ruleId, rawVal, RegistryValueKind.String);
+                }
+
+                return;
+            }
+
             if (delta.TargetPath.StartsWith("DriverInfBackup:", StringComparison.OrdinalIgnoreCase))
             {
                 using var doc = JsonDocument.Parse(delta.PreviousStateJson);
@@ -245,9 +317,187 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
 
                 return;
             }
+
+            if (string.Equals(delta.TargetPath, "CiVulnerableDriverBlocklist", StringComparison.OrdinalIgnoreCase))
+            {
+                using var doc = JsonDocument.Parse(delta.PreviousStateJson);
+                using var ciKey = Registry.LocalMachine.CreateSubKey(@"SYSTEM\CurrentControlSet\Control\CI\Config", writable: true);
+                if (ciKey is not null)
+                {
+                    if (doc.RootElement.TryGetProperty("PreviousValue", out var pv) && pv.ValueKind == JsonValueKind.Number)
+                    {
+                        ciKey.SetValue("VulnerableDriverBlocklistEnable", pv.GetInt32(), RegistryValueKind.DWord);
+                    }
+                    else
+                    {
+                        ciKey.DeleteValue("VulnerableDriverBlocklistEnable", throwOnMissingValue: false);
+                    }
+                }
+
+                return;
+            }
+
+            if (delta.TargetPath.StartsWith("KernelDriverService:", StringComparison.OrdinalIgnoreCase))
+            {
+                using var doc = JsonDocument.Parse(delta.PreviousStateJson);
+                var svcName = doc.RootElement.TryGetProperty("ServiceName", out var sEl) ? sEl.GetString() : null;
+                var startType = doc.RootElement.TryGetProperty("StartType", out var tEl) && tEl.ValueKind == JsonValueKind.Number
+                    ? tEl.GetInt32()
+                    : 3;
+
+                if (!string.IsNullOrWhiteSpace(svcName))
+                {
+                    using var svcKey = Registry.LocalMachine.OpenSubKey($@"SYSTEM\CurrentControlSet\Services\{svcName}", writable: true);
+                    svcKey?.SetValue("Start", startType, RegistryValueKind.DWord);
+                }
+
+                return;
+            }
+
+            if (delta.TargetPath.StartsWith("AppRegistryExport:", StringComparison.OrdinalIgnoreCase))
+            {
+                using var doc = JsonDocument.Parse(delta.PreviousStateJson);
+                var regContent = doc.RootElement.TryGetProperty("RegFileContent", out var rEl) ? rEl.GetString() : null;
+                if (!string.IsNullOrWhiteSpace(regContent))
+                {
+                    var tempReg = Path.Combine(Path.GetTempPath(), $"uw-reg-restore-{Guid.NewGuid():N}.reg");
+                    try
+                    {
+                        await File.WriteAllTextAsync(tempReg, regContent, ct).ConfigureAwait(false);
+                        var psi = new ProcessStartInfo
+                        {
+                            FileName = Path.Combine(Environment.SystemDirectory, "reg.exe"),
+                            CreateNoWindow = true,
+                            UseShellExecute = false
+                        };
+                        psi.ArgumentList.Add("import");
+                        psi.ArgumentList.Add(tempReg);
+                        using var proc = Process.Start(psi);
+                        if (proc is not null)
+                        {
+                            await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+                        }
+                    }
+                    finally
+                    {
+                        try { if (File.Exists(tempReg)) File.Delete(tempReg); } catch { }
+                    }
+                }
+
+                return;
+            }
+
+            if (string.Equals(delta.TargetPath, "MaintenanceScheduleTask", StringComparison.OrdinalIgnoreCase))
+            {
+                using var doc = JsonDocument.Parse(delta.PreviousStateJson);
+                var existed = doc.RootElement.TryGetProperty("Existed", out var exEl) && exEl.ValueKind == JsonValueKind.True;
+                var taskName = doc.RootElement.TryGetProperty("TaskName", out var tnEl) && !string.IsNullOrWhiteSpace(tnEl.GetString())
+                    ? tnEl.GetString()!
+                    : @"\UltimateWindows\AutoMaintenance";
+                var taskXml = doc.RootElement.TryGetProperty("TaskXml", out var xmlEl) ? xmlEl.GetString() : null;
+
+                var schtasks = Path.Combine(Environment.SystemDirectory, "schtasks.exe");
+                if (!existed || string.IsNullOrWhiteSpace(taskXml))
+                {
+                    var psi = new ProcessStartInfo { FileName = schtasks, CreateNoWindow = true, UseShellExecute = false };
+                    psi.ArgumentList.Add("/Delete");
+                    psi.ArgumentList.Add("/TN");
+                    psi.ArgumentList.Add(taskName);
+                    psi.ArgumentList.Add("/F");
+                    using var proc = Process.Start(psi);
+                    if (proc is not null)
+                    {
+                        await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+                    }
+                }
+                else
+                {
+                    var tempXml = Path.Combine(Path.GetTempPath(), $"uw-task-restore-{Guid.NewGuid():N}.xml");
+                    try
+                    {
+                        await File.WriteAllTextAsync(tempXml, taskXml, ct).ConfigureAwait(false);
+                        var psi = new ProcessStartInfo { FileName = schtasks, CreateNoWindow = true, UseShellExecute = false };
+                        psi.ArgumentList.Add("/Create");
+                        psi.ArgumentList.Add("/TN");
+                        psi.ArgumentList.Add(taskName);
+                        psi.ArgumentList.Add("/XML");
+                        psi.ArgumentList.Add(tempXml);
+                        psi.ArgumentList.Add("/F");
+                        using var proc = Process.Start(psi);
+                        if (proc is not null)
+                        {
+                            await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+                        }
+                    }
+                    finally
+                    {
+                        try { if (File.Exists(tempXml)) File.Delete(tempXml); } catch { }
+                    }
+                }
+
+                return;
+            }
         }
 
         await base.ApplyRollbackDeltaAsync(delta, restoreBlobBytesAsync, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Возвращает службе прежний тип запуска. Если службу с тех пор удалили, возвращать нечего.
+    /// </summary>
+    private static void RestoreServiceStartup(StateDeltaRecord delta)
+    {
+        using var doc = JsonDocument.Parse(delta.PreviousStateJson!);
+        var name = doc.RootElement.TryGetProperty("ServiceName", out var nameElement) ? nameElement.GetString() : delta.TargetPath;
+        var startupText = doc.RootElement.TryGetProperty("Startup", out var startupElement) ? startupElement.GetString() : null;
+
+        if (string.IsNullOrWhiteSpace(name) ||
+            !Enum.TryParse<ServiceStartupMode>(startupText, ignoreCase: true, out var startup))
+        {
+            return;
+        }
+
+        var current = WindowsServiceControl.Query(name);
+        if (current is null || current.Startup == startup)
+        {
+            return;
+        }
+
+        var result = WindowsServiceControl.SetStartup(name, startup);
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(
+                $"Не удалось вернуть службе «{name}» тип запуска «{ServiceDisplay.GetTitle(startup)}»: {result.Error}.");
+        }
+    }
+
+    /// <summary>
+    /// Возвращает заданию планировщика прежнее состояние. Если задание с тех пор удалили, возвращать нечего.
+    /// </summary>
+    private static void RestoreScheduledTask(StateDeltaRecord delta)
+    {
+        using var doc = JsonDocument.Parse(delta.PreviousStateJson!);
+        var path = doc.RootElement.TryGetProperty("TaskPath", out var pathElement) ? pathElement.GetString() : delta.TargetPath;
+        if (string.IsNullOrWhiteSpace(path) ||
+            !doc.RootElement.TryGetProperty("Enabled", out var enabledElement) ||
+            (enabledElement.ValueKind != JsonValueKind.True && enabledElement.ValueKind != JsonValueKind.False))
+        {
+            return;
+        }
+
+        var enabled = enabledElement.GetBoolean();
+        var current = WindowsTaskScheduler.Query([path]);
+        if (!current.TryGetValue(path, out var snapshot) || snapshot.Enabled == enabled)
+        {
+            return;
+        }
+
+        var result = WindowsTaskScheduler.SetEnabled(path, enabled);
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(
+                $"Не удалось вернуть задание «{path}» в состояние «{TweakScheduledTaskAction.FormatEnabled(enabled)}»: {result.Error}.");
+        }
     }
 
     private static void RestoreRegistrySnapshot(RegistryValueSnapshot snapshot)
@@ -263,8 +513,12 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
         using var baseKey = RegistryKey.OpenBaseKey(hive, RegistryView.Default);
         if (!snapshot.ExistedBefore)
         {
-            using var subKey = baseKey.OpenSubKey(snapshot.SubKey, writable: true);
-            subKey?.DeleteValue(snapshot.ValueName, throwOnMissingValue: false);
+            using (var subKey = baseKey.OpenSubKey(snapshot.SubKey, writable: true))
+            {
+                subKey?.DeleteValue(snapshot.ValueName, throwOnMissingValue: false);
+            }
+
+            RemoveCreatedKeys(baseKey, snapshot.SubKey, snapshot.CreatedKeyPath);
             return;
         }
 
@@ -284,5 +538,51 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
         };
 
         writableKey.SetValue(snapshot.ValueName, valueToWrite, snapshot.ValueKind);
+    }
+
+    /// <summary>
+    /// Удаляет разделы, созданные изменением: от самого глубокого вверх до <paramref name="createdKeyPath"/> включительно,
+    /// и только пока раздел пуст. Раздел, в котором с тех пор появилось что-то ещё, остаётся.
+    /// </summary>
+    private static void RemoveCreatedKeys(RegistryKey baseKey, string subKeyPath, string? createdKeyPath)
+    {
+        if (string.IsNullOrWhiteSpace(createdKeyPath) ||
+            !subKeyPath.StartsWith(createdKeyPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var path = subKeyPath;
+        while (path.Length >= createdKeyPath.Length)
+        {
+            try
+            {
+                using (var key = baseKey.OpenSubKey(path, writable: false))
+                {
+                    if (key is null)
+                    {
+                        // Раздела уже нет — проверяем его родителя
+                    }
+                    else if (key.ValueCount > 0 || key.SubKeyCount > 0)
+                    {
+                        return;
+                    }
+                }
+
+                baseKey.DeleteSubKey(path, throwOnMissingSubKey: false);
+            }
+            catch (Exception)
+            {
+                return;
+            }
+
+            var separator = path.LastIndexOf('\\');
+            if (path.Length == createdKeyPath.Length || separator <= 0)
+            {
+                return;
+            }
+
+            path = path[..separator];
+        }
     }
 }

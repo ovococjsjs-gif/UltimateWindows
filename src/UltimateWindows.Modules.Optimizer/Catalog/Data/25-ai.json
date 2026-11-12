@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 2,
+
+  "tweaks": [
+    {
+      "id": "ai.disable-copilot",
+      "category": "AiFeatures",
+      "title": "Отключить Windows Copilot",
+      "explanation": "Отключает встроенную панель Copilot и сочетание клавиш Win+C. В новых сборках Windows 11 Copilot — отдельное приложение: его можно удалить на вкладке «Приложения».",
+      "risk": "Safe",
+      "restart": "signout",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Policies\\Microsoft\\Windows\\WindowsCopilot", "name": "TurnOffWindowsCopilot", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsCopilot", "name": "TurnOffWindowsCopilot", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "ai.hide-copilot-button",
+      "category": "AiFeatures",
+      "title": "Убрать кнопку Copilot с панели задач",
+      "explanation": "Скрывает значок Copilot на панели задач. Сам Copilot остаётся доступен.",
+      "risk": "Safe",
+      "requirements": { "minWindowsBuild": 22621 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "ShowCopilotButton", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "ai.disable-recall",
+      "category": "AiFeatures",
+      "title": "Отключить Recall",
+      "explanation": "Windows не делает и не хранит снимки экрана для функции Recall («поиск по прошлому») на компьютерах Copilot+. На остальных компьютерах настройка просто запрещает включать её в будущем.",
+      "risk": "Safe",
+      "restart": "reboot",
+      "requirements": { "minWindowsBuild": 26100 },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI", "name": "DisableAIDataAnalysis", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI", "name": "AllowRecallEnablement", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI", "name": "TurnOffSavingSnapshots", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Policies\\Microsoft\\Windows\\WindowsAI", "name": "DisableAIDataAnalysis", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "ai.disable-click-to-do",
+      "category": "AiFeatures",
+      "title": "Отключить Click to Do",
+      "explanation": "Отключает функцию, которая распознаёт текст и картинки на экране и предлагает действия с ними с помощью ИИ.",
+      "risk": "Safe",
+      "requirements": { "minWindowsBuild": 26100 },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI", "name": "DisableClickToDo", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Policies\\Microsoft\\Windows\\WindowsAI", "name": "DisableClickToDo", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "ai.disable-edge-copilot",
+      "category": "AiFeatures",
+      "title": "Отключить Copilot и боковую панель в Microsoft Edge",
+      "explanation": "Из Edge пропадают кнопка Copilot, доступ Copilot к содержимому страниц, поиск по истории с ИИ и помощник при наборе текста. Боковая панель с остальными инструментами тоже отключается. В Edge появится пометка «Управляется организацией».",
+      "risk": "Low",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "HubsSidebarEnabled", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "CopilotPageContext", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "CopilotCDPPageContext", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "EdgeHistoryAISearchEnabled", "kind": "dword", "value": 0 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "ComposeInlineEnabled", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "ai.disable-paint-ai",
+      "category": "AiFeatures",
+      "title": "Отключить функции ИИ в Paint",
+      "explanation": "Из Paint пропадают создание изображений по описанию, генеративная заливка и стирание, удаление фона с помощью ИИ.",
+      "risk": "Safe",
+      "requirements": { "minWindowsBuild": 22621 },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Paint", "name": "DisableCocreator", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Paint", "name": "DisableGenerativeFill", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Paint", "name": "DisableImageCreator", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Paint", "name": "DisableGenerativeErase", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Paint", "name": "DisableRemoveBackground", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "ai.disable-notepad-ai",
+      "category": "AiFeatures",
+      "title": "Отключить функции ИИ в Блокноте",
+      "explanation": "Из Блокнота пропадают кнопки переписывания и создания текста с помощью Copilot.",
+      "risk": "Safe",
+      "requirements": { "minWindowsBuild": 22621 },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\WindowsNotepad", "name": "DisableAIFeatures", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "ai.disable-cortana",
+      "category": "AiFeatures",
+      "title": "Отключить Кортану",
+      "explanation": "Отключает голосового помощника Кортана в Windows 10. Обычный поиск в меню «Пуск» продолжает работать.",
+      "risk": "Safe",
+      "requirements": { "maxWindowsBuild": 19045 },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search", "name": "AllowCortana", "kind": "dword", "value": 0 }
+      ]
+    }
+  ]
+}

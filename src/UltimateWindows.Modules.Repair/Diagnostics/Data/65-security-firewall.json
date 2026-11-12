@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "section": "SecurityAndFirewall",
+  "rules": [
+    {
+      "id": "fw.core-services",
+      "title": "Службы Брандмауэра Защитника Windows и базовой фильтрации (BFE и mpssvc)",
+      "symptom": "Не ставятся приложения из Microsoft Store (0x80073CF9), не работает раздача интернета и локальная сеть, ошибка запуска Брандмауэра 0x8007042c.",
+      "explanation": "Даже если вы не настраиваете правила фаервола вручную, стек фильтрации BFE и служба mpssvc нужны для песочницы MSIX/AppX, VPN и ICS.",
+      "fixSummary": "Восстанавливает автоматический запуск служб BFE и mpssvc.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x80073CF9", "0x80070422"],
+      "services": [
+        { "serviceName": "BFE", "healthyStartup": "Automatic", "startIfStopped": true },
+        { "serviceName": "mpssvc", "healthyStartup": "Automatic", "startIfStopped": true }
+      ]
+    },
+    {
+      "id": "sec.defender-policy-sabotage",
+      "title": "Саботаж антивирусной защиты групповыми политиками (DisableAntiSpyware / DisableRealtimeMonitoring)",
+      "symptom": "Окно «Безопасность Windows» пишет «Ваш ИТ-администратор ограничил доступ» или защита отключена без возможности включить её.",
+      "explanation": "Трояны, загрузчики и агрессивные скрипты прописывают политики DisableAntiSpyware = 1 и DisableAntiVirus = 1 в HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender.",
+      "fixSummary": "Удаляет вредоносные политики блокировки Защитника Windows (с сохранением копии в Машине времени).",
+      "severity": "Critical",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows Defender",
+          "valueName": "DisableAntiSpyware",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows Defender",
+          "valueName": "DisableAntiVirus",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection",
+          "valueName": "DisableRealtimeMonitoring",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "sec.security-ui-hidden",
+      "title": "Скрытый интерфейс центра «Безопасность Windows» (UILockdown)",
+      "symptom": "При открытии «Безопасности Windows» окно пустое или показывает «Страница недоступна».",
+      "explanation": "Политика UILockdown = 1 скрывает разделы интерфейса центра безопасности от пользователя.",
+      "fixSummary": "Удаляет политику UILockdown в Windows Defender Security Center.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows Defender Security Center\\Systray",
+          "valueName": "HideSystray",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows Defender\\UX Configuration",
+          "valueName": "UILockdown",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "sec.uac-enablelua",
+      "title": "Базовый механизм контроля учётных записей (EnableLUA = 1)",
+      "symptom": "Не открываются встроенные приложения Windows, песочница MSIX и часть игр с античитом.",
+      "explanation": "Полное отключение EnableLUA = 0 в реестре ломает модель токенов безопасности современных приложений UWP/MSIX в Windows 10 и 11.",
+      "fixSummary": "Возвращает штатное значение EnableLUA = 1 (вступает в силу после перезагрузки).",
+      "severity": "Warning",
+      "risk": "Moderate",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+          "valueName": "EnableLUA",
+          "expectation": "MustEqualDword",
+          "expectedDword": 1,
+          "fixKind": "SetDword",
+          "fixDword": 1
+        }
+      ]
+    },
+    {
+      "id": "sec.smartscreen-policy-lock",
+      "title": "Принудительная блокировка настройки SmartScreen политикой",
+      "symptom": "В центре Безопасности Windows заблокировано управление проверкой приложений и файлов.",
+      "explanation": "В разделе политик System принудительно выставлено EnableSmartScreen = 0.",
+      "fixSummary": "Удаляет принудительную политику EnableSmartScreen = 0, возвращая управление пользователю.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+          "valueName": "EnableSmartScreen",
+          "expectation": "MustNotEqualDword",
+          "expectedDword": 0,
+          "fixKind": "DeleteValue",
+          "onlyIfKeyExists": true
+        }
+      ]
+    },
+    {
+      "id": "svc.cryptsvc-health",
+      "title": "Службы криптографии и изоляции ключей (CryptSvc и KeyIso)",
+      "symptom": "Браузеры не открывают HTTPS-сайты (0x80092013), установщики пишут «Не удалось проверить цифровую подпись».",
+      "explanation": "Проверка сертификатов Authenticode и TLS зависит от служб CryptSvc и KeyIso.",
+      "fixSummary": "Восстанавливает штатный запуск служб CryptSvc и KeyIso.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x800B0100", "0x800B0109", "0x80092013"],
+      "services": [
+        { "serviceName": "CryptSvc", "healthyStartup": "Automatic", "startIfStopped": true },
+        { "serviceName": "KeyIso", "healthyStartup": "Manual" }
+      ]
+    }
+  ]
+}

@@ -4,6 +4,8 @@ using UltimateWindows.Core.Enums;
 using UltimateWindows.Modules.Repair.Bsod;
 using UltimateWindows.Modules.Repair.Catalog;
 using UltimateWindows.Modules.Repair.Contracts;
+using UltimateWindows.Modules.Repair.Diagnostics;
+using UltimateWindows.Modules.Repair.ErrorCodes;
 using UltimateWindows.Modules.Repair.Models;
 using UltimateWindows.Modules.Repair.PeDoctor;
 using UltimateWindows.Modules.Repair.Playbooks;
@@ -24,6 +26,12 @@ public class DefaultRepairPlatformBridge : IRepairPlatformBridge
     public virtual string GetMinidumpDirectory() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Minidump");
 
+    public virtual string GetCbsLogPath() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Logs", "CBS", "CBS.log");
+
+    public virtual int GetWindowsBuildNumber() =>
+        OperatingSystem.IsWindows() ? Environment.OSVersion.Version.Build : 0;
+
     public virtual bool IsRunningAsAdministrator() => false;
 
     public virtual bool VerifyAuthenticodeSignature(string filePath) => false;
@@ -38,40 +46,144 @@ public class DefaultRepairPlatformBridge : IRepairPlatformBridge
         CancellationToken ct = default)
         => Task.FromResult((false, "Пакетный менеджер Windows (winget) доступен только в среде Windows 10/11."));
 
+    public virtual Task<(bool Succeeded, string OutputLog)> InstallOfficialRuntimeDirectOrWingetAsync(
+        OfficialRuntimePackage package,
+        CancellationToken ct = default)
+        => InstallOfficialRuntimeViaWingetAsync(package, ct);
+
+    public virtual Task<IReadOnlyList<OfficialRuntimeStatusReport>> DetectInstalledRuntimesAsync(
+        IReadOnlyList<OfficialRuntimePackage> catalog,
+        CancellationToken ct = default)
+    {
+        var list = catalog
+            .Select(p => new OfficialRuntimeStatusReport(p, RuntimeInstallStatus.Unknown, "Проверка доступна на ОС Windows"))
+            .ToList();
+        return Task.FromResult<IReadOnlyList<OfficialRuntimeStatusReport>>(list);
+    }
+
+    public virtual Task<IReadOnlyList<InstalledProgramInfo>> EnumerateInstalledProgramsAsync(
+        CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<InstalledProgramInfo>>(Array.Empty<InstalledProgramInfo>());
+
     public virtual Task<(bool Succeeded, string OutputLog)> ExecutePlaybookNativeStepsAsync(
         RepairPlaybookId playbookId,
         CancellationToken ct = default)
         => Task.FromResult((false, "Нативные системные утилиты ремонта доступны только в среде Windows 10/11."));
+
+    public virtual RepairRegistryValueState ReadRegistryValue(string hive, string subKey, string valueName) =>
+        new(false, false, RepairRegistryValueKind.String, null, null, null);
+
+    public virtual (bool Succeeded, string? CreatedKeyPath, string? Error) WriteRegistryValue(
+        string hive,
+        string subKey,
+        string valueName,
+        RepairRegistryValueKind kind,
+        string? stringValue,
+        int? dwordValue)
+        => (false, null, "Доступ к реестру поддерживается только на ОС Windows.");
+
+    public virtual (bool Succeeded, string? Error) DeleteRegistryValue(string hive, string subKey, string valueName) =>
+        (false, "Доступ к реестру поддерживается только на ОС Windows.");
+
+    public virtual RepairServiceState QueryServiceState(string serviceName) =>
+        new(false, RepairServiceStartupKind.Unknown, false);
+
+    public virtual Task<(bool Succeeded, string? Error)> RepairServiceAsync(
+        string serviceName,
+        RepairServiceStartupKind targetStartup,
+        bool startIfStopped,
+        CancellationToken ct = default)
+        => Task.FromResult<(bool Succeeded, string? Error)>((false, "Управление службами поддерживается только на ОС Windows."));
+
+    public virtual Task<RepairCustomProbeResult> RunCustomProbeAsync(string customProbeId, CancellationToken ct = default) =>
+        Task.FromResult(new RepairCustomProbeResult(RepairHealthState.NotApplicable, "Проверка поддерживается только на ОС Windows."));
+
+    public virtual Task<(bool Succeeded, bool RequiresReboot, string OutputLog, string? RollbackTarget, string? RollbackPreviousJson)> ExecuteCustomFixAsync(
+        string customProbeId,
+        CancellationToken ct = default)
+        => Task.FromResult<(bool, bool, string, string?, string?)>((false, false, "Доступно только на Windows.", null, null));
+
+    public virtual InPlaceReinstallReadiness GetInPlaceReinstallReadiness() =>
+        new(
+            SupportsWindowsUpdateReinstallNow: false,
+            OsBuild: GetWindowsBuildNumber(),
+            FreeSystemDriveGb: 0,
+            HasEnoughDiskSpace: false,
+            IsOnBatteryPower: false,
+            RecommendedMethodTitle: "Восстановление поверх с сохранением программ и файлов",
+            StepByStepInstructions: "Откройте «Параметры → Система → Восстановление» на компьютере с Windows 10 или Windows 11.",
+            SettingsUri: "ms-settings:recovery");
+
+    public virtual bool OpenRecoverySettingsOrUrl(string uri) => false;
 }
 
 /// <summary>
-/// Центральный сервис Фазы 3: Доктор ошибок 0xC000007B и зависимостей PE,
-/// установка официальных пакетов VC++/DirectX/.NET, расшифровка минидампов BSOD и одно-кликовый ремонт ОС.
+/// Центральный сервис Этапа 3 («Ремонт и DLL 2.0»):
+/// диагностический и ремонтный движок на 100+ правил с откатом в «Машине времени», разбор CBS.log,
+/// справочник кодов ошибок Windows, анализатор вылетов программ, PE-доктор 0xC000007B и каталог подписанных сред выполнения.
 /// </summary>
 public sealed class SystemRepairService
 {
     private readonly IVaultService _vaultService;
     private readonly IRepairPlatformBridge _platformBridge;
     private readonly BinaryPeDependencyDoctor _peDoctor;
+    private readonly InstalledProgramsDependencyScanner _installedScanner;
     private readonly MinidumpBinaryAnalyzer _minidumpAnalyzer;
+    private readonly RepairDiagnosticEngine _diagnosticEngine;
 
     public SystemRepairService(
         IVaultService vaultService,
         IRepairPlatformBridge? platformBridge = null,
         BinaryPeDependencyDoctor? peDoctor = null,
-        MinidumpBinaryAnalyzer? minidumpAnalyzer = null)
+        MinidumpBinaryAnalyzer? minidumpAnalyzer = null,
+        IReadOnlyList<RepairRuleDefinition>? customDiagnosticCatalog = null)
     {
         _vaultService = vaultService ?? throw new ArgumentNullException(nameof(vaultService));
         _platformBridge = platformBridge ?? new DefaultRepairPlatformBridge();
         _peDoctor = peDoctor ?? new BinaryPeDependencyDoctor();
+        _installedScanner = new InstalledProgramsDependencyScanner(_peDoctor);
         _minidumpAnalyzer = minidumpAnalyzer ?? new MinidumpBinaryAnalyzer();
+        _diagnosticEngine = new RepairDiagnosticEngine(_vaultService, _platformBridge, customDiagnosticCatalog);
     }
+
+    public RepairDiagnosticEngine DiagnosticEngine => _diagnosticEngine;
+
+    public IReadOnlyList<RepairRuleDefinition> GetDiagnosticRules() => _diagnosticEngine.Catalog;
+
+    public Task<IReadOnlyList<RepairCheckFinding>> ScanSystemHealthAsync(
+        RepairSectionId? sectionFilter = null,
+        CancellationToken ct = default) =>
+        _diagnosticEngine.ScanAllAsync(sectionFilter, ct);
+
+    public Task<RepairBatchFixResult> FixIssuesAsync(
+        IReadOnlyList<string> ruleIds,
+        bool allowRiskyConfirmed = false,
+        CancellationToken ct = default) =>
+        _diagnosticEngine.FixAndVerifyAsync(ruleIds, allowRiskyConfirmed, ct);
+
+    public CbsLogSummary AnalyzeCbsLog() =>
+        CbsLogAnalyzer.AnalyzeFile(_platformBridge.GetCbsLogPath());
+
+    public IReadOnlyList<ErrorCodeEntry> SearchErrorCodes(
+        string? query,
+        ErrorCodeFamily? familyFilter = null,
+        int maxResults = 150) =>
+        ErrorCodeCatalog.Search(query, familyFilter, maxResults);
 
     public IReadOnlyList<RepairPlaybookDescriptor> GetAvailablePlaybooks() =>
         SystemRepairPlaybookCatalog.GetAllPlaybooks();
 
     public IReadOnlyList<OfficialRuntimePackage> GetOfficialRuntimeCatalog() =>
         OfficialRuntimeCatalog.GetAllPackages();
+
+    public Task<IReadOnlyList<OfficialRuntimeStatusReport>> GetOfficialRuntimeStatusesAsync(CancellationToken ct = default) =>
+        _platformBridge.DetectInstalledRuntimesAsync(OfficialRuntimeCatalog.GetAllPackages(), ct);
+
+    public InPlaceReinstallReadiness GetInPlaceReinstallReadiness() =>
+        _platformBridge.GetInPlaceReinstallReadiness();
+
+    public bool OpenWindowsRecoveryReinstall() =>
+        _platformBridge.OpenRecoverySettingsOrUrl("ms-settings:recovery");
 
     /// <summary>
     /// Диагностирует указанный .exe файл на конфликт разрядности 0xC000007B и отсутствие системных библиотек.
@@ -83,6 +195,19 @@ public sealed class SystemRepairService
             executablePath,
             _platformBridge.GetSystem64Directory(),
             _platformBridge.GetSysWow64Directory());
+    }
+
+    /// <summary>
+    /// Массово сканирует установленные программы на ошибки 0xC000007B и отсутствие официальных пакетов VC++/DirectX/.NET/WebView2.
+    /// </summary>
+    public async Task<InstalledProgramsScanSummary> ScanInstalledProgramsDependenciesAsync(CancellationToken ct = default)
+    {
+        var programs = await _platformBridge.EnumerateInstalledProgramsAsync(ct).ConfigureAwait(false);
+        return _installedScanner.ScanPrograms(
+            programs,
+            _platformBridge.GetSystem64Directory(),
+            _platformBridge.GetSysWow64Directory(),
+            ct);
     }
 
     /// <summary>
@@ -102,7 +227,6 @@ public sealed class SystemRepairService
             return new RepairOperationResult(false, "Указанный DLL-файл уже отсутствует на диске.", fullPath);
         }
 
-        // Жесткий инвариант безопасности: никогда не удаляем и не перемещаем файлы внутри каталога Windows!
         if (IsInsideProtectedWindowsDirectory(fullPath))
         {
             return new RepairOperationResult(
@@ -129,8 +253,8 @@ public sealed class SystemRepairService
     }
 
     /// <summary>
-    /// Устанавливает официальный подписанный пакет среды выполнения Microsoft / OpenAL через winget
-    /// с записью события в журнал Машины времени.
+    /// Устанавливает официальный подписанный пакет среды выполнения (прямая HTTPS-загрузка + проверка подписи WinVerifyTrust,
+    /// либо включение компонента Windows NetFx3 через DISM, с автоматическим резервом через winget).
     /// </summary>
     public async Task<RepairOperationResult> InstallOfficialRuntimeAsync(
         OfficialRuntimePackage package,
@@ -138,50 +262,42 @@ public sealed class SystemRepairService
     {
         ArgumentNullException.ThrowIfNull(package);
 
-        var (ok, log) = await _platformBridge.InstallOfficialRuntimeViaWingetAsync(package, ct).ConfigureAwait(false);
+        var (ok, log) = await _platformBridge.InstallOfficialRuntimeDirectOrWingetAsync(package, ct).ConfigureAwait(false);
         if (!ok)
         {
             return new RepairOperationResult(
                 Succeeded: false,
-                UserFriendlySummary: $"Не удалось автоматически установить пакет «{package.FriendlyName}». Проверьте подключение к интернету или наличие winget.",
+                UserFriendlySummary: $"Не удалось автоматически установить пакет «{package.FriendlyName}». Проверьте права администратора и подключение к интернету.",
                 TechnicalLogOutput: log);
         }
 
         await using var tx = _vaultService.BeginTransaction(
             SystemDomain.DllAndRepair,
             friendlyTitle: $"Установка официального пакета: {package.FriendlyName}",
-            friendlySummary: $"Установлен подписанный пакет «{package.PublisherName}» ({package.WingetPackageId}).",
-            technicalDetails: log);
+            friendlySummary: $"Установлен подписанный пакет «{package.PublisherName}» ({package.PackageKey}).",
+            technicalDetails: log.Length > 1500 ? log[..1500] : log);
 
         tx.RecordStateDelta(
             StateTargetKind.SystemSetting,
-            $"OfficialRuntime:{package.WingetPackageId}",
-            previousStateJson: JsonSerializer.Serialize(new { Package = package.WingetPackageId, Action = "Install" }),
-            newStateJson: JsonSerializer.Serialize(new { Installed = true }));
+            $"OfficialRuntime:{package.PackageKey}",
+            previousStateJson: JsonSerializer.Serialize(new { Package = package.PackageKey, Action = "Install" }),
+            newStateJson: JsonSerializer.Serialize(new { Installed = true, package.WingetPackageId, package.DirectDownloadUrl }));
 
         var committed = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
 
         return new RepairOperationResult(
             Succeeded: true,
-            UserFriendlySummary: $"✅ Официальный пакет «{package.FriendlyName}» успешно установлен!",
+            UserFriendlySummary: $"Официальный пакет «{package.FriendlyName}» проверен по цифровой подписи и успешно установлен.",
             TechnicalLogOutput: log,
             RollbackSessionId: committed.SessionId);
     }
 
-    /// <summary>
-    /// Разбирает один файл дампа, выбранный пользователем (например, принесённый с другого компьютера).
-    /// Возвращает null, если файл не является дампом ядра или дампом программы.
-    /// </summary>
     public Task<BsodMinidumpReport?> AnalyzeDumpFileAsync(string dumpFilePath, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dumpFilePath);
         return Task.Run(() => MinidumpBinaryAnalyzer.AnalyzeDumpFile(dumpFilePath), ct);
     }
 
-    /// <summary>
-    /// Разбирает дампы синих экранов и последние критические сбои из журнала событий Windows
-    /// и сообщает, удалось ли прочитать папку с дампами.
-    /// </summary>
     public async Task<CrashHistoryScanResult> ScanCrashHistoryDetailedAsync(
         int maxItems = 15,
         CancellationToken ct = default)
@@ -194,9 +310,6 @@ public sealed class SystemRepairService
         return new CrashHistoryScanResult(scan.Reports, events, scan.FolderStatus, scan.UnreadableFileCount);
     }
 
-    /// <summary>
-    /// Сканирует минидампы синих экранов (BSOD) и последние критические сбои из Журнала событий Windows.
-    /// </summary>
     public async Task<(IReadOnlyList<BsodMinidumpReport> Minidumps, IReadOnlyList<SystemCrashEventEntry> CrashEvents)> ScanBsodAndCrashHistoryAsync(
         int maxItems = 15,
         CancellationToken ct = default)
@@ -205,9 +318,6 @@ public sealed class SystemRepairService
         return (result.Minidumps, result.CrashEvents);
     }
 
-    /// <summary>
-    /// Выполняет выбранный одно-кликовый рецепт восстановления Windows с проверкой прав и записью в журнал Машины времени.
-    /// </summary>
     public async Task<RepairOperationResult> ExecutePlaybookAsync(
         RepairPlaybookId playbookId,
         CancellationToken ct = default)
@@ -250,15 +360,12 @@ public sealed class SystemRepairService
         return new RepairOperationResult(
             Succeeded: true,
             UserFriendlySummary: verdict is null
-                ? $"✅ Рецепт «{descriptor.FriendlyTitle}» успешно выполнен!"
-                : $"✅ Рецепт «{descriptor.FriendlyTitle}» выполнен. {verdict}",
+                ? $"Рецепт «{descriptor.FriendlyTitle}» успешно выполнен."
+                : $"Рецепт «{descriptor.FriendlyTitle}» выполнен. {verdict}",
             TechnicalLogOutput: log,
             RollbackSessionId: committed.SessionId);
     }
 
-    /// <summary>
-    /// Рецепт может завершить журнал строкой «Итог: …» — её показываем пользователю как главный вывод.
-    /// </summary>
     private static string? ExtractVerdictLine(string? log)
     {
         if (string.IsNullOrWhiteSpace(log))

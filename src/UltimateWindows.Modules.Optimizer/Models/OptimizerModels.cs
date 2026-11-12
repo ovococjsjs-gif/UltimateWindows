@@ -3,15 +3,78 @@ using UltimateWindows.Core.Models;
 
 namespace UltimateWindows.Modules.Optimizer.Models;
 
+/// <summary>
+/// Раздел каталога настроек. Порядок показа и названия — в <see cref="TweakCategoryInfo"/>.
+/// </summary>
 public enum TweakCategory
 {
-    SystemAndPerformance = 0,
-    DiskAndFileSystem = 1,
-    AppTelemetry = 2,
-    QuietBackgroundAndAds = 3,
-    UiAndResponsiveness = 4,
-    GamingAndLatency = 5,
-    SecurityAndClarity = 6
+    Privacy = 0,
+    AdsAndSuggestions = 1,
+    AiFeatures = 2,
+    Explorer = 3,
+    TaskbarAndStart = 4,
+    Performance = 5,
+    Gaming = 6,
+    DiskAndStorage = 7,
+    Network = 8,
+    WindowsUpdate = 9,
+    Security = 10,
+    BackgroundServices = 11,
+    Applications = 12
+}
+
+/// <summary>
+/// Названия и порядок разделов каталога для интерфейса и командной строки.
+/// </summary>
+public static class TweakCategoryInfo
+{
+    public static IReadOnlyList<TweakCategory> DisplayOrder { get; } =
+    [
+        TweakCategory.Privacy,
+        TweakCategory.AdsAndSuggestions,
+        TweakCategory.AiFeatures,
+        TweakCategory.Explorer,
+        TweakCategory.TaskbarAndStart,
+        TweakCategory.Performance,
+        TweakCategory.Gaming,
+        TweakCategory.DiskAndStorage,
+        TweakCategory.Network,
+        TweakCategory.WindowsUpdate,
+        TweakCategory.Security,
+        TweakCategory.BackgroundServices,
+        TweakCategory.Applications
+    ];
+
+    public static string GetTitle(TweakCategory category) => category switch
+    {
+        TweakCategory.Privacy => "Конфиденциальность",
+        TweakCategory.AdsAndSuggestions => "Реклама и подсказки",
+        TweakCategory.AiFeatures => "Copilot и функции ИИ",
+        TweakCategory.Explorer => "Проводник и рабочий стол",
+        TweakCategory.TaskbarAndStart => "Панель задач и «Пуск»",
+        TweakCategory.Performance => "Система и быстродействие",
+        TweakCategory.Gaming => "Игры",
+        TweakCategory.DiskAndStorage => "Диск и файловая система",
+        TweakCategory.Network => "Сеть",
+        TweakCategory.WindowsUpdate => "Обновления Windows",
+        TweakCategory.Security => "Защита",
+        TweakCategory.BackgroundServices => "Службы и фоновые задачи",
+        TweakCategory.Applications => "Программы",
+        _ => "Прочее"
+    };
+
+    public static int GetOrder(TweakCategory category)
+    {
+        for (var i = 0; i < DisplayOrder.Count; i++)
+        {
+            if (DisplayOrder[i] == category)
+            {
+                return i;
+            }
+        }
+
+        return DisplayOrder.Count;
+    }
 }
 
 public enum RegistryTweakValueKind
@@ -44,7 +107,7 @@ public enum TweakApplicabilityStatus
     /// <summary>Твик сработает, но на этом компьютере скорее навредит. Нужно явное согласие пользователя.</summary>
     NotRecommended = 1,
 
-    /// <summary>Твик не имеет смысла на этой версии Windows. Включить его нельзя.</summary>
+    /// <summary>Твик не имеет смысла на этом компьютере: не та версия Windows или нет нужной программы. Включить его нельзя.</summary>
     NotApplicable = 2
 }
 
@@ -56,6 +119,17 @@ public enum TweakConfirmationKind
     None = 0,
     NotRecommendedForThisPc = 1,
     DangerousTweak = 2
+}
+
+/// <summary>
+/// Что нужно сделать, чтобы изменение вступило в силу.
+/// </summary>
+public enum TweakRestartKind
+{
+    None = 0,
+    ExplorerRestart = 1,
+    SignOut = 2,
+    Reboot = 3
 }
 
 /// <summary>
@@ -90,11 +164,19 @@ public sealed record TweakApplicability(
 /// <param name="MaxWindowsBuild">Наибольшая сборка Windows, на которой параметр ещё действует.</param>
 /// <param name="BestOnSolidStateSystemDrive">Твик рассчитан на системный диск SSD; на жёстком диске он вредит.</param>
 /// <param name="BatteryWarning">Если задано, на устройствах с батареей твик не рекомендуется; текст объясняет почему.</param>
+/// <param name="InstalledAnyRegistryKey">
+/// Твик относится к программе, которая может быть не установлена. Перечисляются разделы реестра вида
+/// <c>HKLM\SOFTWARE\...</c>; если нет ни одного, твик считается неприменимым. Наличие проверяет сервис,
+/// а не <see cref="Evaluate"/>, потому что для этого нужен доступ к реестру.
+/// </param>
+/// <param name="InstalledNote">Пояснение, какой программы нет (например «Google Chrome не установлен.»).</param>
 public sealed record TweakRequirements(
     int? MinWindowsBuild = null,
     int? MaxWindowsBuild = null,
     bool BestOnSolidStateSystemDrive = false,
-    string? BatteryWarning = null)
+    string? BatteryWarning = null,
+    IReadOnlyList<string>? InstalledAnyRegistryKey = null,
+    string? InstalledNote = null)
 {
     public static TweakRequirements None { get; } = new();
 
@@ -136,6 +218,7 @@ public sealed record TweakRequirements(
 
     public static string DescribeWindowsBuild(int build) => build switch
     {
+        >= 26200 => $"Windows 11 25H2 (сборка {build})",
         >= 26100 => $"Windows 11 24H2 (сборка {build})",
         >= 22631 => $"Windows 11 23H2 (сборка {build})",
         >= 22621 => $"Windows 11 22H2 (сборка {build})",
@@ -158,26 +241,18 @@ public sealed record TweakApplyOptions(
     public static TweakApplyOptions AcceptAll { get; } = new(AcceptNotRecommended: true, AcceptDangerous: true);
 }
 
-public sealed record TweakRegistryMutation(
-    string Hive,
-    string SubKeyPath,
-    string ValueName,
-    RegistryTweakValueKind ValueKind,
-    string DesiredSerializedValue,
-    string DefaultRestoreSerializedValue,
-    bool ExistedByDefault = false);
-
+/// <summary>
+/// Твик каталога: понятное описание и список действий (значения реестра, службы, задания планировщика).
+/// </summary>
 public sealed record DeclarativeTweakRule(
     string TweakId,
     TweakCategory Category,
-    string IconGlyph,
     string FriendlyTitle,
     string FriendlyExplanation,
-    string ImpactBadge,
     RiskLevel Risk,
-    bool RequiresAdministrator,
-    IReadOnlyList<TweakRegistryMutation> Mutations,
-    TweakRequirements? Requirements = null)
+    IReadOnlyList<TweakAction> Actions,
+    TweakRequirements? Requirements = null,
+    TweakRestartKind Restart = TweakRestartKind.None)
 {
     /// <summary>Условия применимости; если не заданы, твик подходит любой системе.</summary>
     public TweakRequirements EffectiveRequirements => Requirements ?? TweakRequirements.None;
@@ -188,27 +263,74 @@ public sealed record DeclarativeTweakRule(
     /// </summary>
     public bool IsDangerous => Risk >= RiskLevel.High;
 
-    public string ExpertMutationsPreview => string.Join(
-        "  •  ",
-        Mutations.Select(m => $@"{m.Hive}\{m.SubKeyPath} :: {(string.IsNullOrEmpty(m.ValueName) ? "(Default)" : m.ValueName)} = {m.DesiredSerializedValue}"));
+    /// <summary>Нужны ли права администратора: да, если их требует хотя бы одно действие.</summary>
+    public bool RequiresAdministrator => Actions.Any(a => a.RequiresAdministrator);
 
-    public string CategoryDisplayName => Category switch
+    /// <summary>Только действия с реестром — в порядке, заданном в каталоге.</summary>
+    public IReadOnlyList<TweakRegistryMutation> Mutations => Actions.OfType<TweakRegistryMutation>().ToArray();
+
+    public string ExpertMutationsPreview => string.Join("  •  ", Actions.Select(a => a.DescribeForExpert()));
+
+    public string CategoryDisplayName => TweakCategoryInfo.GetTitle(Category);
+
+    public string RiskDisplayName => TweakRiskInfo.GetTitle(Risk);
+
+    public string RestartDisplayName => TweakRiskInfo.GetRestartTitle(Restart);
+}
+
+/// <summary>
+/// Подписи уровней риска и видов перезапуска.
+/// </summary>
+public static class TweakRiskInfo
+{
+    public static string GetTitle(RiskLevel risk) => risk switch
     {
-        TweakCategory.SystemAndPerformance => "Система",
-        TweakCategory.DiskAndFileSystem => "Дисковый привод и SSD",
-        TweakCategory.AppTelemetry => "Телеметрия приложений",
-        TweakCategory.QuietBackgroundAndAds => "Конфиденциальность и реклама",
-        TweakCategory.UiAndResponsiveness => "Интерфейс Windows 10 / 11",
-        TweakCategory.GamingAndLatency => "Игры, мышь и сеть",
-        TweakCategory.SecurityAndClarity => "Безопасность и сеть",
-        _ => "Система"
+        RiskLevel.Safe => "Безопасно",
+        RiskLevel.Low => "Есть побочный эффект",
+        RiskLevel.Moderate or RiskLevel.Attention or RiskLevel.Advanced => "С оговорками",
+        _ => "Опасно"
     };
+
+    public static string GetRestartTitle(TweakRestartKind restart) => restart switch
+    {
+        TweakRestartKind.ExplorerRestart => "после перезапуска Проводника",
+        TweakRestartKind.SignOut => "после повторного входа в Windows",
+        TweakRestartKind.Reboot => "после перезагрузки",
+        _ => ""
+    };
+
+    public static TweakRestartKind Strongest(TweakRestartKind a, TweakRestartKind b) => a >= b ? a : b;
+}
+
+/// <summary>
+/// В каком состоянии твик на этом компьютере.
+/// </summary>
+public enum TweakStateKind
+{
+    /// <summary>Ни одно действие не применено.</summary>
+    NotApplied = 0,
+
+    /// <summary>Все действия, цели которых есть в системе, применены.</summary>
+    Applied = 1,
+
+    /// <summary>Применена только часть действий.</summary>
+    Partial = 2,
+
+    /// <summary>В системе нет ни одной цели твика (например, нет таких служб и заданий).</summary>
+    Unavailable = 3
 }
 
 public sealed record EvaluatedTweakState(
     DeclarativeTweakRule Rule,
-    bool IsCurrentlyApplied,
-    TweakApplicability Applicability);
+    TweakStateKind State,
+    TweakApplicability Applicability,
+    int AppliedActionCount = 0,
+    int PresentActionCount = 0)
+{
+    public bool IsCurrentlyApplied => State == TweakStateKind.Applied;
+
+    public bool IsPartiallyApplied => State == TweakStateKind.Partial;
+}
 
 public sealed record StartupEntryInfo(
     string EntryId,
@@ -313,24 +435,24 @@ public sealed record UwpPackageInfo(
 
     public string FriendlyDisplayName => Name switch
     {
-        "Microsoft.BingWeather" => "Погода MSN (Microsoft.BingWeather)",
-        "Microsoft.BingNews" => "Новости Microsoft (Microsoft.BingNews)",
-        "Microsoft.GetHelp" => "Техподдержка Get Help (Microsoft.GetHelp)",
-        "Microsoft.Getstarted" => "Советы Windows (Microsoft.Getstarted)",
+        "Microsoft.BingWeather" => "Погода MSN",
+        "Microsoft.BingNews" => "Новости Microsoft",
+        "Microsoft.GetHelp" => "Техподдержка Get Help",
+        "Microsoft.Getstarted" => "Советы Windows",
         "Microsoft.WindowsFeedbackHub" => "Центр отзывов (Feedback Hub)",
-        "Microsoft.WindowsMaps" => "Карты Windows (Microsoft.WindowsMaps)",
-        "Microsoft.ZuneVideo" => "Кино и ТВ (Microsoft.ZuneVideo)",
-        "Microsoft.ZuneMusic" => "Медиаплеер Groove / Музыка (Microsoft.ZuneMusic)",
+        "Microsoft.WindowsMaps" => "Карты Windows",
+        "Microsoft.ZuneVideo" => "Кино и ТВ",
+        "Microsoft.ZuneMusic" => "Медиаплеер Groove / Музыка",
         "Microsoft.YourPhone" => "Связь с телефоном (Phone Link)",
-        "Microsoft.People" => "Контакты Люди (Microsoft.People)",
+        "Microsoft.People" => "Контакты Люди",
         "Microsoft.MicrosoftSolitaireCollection" => "Пасьянсы Microsoft Solitaire",
         "Microsoft.MicrosoftOfficeHub" => "Промо-хаб Microsoft 365 (Office Hub)",
         "Microsoft.Todos" => "Microsoft To Do",
         "Microsoft.PowerAutomateDesktop" => "Power Automate",
         "Clipchamp.Clipchamp" => "Видеоредактор Clipchamp",
-        "Microsoft.Windows.DevHome" => "Dev Home (Microsoft.Windows.DevHome)",
-        "Microsoft.WindowsAlarms" => "Будильники и часы (Microsoft.WindowsAlarms)",
-        "Microsoft.WindowsCamera" => "Камера Windows (Microsoft.WindowsCamera)",
+        "Microsoft.Windows.DevHome" => "Dev Home",
+        "Microsoft.WindowsAlarms" => "Будильники и часы",
+        "Microsoft.WindowsCamera" => "Камера Windows",
         "Microsoft.WindowsSoundRecorder" => "Запись голоса (Sound Recorder)",
         "Microsoft.WindowsCommunicationsApps" => "Почта и Календарь (Mail & Calendar)",
         "Microsoft.XboxGamingOverlay" => "Оверлей Xbox Game Bar",
@@ -344,4 +466,5 @@ public sealed record OptimizerOperationResult(
     string UserFriendlyMessage,
     string TechnicalDetails = "",
     Guid? RollbackSessionId = null,
-    TweakConfirmationKind ConfirmationRequired = TweakConfirmationKind.None);
+    TweakConfirmationKind ConfirmationRequired = TweakConfirmationKind.None,
+    TweakRestartKind RestartRequired = TweakRestartKind.None);

@@ -7,53 +7,95 @@
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <!-- Верхние вкладки раздела Железо и Драйверы -->
+    <!-- Верхние 7 вкладок раздела Железо 2.0 и Драйверы 2.0 (помещаются в одну строку на 1024×768 и 1360×840) -->
     <Border Grid.Row="0"
             Background="{DynamicResource SurfaceSidebarBrush}"
             BorderBrush="{DynamicResource CardBorderBrush}"
             BorderThickness="0,0,0,1"
-            Padding="14,0">
-      <DockPanel>
-        <Button DockPanel.Dock="Right"
-                Style="{StaticResource CompactButtonStyle}"
-                VerticalAlignment="Center"
-                Command="{Binding HardwareStudio.RefreshHardwareCommand}"
-                Content="Обновить телеметрию" />
-
-        <StackPanel Orientation="Horizontal">
-          <RadioButton GroupName="HwSubTabs"
-                       Style="{StaticResource SubTabRadioStyle}"
-                       IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=0}"
-                       Content="Паспорт железа и S.M.A.R.T." />
-          <RadioButton GroupName="HwSubTabs"
-                       Style="{StaticResource SubTabRadioStyle}"
-                       IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=1}"
-                       Content="Официальные WHQL Драйверы" />
-          <RadioButton GroupName="HwSubTabs"
-                       Style="{StaticResource SubTabRadioStyle}"
-                       IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=2}"
-                       Content="Стресс-тест CPU и Памяти" />
-        </StackPanel>
-      </DockPanel>
+            Padding="8,0">
+      <WrapPanel Orientation="Horizontal">
+        <RadioButton GroupName="HwSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     Padding="8,7" FontSize="11.5"
+                     IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=0}"
+                     Content="Паспорт ПК" />
+        <RadioButton GroupName="HwSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     Padding="8,7" FontSize="11.5"
+                     IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=1}"
+                     Content="Датчики и Питание" />
+        <RadioButton GroupName="HwSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     Padding="8,7" FontSize="11.5"
+                     IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=2}"
+                     Content="Бенчмарк и Тест" />
+        <RadioButton GroupName="HwSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     Padding="8,7" FontSize="11.5"
+                     IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=3}"
+                     Content="Устройства" />
+        <RadioButton GroupName="HwSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     Padding="8,7" FontSize="11.5"
+                     IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=4}"
+                     Content="Каталог драйверов" />
+        <RadioButton GroupName="HwSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     Padding="8,7" FontSize="11.5"
+                     IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=5}"
+                     Content="DriverStore" />
+        <RadioButton GroupName="HwSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     Padding="8,7" FontSize="11.5"
+                     IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=6}"
+                     Content="Защита ядра" />
+      </WrapPanel>
     </Border>
 
-    <!-- ВКЛАДКА 0: ПАСПОРТ ЖЕЛЕЗА + ТАБЛИЦЫ S.M.A.R.T. И СЛОТОВ ОЗУ -->
+    <!-- ==================== ВКЛАДКА 0: ПАСПОРТ ЖЕЛЕЗА И S.M.A.R.T. ==================== -->
     <ScrollViewer Grid.Row="1"
                   VerticalScrollBarVisibility="Auto"
-                  Padding="14,12"
+                  Padding="12,10"
                   Visibility="{Binding HardwareStudio.IsSpecsTab, Converter={StaticResource BoolToVis}}">
       <StackPanel>
 
+        <DockPanel Margin="0,0,0,8">
+          <WrapPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+            <Button Style="{StaticResource CompactButtonStyle}"
+                    Padding="8,4" FontSize="11.5" Margin="0,0,5,0"
+                    Command="{Binding HardwareStudio.ExportHtmlReportCommand}"
+                    Content="Отчёт HTML" />
+            <Button Style="{StaticResource CompactButtonStyle}"
+                    Padding="8,4" FontSize="11.5" Margin="0,0,5,0"
+                    Command="{Binding HardwareStudio.ExportJsonReportCommand}"
+                    Content="JSON" />
+            <Button Style="{StaticResource CompactButtonStyle}"
+                    Padding="8,4" FontSize="11.5" Margin="0,0,6,0"
+                    Command="{Binding HardwareStudio.ExportTxtReportCommand}"
+                    Content="TXT" />
+            <Button Style="{StaticResource PrimaryButtonStyle}"
+                    Padding="10,4" FontSize="11.5"
+                    Command="{Binding HardwareStudio.RefreshHardwareCommand}"
+                    Content="Обновить телеметрию" />
+          </WrapPanel>
+          <TextBlock Text="Аппаратный паспорт ПК, S.M.A.R.T. и Советник"
+                     FontSize="13"
+                     FontWeight="SemiBold"
+                     VerticalAlignment="Center"
+                     Margin="0,0,10,0"
+                     TextTrimming="CharacterEllipsis" />
+        </DockPanel>
+
         <!-- Рекомендации Советника по узким местам (XMP, Гц монитора, перегрев) -->
-        <ItemsControl ItemsSource="{Binding HardwareStudio.Advisories}" Margin="0,0,0,10">
+        <ItemsControl ItemsSource="{Binding HardwareStudio.Advisories}" Margin="0,0,0,8">
           <ItemsControl.ItemTemplate>
             <DataTemplate>
-              <Border Style="{StaticResource CardBorderStyle}" Padding="12,10" Margin="0,0,0,6">
+              <Border Style="{StaticResource CardBorderStyle}" Padding="12,9" Margin="0,0,0,6">
                 <DockPanel>
                   <Button DockPanel.Dock="Right"
                           Visibility="{Binding CanAutoFix, Converter={StaticResource BoolToVis}}"
                           Style="{StaticResource PrimaryButtonStyle}"
-                          Padding="12,5" FontSize="11.5"
+                          Padding="10,4" FontSize="11.5"
                           Command="{Binding AutoFixCommand}"
                           Content="{Binding AutoFixLabel}"
                           VerticalAlignment="Center" Margin="10,0,0,0" />
@@ -124,7 +166,7 @@
         </UniformGrid>
 
         <!-- Таблицы S.M.A.R.T. накопителей и планок памяти -->
-        <Grid Height="210">
+        <Grid Height="205">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="1.2*" />
             <ColumnDefinition Width="10" />
@@ -134,19 +176,19 @@
           <DataGrid Grid.Column="0" ItemsSource="{Binding HardwareStudio.Drives}">
             <DataGrid.Columns>
               <DataGridTextColumn Header="Накопитель" Binding="{Binding Model}" Width="*" />
-              <DataGridTextColumn Header="Шина" Binding="{Binding BusKind}" Width="80" />
-              <DataGridTextColumn Header="Объем" Binding="{Binding FormattedCapacity}" Width="85" />
+              <DataGridTextColumn Header="Шина" Binding="{Binding BusKind}" Width="75" />
+              <DataGridTextColumn Header="Объём" Binding="{Binding FormattedCapacity}" Width="82" />
               <DataGridTextColumn Header="Темп °C" Binding="{Binding TemperatureC}" Width="68" />
               <DataGridTextColumn Header="Ресурс %" Binding="{Binding RemainingLifePercent}" Width="75" />
-              <DataGridTextColumn Header="Запись ТБ" Binding="{Binding TotalBytesWrittenTb, StringFormat={}{0:F1}}" Width="80" />
+              <DataGridTextColumn Header="Запись ТБ" Binding="{Binding TotalBytesWrittenTb, StringFormat={}{0:F1}}" Width="82" />
             </DataGrid.Columns>
           </DataGrid>
 
           <DataGrid Grid.Column="2" ItemsSource="{Binding HardwareStudio.RamSticks}">
             <DataGrid.Columns>
               <DataGridTextColumn Header="Слот" Binding="{Binding DeviceLocator}" Width="75" />
-              <DataGridTextColumn Header="Объем" Binding="{Binding FormattedCapacity}" Width="80" />
-              <DataGridTextColumn Header="Частота МТ/с" Binding="{Binding ConfiguredSpeedMtPerSec}" Width="95" />
+              <DataGridTextColumn Header="Объём" Binding="{Binding FormattedCapacity}" Width="80" />
+              <DataGridTextColumn Header="Частота МТ/с" Binding="{Binding ConfiguredSpeedMtPerSec}" Width="98" />
               <DataGridTextColumn Header="Модуль" Binding="{Binding PartNumber}" Width="*" />
             </DataGrid.Columns>
           </DataGrid>
@@ -155,53 +197,110 @@
       </StackPanel>
     </ScrollViewer>
 
-    <!-- ВКЛАДКА 1: ОФИЦИАЛЬНЫЕ WHQL-ДРАЙВЕРЫ (CFGMGR32 + WINDOWS UPDATE) -->
+    <!-- ==================== ВКЛАДКА 1: ВСЕ УСТРОЙСТВА CFGMGR32 И WHQL-ОБНОВЛЕНИЯ ==================== -->
     <Grid Grid.Row="1"
-          Margin="14,12"
+          Margin="12,10"
           Visibility="{Binding HardwareStudio.IsDriversTab, Converter={StaticResource BoolToVis}}">
       <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
 
-      <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="14,10" Margin="0,0,0,10">
-        <DockPanel>
-          <Button DockPanel.Dock="Right"
-                  Style="{StaticResource PrimaryButtonStyle}"
-                  Command="{Binding DriverStudio.AuditDriversCommand}"
-                  Content="Проверить драйверы"
-                  VerticalAlignment="Center" Margin="14,0,0,0" />
-          <StackPanel>
-            <TextBlock Text="{Binding DriverStudio.DriverSummaryHeadline}" FontSize="12.5" TextWrapping="Wrap" />
-            <DockPanel Margin="0,6,0,0">
+      <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="12,9" Margin="0,0,0,8">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+
+          <Border Grid.Column="0"
+                  Background="{DynamicResource SurfaceElevatedBrush}"
+                  BorderBrush="{DynamicResource SafeEmeraldBrush}"
+                  BorderThickness="1"
+                  CornerRadius="6"
+                  Padding="10,6"
+                  VerticalAlignment="Center"
+                  Margin="0,0,12,0">
+            <TextBlock Text="{Binding DriverStudio.DriverScoreBadge}"
+                       FontSize="12.5"
+                       FontWeight="Bold"
+                       Foreground="{DynamicResource SafeEmeraldBrush}" />
+          </Border>
+
+          <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0">
+            <TextBlock Text="{Binding DriverStudio.DriverSummaryHeadline}" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <DockPanel Margin="0,4,0,0">
               <CheckBox Style="{StaticResource PillToggleSwitchStyle}"
                         IsChecked="{Binding DriverStudio.QueryWindowsUpdateOnline}"
-                        Margin="0,0,10,0" />
-              <TextBlock Text="Запрашивать подписанные WHQL-обновления из официального каталога Microsoft Windows Update"
-                         FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                        Margin="0,0,8,0" />
+              <TextBlock Text="Проверять наличие свежих подписанных WHQL-обновлений через службу Windows Update"
+                         FontSize="11"
+                         Foreground="{DynamicResource TextSecondaryBrush}"
+                         VerticalAlignment="Center"
+                         TextWrapping="Wrap" />
             </DockPanel>
           </StackPanel>
-        </DockPanel>
+
+          <Button Grid.Column="2"
+                  Style="{StaticResource PrimaryButtonStyle}"
+                  Padding="12,6"
+                  Command="{Binding DriverStudio.AuditDriversCommand}"
+                  Content="Проверить драйверы"
+                  VerticalAlignment="Center" />
+        </Grid>
       </Border>
 
-      <DataGrid Grid.Row="1" ItemsSource="{Binding DriverStudio.DriverFindings}">
+      <Grid Grid.Row="1" Margin="0,0,0,6">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Grid.Column="0"
+                   Text="{Binding DriverStudio.DriverKpiStrip}"
+                   FontSize="11.5"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis"
+                   Margin="2,0,10,0" />
+
+        <TextBox Grid.Column="1"
+                 Width="200"
+                 Text="{Binding DriverStudio.DeviceSearchText, UpdateSourceTrigger=PropertyChanged}"
+                 ToolTip="Поиск по имени устройства, классу, поставщику, oemXX.inf или Hardware ID"
+                 Margin="0,0,10,0" />
+
+        <CheckBox Grid.Column="2"
+                  IsChecked="{Binding DriverStudio.OnlyActionableOrOemDevices}"
+                  Content="Только ошибки и сторонние INF"
+                  VerticalAlignment="Center" />
+      </Grid>
+
+      <DataGrid Grid.Row="2" ItemsSource="{Binding DriverStudio.FilteredDevices}">
         <DataGrid.Columns>
-          <DataGridTextColumn Header="Устройство" Binding="{Binding SimpleTitle}" Width="240" />
-          <DataGridTextColumn Header="Статус и рекомендация" Binding="{Binding SimpleExplanation}" Width="*" />
-          <DataGridTextColumn Header="Hardware ID" Binding="{Binding ExpertTechnicalDetails}" Width="220" />
-          <DataGridTemplateColumn Header="Действия" Width="210">
+          <DataGridTextColumn Header="Устройство" Binding="{Binding FriendlyName}" Width="1.45*" />
+          <DataGridTextColumn Header="Класс" Binding="{Binding DeviceClass}" Width="82" />
+          <DataGridTextColumn Header="Поставщик" Binding="{Binding ProviderText}" Width="125" />
+          <DataGridTextColumn Header="Версия и дата" Binding="{Binding VersionAndDate}" Width="155" />
+          <DataGridTextColumn Header="Пакет / Подпись" Binding="{Binding InfAndStatus}" Width="132" />
+          <DataGridTextColumn Header="ID чипа" Binding="{Binding PrimaryHardwareId}" Width="0.95*" />
+          <DataGridTemplateColumn Header="Действия" Width="158">
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate>
                 <StackPanel Orientation="Horizontal">
-                  <Button Style="{StaticResource PrimaryButtonStyle}" Padding="7,2" FontSize="11"
+                  <Button Style="{StaticResource PrimaryButtonStyle}" Padding="6,2" FontSize="11"
                           Visibility="{Binding CanInstallViaWindowsUpdate, Converter={StaticResource BoolToVis}}"
                           Command="{Binding InstallWhqlCommand}" Content="WHQL" Margin="0,0,4,0" />
-                  <Button Style="{StaticResource CompactButtonStyle}" Padding="7,2" FontSize="11"
+                  <Button Style="{StaticResource CompactButtonStyle}" Padding="6,2" FontSize="11"
+                          Command="{Binding LookupCatalogCommand}"
+                          ToolTip="Найти и скачать .cab в Каталоге Microsoft по Hardware ID этого устройства"
+                          Content="В Каталог" Margin="0,0,4,0" />
+                  <Button Style="{StaticResource CompactButtonStyle}" Padding="6,2" FontSize="11"
                           Visibility="{Binding CanBackupOemInf, Converter={StaticResource BoolToVis}}"
-                          Command="{Binding BackupInfCommand}" Content="Бэкап INF" Margin="0,0,4,0" />
-                  <Button Style="{StaticResource CompactButtonStyle}" Padding="7,2" FontSize="11"
-                          Visibility="{Binding HasOfficialVendorUrl, Converter={StaticResource BoolToVis}}"
-                          Command="{Binding OpenVendorPortalCommand}" Content="Сайт" />
+                          Command="{Binding BackupInfCommand}" Content="Бэкап" />
                 </StackPanel>
               </DataTemplate>
             </DataGridTemplateColumn.CellTemplate>
@@ -210,41 +309,598 @@
       </DataGrid>
     </Grid>
 
-    <!-- ВКЛАДКА 2: ТЕПЛОБЕЗОПАСНЫЙ СТРЕСС-ТЕСТ CPU И ПАМЯТИ -->
+    <!-- ==================== ВКЛАДКА 2: КАТАЛОГ ДРАЙВЕРОВ С СЕРВЕРОВ НА ВСЕ СЛУЧАИ ЖИЗНИ + ЖИВОЙ ПОИСК MS CATALOG ==================== -->
     <Grid Grid.Row="1"
-          Margin="14,12"
-          Visibility="{Binding HardwareStudio.IsStressTab, Converter={StaticResource BoolToVis}}">
-      <Border Style="{StaticResource CardBorderStyle}" VerticalAlignment="Top">
+          Margin="12,10"
+          Visibility="{Binding HardwareStudio.IsCatalogTab, Converter={StaticResource BoolToVis}}">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="1.35*" />
+        <RowDefinition Height="8" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="0.85*" />
+      </Grid.RowDefinitions>
+
+      <!-- Панель фильтрации и папки загрузки для 36 проверенных драйверов -->
+      <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="10,8" Margin="0,0,0,6">
         <StackPanel>
-          <TextBlock Text="Нагрузочный тест процессора (с тепловой защитой по доступным датчикам)"
-                     FontSize="15" FontWeight="SemiBold" Margin="0,0,0,6" />
-          <TextBlock Text="Нагружает все логические потоки вычислениями и прерывает тест, когда температура доходит до порога. Сейчас читается только температура видеокарт NVIDIA; температура процессора недоступна, поэтому за ней следите сами. Ошибки вычислений тест не проверяет."
-                     FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,16" />
+          <Grid Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="230" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
 
-          <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-            <TextBlock Text="Длительность (сек):" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <TextBox Width="70" Text="{Binding HardwareStudio.StressDurationSeconds, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,18,0" />
-            <TextBlock Text="Аварийная отсечка °C:" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <TextBox Width="70" Text="{Binding HardwareStudio.ThermalCutoffCelsius, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,18,0" />
-            <Button Style="{StaticResource PrimaryButtonStyle}"
-                    IsEnabled="{Binding HardwareStudio.CanStartStress}"
-                    Command="{Binding HardwareStudio.StartStressTestCommand}"
-                    Content="Запустить тест" Margin="0,0,8,0" />
-            <Button Style="{StaticResource DangerButtonStyle}"
-                    Command="{Binding HardwareStudio.StopStressTestCommand}"
-                    Content="Остановить" />
-          </StackPanel>
+            <ComboBox Grid.Column="0"
+                      ItemsSource="{Binding DriverStudio.EssentialCategoryOptions}"
+                      SelectedItem="{Binding DriverStudio.SelectedEssentialCategory}"
+                      DisplayMemberPath="Title"
+                      Margin="0,0,8,0" />
 
-          <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" Padding="14,12">
-            <DockPanel>
-              <TextBlock DockPanel.Dock="Right"
-                         Text="{Binding HardwareStudio.StressThroughputText}"
-                         FontSize="16" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
-              <TextBlock Text="{Binding HardwareStudio.StressStatusText}" FontSize="13" VerticalAlignment="Center" />
-            </DockPanel>
-          </Border>
+            <TextBox Grid.Column="1"
+                     Text="{Binding DriverStudio.EssentialSearchText, UpdateSourceTrigger=PropertyChanged}"
+                     ToolTip="Поиск по чипу (RTL8125, I226, AX210, MT7921, VMD, CP210x, CH340, VirtIO, PawnIO...)"
+                     Margin="0,0,10,0" />
+
+            <CheckBox Grid.Column="2"
+                      IsChecked="{Binding DriverStudio.OnlyMatchingCurrentPc}"
+                      Content="Только под железо этого ПК"
+                      VerticalAlignment="Center" />
+          </Grid>
+
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0"
+                       Text="Папка сохранения:"
+                       FontSize="11.5"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       VerticalAlignment="Center"
+                       Margin="0,0,8,0" />
+            <TextBox Grid.Column="1"
+                     Text="{Binding DriverStudio.DownloadTargetFolder, UpdateSourceTrigger=PropertyChanged}"
+                     Margin="0,0,6,0" />
+            <Button Grid.Column="2"
+                    Style="{StaticResource CompactButtonStyle}"
+                    Command="{Binding DriverStudio.BrowseDownloadFolderCommand}"
+                    Content="Обзор..." />
+          </Grid>
+
+          <TextBlock Text="{Binding DriverStudio.CatalogStatusText}"
+                     FontSize="11"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     TextTrimming="CharacterEllipsis"
+                     Margin="0,5,0,0" />
         </StackPanel>
       </Border>
+
+      <!-- Таблица 39 основных драйверов на все случаи жизни -->
+      <DataGrid Grid.Row="1" ItemsSource="{Binding DriverStudio.FilteredEssentialPackages}">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Раздел" Binding="{Binding ShortCategoryLabel}" Width="98" />
+          <DataGridTextColumn Header="Драйвер / Семейство чипов" Binding="{Binding Title}" Width="1.35*" />
+          <DataGridTextColumn Header="Для ПК" Binding="{Binding PcRelevanceBadge}" Width="128" />
+          <DataGridTextColumn Header="Сервер и размер" Binding="{Binding DeliveryBadge}" Width="152" />
+          <DataGridTextColumn Header="Сценарий" Binding="{Binding ScenarioSummary}" Width="1.15*" />
+          <DataGridTemplateColumn Header="Действия" Width="198">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal">
+                  <Button Style="{StaticResource CompactButtonStyle}" Padding="6,2" FontSize="11"
+                          Command="{Binding DownloadToFolderCommand}"
+                          ToolTip="Скачать и распаковать в папку (для флешки или другого ПК)"
+                          Content="Скачать" Margin="0,0,4,0" />
+                  <Button Style="{StaticResource PrimaryButtonStyle}" Padding="6,2" FontSize="11"
+                          Command="{Binding DownloadAndInstallCommand}"
+                          ToolTip="Скачать с официального сервера, проверить подпись и сразу установить на этот ПК"
+                          Content="Установить" Margin="0,0,4,0" />
+                  <Button Style="{StaticResource CompactButtonStyle}" Padding="5,2" FontSize="11"
+                          Command="{Binding OpenPortalCommand}"
+                          ToolTip="Открыть официальную страницу производителя"
+                          Content="Сайт" />
+                </StackPanel>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+        </DataGrid.Columns>
+      </DataGrid>
+
+      <!-- Нижний блок: прямой живой поиск по любому Hardware ID в Каталоге Microsoft Update -->
+      <Border Grid.Row="3" Style="{StaticResource CardBorderStyle}" Padding="10,7" Margin="0,0,0,5">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBlock Grid.Column="0"
+                     Text="Прямой поиск в Каталоге Microsoft (.cab по ID):"
+                     FontSize="12"
+                     FontWeight="SemiBold"
+                     VerticalAlignment="Center"
+                     Margin="0,0,8,0" />
+          <TextBox Grid.Column="1"
+                   Text="{Binding DriverStudio.CatalogLiveQuery, UpdateSourceTrigger=PropertyChanged}"
+                   ToolTip="Например: PCI\VEN_10EC&amp;DEV_8125, USB\VID_0BDA&amp;PID_8153, PCI\VEN_8086&amp;DEV_2725"
+                   Margin="0,0,8,0" />
+          <Button Grid.Column="2"
+                  Style="{StaticResource PrimaryButtonStyle}"
+                  Padding="10,4"
+                  Command="{Binding DriverStudio.SearchLiveCatalogCommand}"
+                  Content="Найти на сервере MS" />
+        </Grid>
+      </Border>
+
+      <DataGrid Grid.Row="4" ItemsSource="{Binding DriverStudio.LiveCatalogResults}">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Пакет в Каталоге Microsoft" Binding="{Binding Title}" Width="1.3*" />
+          <DataGridTextColumn Header="ОС Windows" Binding="{Binding Products}" Width="1*" />
+          <DataGridTextColumn Header="Версия" Binding="{Binding Version}" Width="120" />
+          <DataGridTextColumn Header="Дата" Binding="{Binding LastUpdatedText}" Width="92" />
+          <DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="82" />
+          <DataGridTemplateColumn Header="Загрузка" Width="165">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal">
+                  <Button Style="{StaticResource CompactButtonStyle}" Padding="6,2" FontSize="11"
+                          Command="{Binding DownloadCabCommand}" Content="Скачать" Margin="0,0,4,0" />
+                  <Button Style="{StaticResource PrimaryButtonStyle}" Padding="6,2" FontSize="11"
+                          Command="{Binding InstallCabCommand}" Content="Установить" />
+                </StackPanel>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+        </DataGrid.Columns>
+      </DataGrid>
     </Grid>
+
+    <!-- ==================== ВКЛАДКА 3: DRIVERSTORE (ДУБЛИ И БЭКАП) + ОФЛАЙН-СПАСЕНИЕ СЕТИ И NVME ==================== -->
+    <Grid Grid.Row="1"
+          Margin="12,10"
+          Visibility="{Binding HardwareStudio.IsStoreRescueTab, Converter={StaticResource BoolToVis}}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="1.25*" />
+        <ColumnDefinition Width="10" />
+        <ColumnDefinition Width="1*" />
+      </Grid.ColumnDefinitions>
+
+      <!-- Левая колонка: Хранилище DriverStore, бэкап всех драйверов и удаление старых дублей -->
+      <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="10,9">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+            <TextBlock Text="Хранилище драйверов Windows (DriverStore)"
+                       FontSize="13"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,4" />
+            <TextBlock Text="{Binding DriverStudio.DriverStoreHeadline}"
+                       FontSize="11.5"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,6" />
+
+            <WrapPanel>
+              <Button Style="{StaticResource CompactButtonStyle}"
+                      Command="{Binding DriverStudio.RefreshDriverStoreCommand}"
+                      Content="Обновить"
+                      Margin="0,0,6,4" />
+              <Button Style="{StaticResource DangerButtonStyle}"
+                      Visibility="{Binding DriverStudio.HasDuplicateStoreEntries, Converter={StaticResource BoolToVis}}"
+                      Command="{Binding DriverStudio.CleanOldDriverStoreCommand}"
+                      Content="Удалить старые дубли"
+                      Margin="0,0,6,4" />
+              <Button Style="{StaticResource PrimaryButtonStyle}"
+                      Padding="9,4" FontSize="11.5"
+                      Command="{Binding DriverStudio.BackupAllDriversCommand}"
+                      Content="Бэкап всех драйверов"
+                      Margin="0,0,6,4" />
+              <Button Style="{StaticResource CompactButtonStyle}"
+                      Command="{Binding DriverStudio.RestoreDriversFolderCommand}"
+                      Content="Восстановить из папки"
+                      Margin="0,0,0,4" />
+            </WrapPanel>
+          </StackPanel>
+
+          <DataGrid ItemsSource="{Binding DriverStudio.DriverStoreEntries}">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="INF" Binding="{Binding PublishedInfName}" Width="68" />
+              <DataGridTextColumn Header="Пакет" Binding="{Binding OriginalInfName}" Width="110" />
+              <DataGridTextColumn Header="Поставщик" Binding="{Binding ProviderName}" Width="98" />
+              <DataGridTextColumn Header="Версия" Binding="{Binding DriverVersion}" Width="98" />
+              <DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="72" />
+              <DataGridTextColumn Header="Статус" Binding="{Binding StateBadge}" Width="*" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+      </Border>
+
+      <!-- Правая колонка: Офлайн-набор сетевых и NVMe драйверов («после переустановки нет интернета») -->
+      <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}" Padding="10,9">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+            <TextBlock Text="Офлайн-набор: нет интернета / не виден SSD"
+                       FontSize="13"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,4" />
+            <TextBlock Text="Подготовьте папку на флешке до переустановки Windows. В набор входит скрипт автоустановки в 1 клик (Install-OfflineDrivers.cmd) и распакованные INF для установщика ОС."
+                       FontSize="11.5"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,8" />
+
+            <Grid Margin="0,0,0,8">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <TextBox Grid.Column="0"
+                       Text="{Binding DriverStudio.RescueTargetFolder, UpdateSourceTrigger=PropertyChanged}"
+                       Margin="0,0,6,0" />
+              <Button Grid.Column="1"
+                      Style="{StaticResource CompactButtonStyle}"
+                      Command="{Binding DriverStudio.BrowseRescueFolderCommand}"
+                      Content="Обзор..." />
+            </Grid>
+
+            <WrapPanel Margin="0,0,0,6">
+              <Button Style="{StaticResource CompactButtonStyle}"
+                      Command="{Binding DriverStudio.BuildLocalRescuePackCommand}"
+                      ToolTip="Мгновенно экспортирует текущие драйверы сети, Bluetooth и дисков этого ПК"
+                      Content="Экспорт сети этого ПК"
+                      Margin="0,0,6,4" />
+              <Button Style="{StaticResource PrimaryButtonStyle}"
+                      Padding="9,4" FontSize="11.5"
+                      Command="{Binding DriverStudio.BuildServerRescuePackCommand}"
+                      ToolTip="Скачивает с серверов Microsoft и Google 12 универсальных пакетов LAN, Wi-Fi 6/6E, USB-модемов и Intel VMD NVMe"
+                      Content="Скачать универсальный набор"
+                      Margin="0,0,0,4" />
+            </WrapPanel>
+
+            <TextBlock Text="{Binding DriverStudio.RescueStatusText}"
+                       FontSize="11.5"
+                       Foreground="{DynamicResource AccentBrush}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+
+          <ListBox ItemsSource="{Binding DriverStudio.RescuePackLogLines}"
+                   Background="{DynamicResource SurfaceElevatedBrush}"
+                   BorderBrush="{DynamicResource CardBorderBrush}"
+                   BorderThickness="1"
+                   FontSize="11" />
+        </DockPanel>
+      </Border>
+    </Grid>
+
+    <!-- ==================== ВКЛАДКА 4: АУДИТ УЯЗВИМЫХ И ЗАБЛОКИРОВАННЫХ ДРАЙВЕРОВ ЯДРА (BYOVD) ==================== -->
+    <Grid Grid.Row="1"
+          Margin="12,10"
+          Visibility="{Binding HardwareStudio.IsVulnerableTab, Converter={StaticResource BoolToVis}}">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+
+      <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="12,9" Margin="0,0,0,8">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+
+          <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0">
+            <TextBlock Text="Аудит уязвимых драйверов ядра (BYOVD / LOLDrivers / Блок-лист Microsoft)"
+                       FontSize="13"
+                       FontWeight="SemiBold" />
+            <TextBlock Text="{Binding DriverStudio.VulnerableHeadline}"
+                       FontSize="11.5"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,3,0,0" />
+          </StackPanel>
+
+          <WrapPanel Grid.Column="1" VerticalAlignment="Center">
+            <Button Style="{StaticResource PrimaryButtonStyle}"
+                    Padding="9,4" FontSize="11.5"
+                    Visibility="{Binding DriverStudio.CanEnableBlocklist, Converter={StaticResource BoolToVis}}"
+                    Command="{Binding DriverStudio.EnableMicrosoftBlocklistCommand}"
+                    Content="Включить блок-лист MS"
+                    Margin="0,0,6,0" />
+            <Button Style="{StaticResource CompactButtonStyle}"
+                    Command="{Binding DriverStudio.AuditVulnerableDriversCommand}"
+                    Content="Проверить драйверы ядра" />
+          </WrapPanel>
+        </Grid>
+      </Border>
+
+      <DataGrid Grid.Row="1" ItemsSource="{Binding DriverStudio.VulnerableFindings}">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Служба / Файл .sys" Binding="{Binding ServiceAndFile}" Width="165" />
+          <DataGridTextColumn Header="Уязвимое семейство" Binding="{Binding FamilyName}" Width="175" />
+          <DataGridTextColumn Header="CVE и состояние" Binding="{Binding CveAndState}" Width="160" />
+          <DataGridTextColumn Header="Угроза безопасности (BYOVD)" Binding="{Binding AbuseExplanation}" Width="1.2*" />
+          <DataGridTextColumn Header="Безопасная замена" Binding="{Binding SafeAlternative}" Width="1*" />
+          <DataGridTemplateColumn Header="Действие" Width="115">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <Button Style="{StaticResource DangerButtonStyle}" Padding="7,2" FontSize="11"
+                        Visibility="{Binding CanNeutralize, Converter={StaticResource BoolToVis}}"
+                        Command="{Binding NeutralizeCommand}"
+                        Content="Обезвредить" />
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+        </DataGrid.Columns>
+      </DataGrid>
+    </Grid>
+
+    <!-- ==================== ВКЛАДКА 1: СКВОЗНЫЕ ДАТЧИКИ, СХЕМЫ ПИТАНИЯ И ВЕНТИЛЯТОРЫ ==================== -->
+    <Grid Grid.Row="1"
+          Margin="12,10"
+          Visibility="{Binding HardwareStudio.IsSensorsPowerTab, Converter={StaticResource BoolToVis}}">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+
+      <!-- Шапка состояния датчиков (User-Mode / подписанный PawnIO) + фильтр + обновление -->
+      <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="12,9" Margin="0,0,0,8">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+
+          <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0">
+            <TextBlock Text="Сквозные датчики оборудования"
+                       FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding HardwareStudio.SensorBackendHeadline}"
+                       FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap" Margin="0,2,0,0" />
+          </StackPanel>
+
+          <TextBox Grid.Column="1"
+                   Width="185"
+                   VerticalAlignment="Center"
+                   Text="{Binding HardwareStudio.SensorSearchText, UpdateSourceTrigger=PropertyChanged}"
+                   ToolTip="Фильтр датчиков по узлу, имени или категории"
+                   Margin="0,0,8,0" />
+
+          <Button Grid.Column="2"
+                  Style="{StaticResource PrimaryButtonStyle}"
+                  Padding="10,5" FontSize="11.5"
+                  VerticalAlignment="Center"
+                  Command="{Binding HardwareStudio.RefreshSensorsCommand}"
+                  Content="Обновить датчики" />
+        </Grid>
+      </Border>
+
+      <!-- Панель управления схемами питания PowrProf и профилями охлаждения -->
+      <Grid Grid.Row="1" Margin="0,0,0,8">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="1.15*" />
+          <ColumnDefinition Width="10" />
+          <ColumnDefinition Width="1*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="12,9">
+          <StackPanel>
+            <DockPanel Margin="0,0,0,6">
+              <Button DockPanel.Dock="Right"
+                      Style="{StaticResource CompactButtonStyle}"
+                      Padding="8,3" FontSize="11"
+                      Margin="8,0,0,0"
+                      Command="{Binding HardwareStudio.UnlockUltimatePlanCommand}"
+                      Content="Разблокировать Турбо" />
+              <TextBlock Text="Схемы электропитания Windows"
+                         FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+
+            <ItemsControl ItemsSource="{Binding HardwareStudio.PowerPlans}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <DockPanel Margin="0,2">
+                    <Button DockPanel.Dock="Right"
+                            Style="{StaticResource CompactButtonStyle}"
+                            Padding="8,2" FontSize="11"
+                            Visibility="{Binding CanActivate, Converter={StaticResource BoolToVis}}"
+                            Command="{Binding ActivateCommand}"
+                            Content="Включить"
+                            Margin="6,0,0,0" />
+                    <Border DockPanel.Dock="Right"
+                            Background="{DynamicResource AccentSubtleBrush}"
+                            CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding StateBadge}" FontSize="10.5" Foreground="{DynamicResource AccentBrush}" />
+                    </Border>
+                    <TextBlock Text="{Binding FriendlyName}" FontSize="11.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  </DockPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}" Padding="12,9">
+          <StackPanel>
+            <TextBlock Text="Профиль вентиляторов и охлаждения (ШИМ)"
+                       FontSize="12" FontWeight="SemiBold" Margin="0,0,0,6" />
+            <WrapPanel Orientation="Horizontal" Margin="0,0,0,6">
+              <Button Style="{StaticResource CompactButtonStyle}"
+                      Padding="8,3" FontSize="11" Margin="0,0,5,4"
+                      Command="{Binding HardwareStudio.ApplyFanPresetCommand}"
+                      CommandParameter="BiosAuto"
+                      Content="Авто (BIOS)" />
+              <Button Style="{StaticResource CompactButtonStyle}"
+                      Padding="8,3" FontSize="11" Margin="0,0,5,4"
+                      Command="{Binding HardwareStudio.ApplyFanPresetCommand}"
+                      CommandParameter="Quiet"
+                      Content="Тихий" />
+              <Button Style="{StaticResource CompactButtonStyle}"
+                      Padding="8,3" FontSize="11" Margin="0,0,5,4"
+                      Command="{Binding HardwareStudio.ApplyFanPresetCommand}"
+                      CommandParameter="Balanced"
+                      Content="Баланс" />
+              <Button Style="{StaticResource PrimaryButtonStyle}"
+                      Padding="8,3" FontSize="11" Margin="0,0,0,4"
+                      Command="{Binding HardwareStudio.ApplyFanPresetCommand}"
+                      CommandParameter="MaxCooling"
+                      Content="Максимум 100%" />
+            </WrapPanel>
+            <TextBlock Text="{Binding HardwareStudio.PowerAndFanStatusText}"
+                       FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <!-- Таблица сквозных датчиков -->
+      <DataGrid Grid.Row="2" ItemsSource="{Binding HardwareStudio.FilteredSensors}">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Узел оборудования" Binding="{Binding HardwareGroup}" Width="1.45*" />
+          <DataGridTextColumn Header="Датчик" Binding="{Binding SensorName}" Width="1.15*" />
+          <DataGridTextColumn Header="Категория" Binding="{Binding CategoryLabel}" Width="110" />
+          <DataGridTextColumn Header="Текущее" Binding="{Binding FormattedCurrent}" Width="100" />
+          <DataGridTextColumn Header="Мин." Binding="{Binding FormattedMin}" Width="86" />
+          <DataGridTextColumn Header="Макс." Binding="{Binding FormattedMax}" Width="86" />
+        </DataGrid.Columns>
+      </DataGrid>
+    </Grid>
+
+    <!-- ==================== ВКЛАДКА 2: ЛЁГКИЕ БЫСТРЫЕ БЕНЧМАРКИ И СТРЕСС-ТЕСТ ==================== -->
+    <ScrollViewer Grid.Row="1"
+                  VerticalScrollBarVisibility="Auto"
+                  Padding="12,10"
+                  Visibility="{Binding HardwareStudio.IsBenchAndStressTab, Converter={StaticResource BoolToVis}}">
+      <StackPanel>
+
+        <!-- Блок 1: Лёгкие быстрые бенчмарки CPU / GPU / ОЗУ / Диска -->
+        <Border Style="{StaticResource CardBorderStyle}" Padding="12,10" Margin="0,0,0,10">
+          <StackPanel>
+            <DockPanel Margin="0,0,0,6">
+              <WrapPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                <Button Style="{StaticResource CompactButtonStyle}"
+                        Padding="8,4" FontSize="11.5" Margin="0,0,5,0"
+                        IsEnabled="{Binding HardwareStudio.CanStartBenchmark}"
+                        Command="{Binding HardwareStudio.RunCpuBenchCommand}"
+                        Content="CPU" />
+                <Button Style="{StaticResource CompactButtonStyle}"
+                        Padding="8,4" FontSize="11.5" Margin="0,0,5,0"
+                        IsEnabled="{Binding HardwareStudio.CanStartBenchmark}"
+                        Command="{Binding HardwareStudio.RunGpuBenchCommand}"
+                        Content="GPU" />
+                <Button Style="{StaticResource CompactButtonStyle}"
+                        Padding="8,4" FontSize="11.5" Margin="0,0,5,0"
+                        IsEnabled="{Binding HardwareStudio.CanStartBenchmark}"
+                        Command="{Binding HardwareStudio.RunRamBenchCommand}"
+                        Content="ОЗУ" />
+                <Button Style="{StaticResource CompactButtonStyle}"
+                        Padding="8,4" FontSize="11.5" Margin="0,0,6,0"
+                        IsEnabled="{Binding HardwareStudio.CanStartBenchmark}"
+                        Command="{Binding HardwareStudio.RunDiskBenchCommand}"
+                        Content="Диск" />
+                <Button Style="{StaticResource PrimaryButtonStyle}"
+                        Padding="10,4" FontSize="11.5"
+                        IsEnabled="{Binding HardwareStudio.CanStartBenchmark}"
+                        Command="{Binding HardwareStudio.RunFullQuickBenchCommand}"
+                        Content="Экспресс-тест ПК (~5 сек)" />
+              </WrapPanel>
+              <TextBlock Text="Лёгкие быстрые бенчмарки ПК"
+                         FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+
+            <TextBlock Text="{Binding HardwareStudio.BenchmarkBannerText}"
+                       FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap" Margin="0,0,0,10" />
+
+            <!-- 4 карточки результатов бенчмарков (2×2) -->
+            <UniformGrid Columns="2">
+              <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" Padding="11,9" Margin="0,0,8,8">
+                <StackPanel>
+                  <TextBlock Text="ПРОЦЕССОР (CPU 1T + MT SIMD)" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                  <TextBlock Text="{Binding HardwareStudio.CpuBenchHeadline}" FontSize="13.5" FontWeight="Bold" Margin="0,4,0,2" />
+                  <TextBlock Text="{Binding HardwareStudio.CpuBenchDetails}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+
+              <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" Padding="11,9" Margin="0,0,0,8">
+                <StackPanel>
+                  <TextBlock Text="ВИДЕОКАРТА (GPU DIRECTCOMPUTE CS 5.0)" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                  <TextBlock Text="{Binding HardwareStudio.GpuBenchHeadline}" FontSize="13.5" FontWeight="Bold" Margin="0,4,0,2" />
+                  <TextBlock Text="{Binding HardwareStudio.GpuBenchDetails}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+
+              <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" Padding="11,9" Margin="0,0,8,0">
+                <StackPanel>
+                  <TextBlock Text="ПАМЯТЬ ОЗУ (ПРОПУСКНАЯ СПОСОБНОСТЬ И ЗАДЕРЖКА)" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                  <TextBlock Text="{Binding HardwareStudio.RamBenchHeadline}" FontSize="13.5" FontWeight="Bold" Margin="0,4,0,2" />
+                  <TextBlock Text="{Binding HardwareStudio.RamBenchDetails}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+
+              <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" Padding="11,9">
+                <StackPanel>
+                  <TextBlock Text="НАКОПИТЕЛЬ (ЭКСПРЕСС 32 МБ + 4K IOPS)" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                  <TextBlock Text="{Binding HardwareStudio.DiskBenchHeadline}" FontSize="13.5" FontWeight="Bold" Margin="0,4,0,2" />
+                  <TextBlock Text="{Binding HardwareStudio.DiskBenchDetails}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+            </UniformGrid>
+          </StackPanel>
+        </Border>
+
+        <!-- Блок 2: Теплобезопасный стресс-тест стабильности с контролем эталонных сумм -->
+        <Border Style="{StaticResource CardBorderStyle}" Padding="12,10">
+          <StackPanel>
+            <DockPanel Margin="0,0,0,6">
+              <Border DockPanel.Dock="Right"
+                      Background="{DynamicResource SurfaceElevatedBrush}"
+                      BorderBrush="{DynamicResource SafeEmeraldBrush}"
+                      BorderThickness="1" CornerRadius="5" Padding="8,3" VerticalAlignment="Center">
+                <TextBlock Text="{Binding HardwareStudio.StressIntegrityBadge}"
+                           FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource SafeEmeraldBrush}" />
+              </Border>
+              <TextBlock Text="Тест стабильности CPU и памяти с проверкой ошибок и тепловой отсечкой"
+                         FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </DockPanel>
+
+            <TextBlock Text="Проверяет каждый блок вычислений по эталонной контрольной сумме (выявляет нестабильный разгон, андервольтинг или сбои XMP/EXPO) и автоматически прерывает нагрузку при превышении порога температуры CPU или GPU."
+                       FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+            <WrapPanel Orientation="Horizontal" Margin="0,0,0,12">
+              <TextBlock Text="Длительность (сек):" VerticalAlignment="Center" Margin="0,0,8,0" />
+              <TextBox Width="65" Text="{Binding HardwareStudio.StressDurationSeconds, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,16,0" />
+              <TextBlock Text="Аварийная отсечка °C:" VerticalAlignment="Center" Margin="0,0,8,0" />
+              <TextBox Width="65" Text="{Binding HardwareStudio.ThermalCutoffCelsius, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,16,0" />
+              <Button Style="{StaticResource PrimaryButtonStyle}"
+                      Padding="10,4" FontSize="11.5"
+                      IsEnabled="{Binding HardwareStudio.CanStartStress}"
+                      Command="{Binding HardwareStudio.StartStressTestCommand}"
+                      Content="Запустить стресс-тест" Margin="0,0,8,0" />
+              <Button Style="{StaticResource DangerButtonStyle}"
+                      Padding="10,4" FontSize="11.5"
+                      Command="{Binding HardwareStudio.StopStressTestCommand}"
+                      Content="Остановить" />
+            </WrapPanel>
+
+            <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" Padding="12,10">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Right"
+                           Text="{Binding HardwareStudio.StressThroughputText}"
+                           FontSize="15" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}"
+                           Margin="12,0,0,0" />
+                <TextBlock Text="{Binding HardwareStudio.StressStatusText}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
+              </DockPanel>
+            </Border>
+          </StackPanel>
+        </Border>
+
+      </StackPanel>
+    </ScrollViewer>
   </Grid>
 </UserControl>

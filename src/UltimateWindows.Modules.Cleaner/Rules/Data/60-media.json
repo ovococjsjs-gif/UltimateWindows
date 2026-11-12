@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "media.spotify.cache",
+      "section": "Media",
+      "app": "Spotify",
+      "title": "Кэш музыки",
+      "explanation": "Прослушанные и скачанные треки, сохранённые на диске. Плейлисты и учётная запись не затрагиваются.",
+      "kind": "Cache",
+      "default": false,
+      "warning": "Треки, скачанные для прослушивания без интернета, придётся скачать заново.",
+      "processes": [
+        "Spotify"
+      ],
+      "skipWhileRunning": true,
+      "files": [
+        {
+          "path": "%LocalAppData%\\Spotify\\Storage"
+        },
+        {
+          "path": "%LocalAppData%\\Spotify\\Data"
+        },
+        {
+          "path": "%LocalAppData%\\Spotify\\Browser\\Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Spotify\\Browser\\Code Cache"
+        },
+        {
+          "path": "%LocalAppData%\\Spotify\\Browser\\GPUCache"
+        }
+      ]
+    },
+    {
+      "id": "media.vlc.art-cache",
+      "section": "Media",
+      "app": "VLC",
+      "title": "Обложки альбомов",
+      "explanation": "Обложки альбомов, которые проигрыватель скачал из интернета. Скачаются заново.",
+      "kind": "Cache",
+      "default": true,
+      "files": [
+        {
+          "path": "%AppData%\\vlc\\art"
+        }
+      ]
+    },
+    {
+      "id": "media.adobe.media-cache",
+      "section": "Media",
+      "app": "Adobe",
+      "title": "Кэш видео и звука",
+      "explanation": "Вспомогательные файлы Premiere Pro, After Effects и Media Encoder для быстрого просмотра. Программы создадут их заново при открытии проекта.",
+      "kind": "Cache",
+      "default": false,
+      "warning": "Проекты после очистки открываются дольше: файлы предпросмотра создаются заново.",
+      "files": [
+        {
+          "path": "%AppData%\\Adobe\\Common\\Media Cache Files"
+        },
+        {
+          "path": "%AppData%\\Adobe\\Common\\Media Cache"
+        },
+        {
+          "path": "%AppData%\\Adobe\\Common\\Peak Files"
+        }
+      ]
+    },
+    {
+      "id": "media.obs.logs",
+      "section": "Media",
+      "app": "OBS Studio",
+      "title": "Журналы и отчёты о сбоях",
+      "explanation": "Журналы работы программы. Нужны только при поиске причин неполадок.",
+      "kind": "Logs",
+      "default": true,
+      "files": [
+        {
+          "path": "%AppData%\\obs-studio\\logs"
+        },
+        {
+          "path": "%AppData%\\obs-studio\\crashes"
+        }
+      ]
+    },
+    {
+      "id": "media.davinci.logs",
+      "section": "Media",
+      "app": "DaVinci Resolve",
+      "title": "Журналы",
+      "explanation": "Журналы работы программы. Нужны только при поиске причин неполадок.",
+      "kind": "Logs",
+      "default": true,
+      "files": [
+        {
+          "path": "%AppData%\\Blackmagic Design\\DaVinci Resolve\\Support\\logs"
+        }
+      ]
+    }
+  ]
+}

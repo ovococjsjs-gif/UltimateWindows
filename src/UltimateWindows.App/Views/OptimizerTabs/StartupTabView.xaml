@@ -1,0 +1,76 @@
+<UserControl x:Class="UltimateWindows.App.Views.OptimizerTabs.StartupTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid Margin="14,12,14,12">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <DockPanel Grid.Row="0" Margin="2,0,0,8">
+      <Button DockPanel.Dock="Right"
+              Style="{StaticResource CompactButtonStyle}"
+              Command="{Binding RefreshAllOptimizerDataCommand}"
+              Content="Обновить"
+              VerticalAlignment="Center"
+              Margin="10,0,0,0" />
+      <StackPanel>
+        <TextBlock Text="Программы, которые запускаются вместе с Windows" FontSize="14" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding StartupSummary}"
+                   FontSize="11.5"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   Margin="0,2,0,0" />
+      </StackPanel>
+    </DockPanel>
+
+    <DataGrid Grid.Row="1"
+              ItemsSource="{Binding StartupEntries}"
+              IsReadOnly="True"
+              RowHeaderWidth="0">
+      <DataGrid.Columns>
+        <DataGridTemplateColumn Header="Вкл." Width="62" SortMemberPath="IsEnabled">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <CheckBox Style="{StaticResource PillToggleSwitchStyle}"
+                        IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        HorizontalAlignment="Left" />
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+
+        <DataGridTextColumn Header="Программа" Binding="{Binding DisplayName}" Width="1.2*" MinWidth="170" />
+
+        <DataGridTemplateColumn Header="Что запускается" Width="3*" MinWidth="240" SortMemberPath="CommandOrTarget">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding CommandOrTarget}"
+                         ToolTip="{Binding CommandOrTarget}"
+                         FontSize="11.5"
+                         Foreground="{DynamicResource TextSecondaryBrush}"
+                         TextTrimming="CharacterEllipsis" />
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+
+        <DataGridTextColumn Header="Откуда" Binding="{Binding LocationSource}" Width="190" />
+
+        <DataGridTemplateColumn Header="Подпись" Width="112" SortMemberPath="SignatureBadge">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <ContentControl Content="{Binding SignatureChip}"
+                              ContentTemplate="{StaticResource ChipTemplate}"
+                              Focusable="False"
+                              Margin="0,4,0,0" />
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+      </DataGrid.Columns>
+    </DataGrid>
+
+    <TextBlock Grid.Row="2"
+               Style="{StaticResource HintTextStyle}"
+               Margin="2,8,0,0"
+               Text="Выключение не удаляет программу: Windows просто перестаёт запускать её при входе — так же, как в диспетчере задач. Фоновые службы и задания по расписанию находятся на вкладках «Службы» и «Планировщик»." />
+  </Grid>
+</UserControl>

@@ -6,7 +6,9 @@ using System.Windows.Input;
 using Microsoft.Win32;
 using UltimateWindows.App.Infrastructure;
 using UltimateWindows.Core.Models;
+using UltimateWindows.Modules.Cleaner.Browsers;
 using UltimateWindows.Modules.Cleaner.Models;
+using UltimateWindows.Modules.Cleaner.Rules;
 using UltimateWindows.Modules.Cleaner.Services;
 
 namespace UltimateWindows.App.ViewModels;
@@ -100,6 +102,50 @@ public sealed class SystemReserveItemViewModel : ObservableObject
 }
 
 /// <summary>
+/// Строка находки по правилу каталога программ или внешнего файла Winapp2.ini.
+/// </summary>
+public sealed class SelectableRuleFindingViewModel : ObservableObject
+{
+    private readonly Action _onSelectionChanged;
+    private bool _isSelected;
+
+    public SelectableRuleFindingViewModel(CleanupRuleFinding finding, Action onSelectionChanged)
+    {
+        Finding = finding;
+        _onSelectionChanged = onSelectionChanged;
+        _isSelected = finding.Rule.SelectedByDefault && finding.CanCleanNow;
+    }
+
+    public CleanupRuleFinding Finding { get; }
+    public string SectionTitle => Finding.Rule.SectionTitle;
+    public string Application => Finding.Application;
+    public string RuleTitle => Finding.Rule.Title;
+    public string KindTitle => Finding.Rule.KindTitle;
+    public string Explanation => Finding.Rule.Warning is { Length: > 0 } w
+        ? $"{Finding.Rule.Explanation} Внимание: {w}"
+        : Finding.Rule.Explanation;
+    public string FormattedSize => Finding.FormattedSize;
+    public int FileCount => Finding.FileCount;
+    public bool CanSelect => Finding.CanCleanNow;
+    public string StatusNote => Finding.Notes.Count > 0
+        ? Finding.Notes[0]
+        : (Finding.Rule.Origin == CleanupRuleOrigin.External ? $"Внешний файл: {Finding.Rule.SourceName}" : "");
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set
+        {
+            var next = value && CanSelect;
+            if (SetProperty(ref _isSelected, next))
+            {
+                _onSelectionChanged();
+            }
+        }
+    }
+}
+
+/// <summary>
 /// Полноценный рабочий комбайн раздела «Диск, Очистка и Реестр»:
 /// 0 = WizTree-анализатор диска (Дерево + Расширения + Интерактивный Squarified Treemap),
 /// 1 = Стандартная очистка кэша с броней паролей и автозаполнения,
@@ -127,6 +173,22 @@ public sealed class CleanerStudioViewModel : ObservableObject
     private bool _cleanRegistryOrphans = false;
     private bool _emptyRecycleBin;
     private bool _includeDeveloperCaches;
+
+    // Пункты браузеров (Этап 2: по умолчанию включён только кэш)
+    private bool _cleanBrowserHistory;
+    private bool _cleanBrowserDownloads;
+    private bool _cleanBrowserCookies;
+    private bool _cleanBrowserSessions;
+    private string _keepCookieDomainsText = "google.com, youtube.com, github.com, microsoft.com, live.com, ya.ru, yandex.ru, vk.com, mail.ru";
+
+    // Каталог программ и Winapp2.ini
+    private readonly List<SelectableRuleFindingViewModel> _allRuleFindings = [];
+    private string _appRuleSearchText = "";
+    private bool _showOnlyNonEmptyRules = true;
+    private bool _isScanningAppRules;
+    private bool _isCleaningAppRules;
+    private string _appRulesStatusText = "";
+    private string _externalWinapp2Badge = "Внешний Winapp2.ini не подключён (работает встроенный каталог программ)";
 
     private bool _isScanning;
     private bool _isCleaning;
@@ -188,12 +250,18 @@ public sealed class CleanerStudioViewModel : ObservableObject
             new(RegistryOrphanKind.MissingHelpFile, "Файлы справки Windows (Help)"),
             new(RegistryOrphanKind.BrokenFirewallRule, "Правила брандмауэра"),
             new(RegistryOrphanKind.BrokenSoundEvent, "Звуковые события приложений"),
-            new(RegistryOrphanKind.StaleExplorerHistory, "Удаленные пути в истории Проводника")
+            new(RegistryOrphanKind.StaleExplorerHistory, "Удаленные пути в истории Проводника"),
+            new(RegistryOrphanKind.MissingFontReference, "Отсутствующие шрифты (Fonts)"),
+            new(RegistryOrphanKind.MissingWindowsInstallerFolder, "Несуществующие папки MSI"),
+            new(RegistryOrphanKind.BrokenStartupApprovedEntry, "Сироты флагов автозагрузки")
         };
         RegistryOrphanItems = new ObservableCollection<SelectableRegistryOrphanViewModel>();
 
         DuplicateItems = new ObservableCollection<SelectableDuplicateItemViewModel>();
         SystemReserves = new ObservableCollection<SystemReserveItemViewModel>();
+        BrowserDetailItems = new ObservableCollection<BrowserDataItemSummary>();
+        AppRuleFindings = new ObservableCollection<SelectableRuleFindingViewModel>();
+        _appRulesStatusText = $"Встроенный каталог: {_cleanerService.GetCatalogRules().Count} правил программ. Нажмите «Найти хвосты программ» для анализа.";
 
         // Команды вкладок
         SelectSubTabCommand = new RelayCommand(p =>
@@ -250,6 +318,25 @@ public sealed class CleanerStudioViewModel : ObservableObject
         });
         RefreshSystemReservesCommand = new AsyncRelayCommand(_ => RefreshSystemReservesAsync());
 
+        // Каталог правил программ + Winapp2.ini
+        ScanAppRulesCommand = new AsyncRelayCommand(_ => ScanAppRulesAsync());
+        ExecuteAppRulesCommand = new AsyncRelayCommand(_ => ExecuteSelectedAppRulesAsync(), _ => CanExecuteAppRules);
+        ImportWinapp2Command = new RelayCommand(_ => BrowseAndImportWinapp2());
+        ClearWinapp2Command = new RelayCommand(_ => ClearImportedWinapp2());
+        SelectDefaultAppRulesCommand = new RelayCommand(_ =>
+        {
+            foreach (var f in _allRuleFindings)
+            {
+                f.IsSelected = f.Finding.Rule.SelectedByDefault && f.CanSelect;
+            }
+            UpdateAppRulesSelectionHeadline();
+        });
+        ClearSelectionAppRulesCommand = new RelayCommand(_ =>
+        {
+            foreach (var f in _allRuleFindings) f.IsSelected = false;
+            UpdateAppRulesSelectionHeadline();
+        });
+
         ReloadVolumes();
     }
 
@@ -268,6 +355,8 @@ public sealed class CleanerStudioViewModel : ObservableObject
 
     public ObservableCollection<SelectableDuplicateItemViewModel> DuplicateItems { get; }
     public ObservableCollection<SystemReserveItemViewModel> SystemReserves { get; }
+    public ObservableCollection<BrowserDataItemSummary> BrowserDetailItems { get; }
+    public ObservableCollection<SelectableRuleFindingViewModel> AppRuleFindings { get; }
 
     public int SelectedSubTabIndex
     {
@@ -280,6 +369,7 @@ public sealed class CleanerStudioViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsStandardCleanerTab));
                 OnPropertyChanged(nameof(IsRegistryTab));
                 OnPropertyChanged(nameof(IsDuplicatesAndSpaceTab));
+                OnPropertyChanged(nameof(IsAppCatalogTab));
             }
         }
     }
@@ -288,6 +378,7 @@ public sealed class CleanerStudioViewModel : ObservableObject
     public bool IsStandardCleanerTab => SelectedSubTabIndex == 1;
     public bool IsRegistryTab => SelectedSubTabIndex == 2;
     public bool IsDuplicatesAndSpaceTab => SelectedSubTabIndex == 3;
+    public bool IsAppCatalogTab => SelectedSubTabIndex == 4;
 
     public bool IsFilesFlatView
     {
@@ -354,6 +445,83 @@ public sealed class CleanerStudioViewModel : ObservableObject
     public bool EmptyRecycleBin { get => _emptyRecycleBin; set => SetProperty(ref _emptyRecycleBin, value); }
     public bool IncludeDeveloperCaches { get => _includeDeveloperCaches; set => SetProperty(ref _includeDeveloperCaches, value); }
 
+    public bool CleanBrowserHistory
+    {
+        get => _cleanBrowserHistory;
+        set { if (SetProperty(ref _cleanBrowserHistory, value)) RaiseCleanButtonState(); }
+    }
+
+    public bool CleanBrowserDownloads
+    {
+        get => _cleanBrowserDownloads;
+        set { if (SetProperty(ref _cleanBrowserDownloads, value)) RaiseCleanButtonState(); }
+    }
+
+    public bool CleanBrowserCookies
+    {
+        get => _cleanBrowserCookies;
+        set { if (SetProperty(ref _cleanBrowserCookies, value)) RaiseCleanButtonState(); }
+    }
+
+    public bool CleanBrowserSessions
+    {
+        get => _cleanBrowserSessions;
+        set { if (SetProperty(ref _cleanBrowserSessions, value)) RaiseCleanButtonState(); }
+    }
+
+    public string KeepCookieDomainsText
+    {
+        get => _keepCookieDomainsText;
+        set => SetProperty(ref _keepCookieDomainsText, value);
+    }
+
+    public string AppRuleSearchText
+    {
+        get => _appRuleSearchText;
+        set { if (SetProperty(ref _appRuleSearchText, value)) ApplyAppRulesFilter(); }
+    }
+
+    public bool ShowOnlyNonEmptyRules
+    {
+        get => _showOnlyNonEmptyRules;
+        set { if (SetProperty(ref _showOnlyNonEmptyRules, value)) ApplyAppRulesFilter(); }
+    }
+
+    public bool IsScanningAppRules
+    {
+        get => _isScanningAppRules;
+        private set
+        {
+            if (SetProperty(ref _isScanningAppRules, value))
+            {
+                OnPropertyChanged(nameof(CanExecuteAppRules));
+                ExecuteAppRulesCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool IsCleaningAppRules
+    {
+        get => _isCleaningAppRules;
+        private set
+        {
+            if (SetProperty(ref _isCleaningAppRules, value))
+            {
+                OnPropertyChanged(nameof(CanExecuteAppRules));
+                ExecuteAppRulesCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool CanExecuteAppRules =>
+        !IsScanningAppRules &&
+        !IsCleaningAppRules &&
+        _allRuleFindings.Any(f => f.IsSelected && f.CanSelect);
+
+    public string AppRulesStatusText { get => _appRulesStatusText; private set => SetProperty(ref _appRulesStatusText, value); }
+    public string ExternalWinapp2Badge { get => _externalWinapp2Badge; private set => SetProperty(ref _externalWinapp2Badge, value); }
+    public bool HasExternalWinapp2 => _cleanerService.ExternalRules.Count > 0;
+
     public string VaultShieldBadgeText => PreservePasswordsAndAutofill
         ? "БРОНЯ ПАРОЛЕЙ АКТИВНА: пароли, логины, куки входа и автозаполнение форм заблокированы от удаления"
         : "Внимание: защита паролей снята вручную (рекомендуется держать включенной)";
@@ -406,7 +574,15 @@ public sealed class CleanerStudioViewModel : ObservableObject
         !IsScanning &&
         !IsCleaning &&
         _lastScanReport is not null &&
-        (_lastScanReport.TotalReclaimableBytes > 0 || _lastScanReport.TotalRegistryOrphansCount > 0);
+        (_lastScanReport.TotalReclaimableBytes > 0 ||
+         _lastScanReport.TotalRegistryOrphansCount > 0 ||
+         (BrowserDetailItems.Count > 0 && (CleanBrowserHistory || CleanBrowserDownloads || CleanBrowserCookies || CleanBrowserSessions)));
+
+    private void RaiseCleanButtonState()
+    {
+        OnPropertyChanged(nameof(CanExecuteClean));
+        ExecuteSafeCleanCommand.RaiseCanExecuteChanged();
+    }
 
     public string ScanSummaryHeadline { get => _scanSummaryHeadline; private set => SetProperty(ref _scanSummaryHeadline, value); }
     public string BrowserWarningBanner
@@ -471,6 +647,13 @@ public sealed class CleanerStudioViewModel : ObservableObject
     public ICommand OpenDuplicateInExplorerCommand { get; }
     public ICommand RefreshSystemReservesCommand { get; }
 
+    public ICommand ScanAppRulesCommand { get; }
+    public AsyncRelayCommand ExecuteAppRulesCommand { get; }
+    public ICommand ImportWinapp2Command { get; }
+    public ICommand ClearWinapp2Command { get; }
+    public ICommand SelectDefaultAppRulesCommand { get; }
+    public ICommand ClearSelectionAppRulesCommand { get; }
+
     public void ReloadVolumes()
     {
         var vols = _cleanerService.GetMountedVolumes();
@@ -529,7 +712,7 @@ public sealed class CleanerStudioViewModel : ObservableObject
             foreach (var f in report.LargestFiles) LargestFiles.Add(f);
 
             DiskMapStatusText =
-                $"Сканирование выполнено за {report.Elapsed.TotalSeconds:F2} сек  •  Объем: {report.FormattedTotalScanned}  •  Файлов: {report.TotalFilesCount:N0}  •  Папок: {report.TotalFoldersCount:N0}";
+                $"{report.ScanMethodDescription} — {report.Elapsed.TotalSeconds:F2} сек  •  Объём: {report.FormattedTotalScanned}  •  Файлов: {report.TotalFilesCount:N0}  •  Папок: {report.TotalFoldersCount:N0}";
 
             ReloadVolumes();
             await _onActionCompletedAsync($"Карта диска {DiskMapTargetPath} построена за {report.Elapsed.TotalSeconds:F2} сек");
@@ -620,10 +803,15 @@ public sealed class CleanerStudioViewModel : ObservableObject
         {
             var options = BuildCleanupOptions();
             var report = await _cleanerService.ScanAsync(options);
+            var keepDomains = BrowserDataCleaner.ParseKeepCookieDomains(KeepCookieDomainsText);
+            var browserDetails = await _cleanerService.ScanBrowserDataDetailsAsync(keepDomains);
             _lastScanReport = report;
 
             Categories.Clear();
             foreach (var cat in report.Categories) Categories.Add(cat);
+
+            BrowserDetailItems.Clear();
+            foreach (var bd in browserDetails.Items) BrowserDetailItems.Add(bd);
 
             CandidateFilesPreview.Clear();
             foreach (var f in report.CandidateFiles.OrderByDescending(x => x.SizeBytes).Take(200))
@@ -631,13 +819,13 @@ public sealed class CleanerStudioViewModel : ObservableObject
                 CandidateFilesPreview.Add(f);
             }
 
-            BrowserWarningBanner = report.RunningBrowserWarnings.Count > 0
-                ? string.Join("\n", report.RunningBrowserWarnings)
-                : "";
+            var allWarnings = report.RunningBrowserWarnings.Concat(browserDetails.Warnings).Distinct().ToList();
+            BrowserWarningBanner = allWarnings.Count > 0 ? string.Join("\n", allWarnings) : "";
 
-            ScanSummaryHeadline = report.TotalReclaimableBytes == 0 && report.TotalRegistryOrphansCount == 0
-                ? "Система уже чиста — лишнего мусора не обнаружено."
-                : $"Найдено безопасного мусора: {report.FormattedTotalReclaimable} ({report.TotalFilesCount:N0} файлов). Пароли и сессии защищены.";
+            ScanSummaryHeadline = report.TotalReclaimableBytes == 0 && report.TotalRegistryOrphansCount == 0 && browserDetails.Items.Count == 0
+                ? "Система уже чиста — лишних временных данных не обнаружено."
+                : $"Найдено файлов кэша и мусора: {report.FormattedTotalReclaimable} ({report.TotalFilesCount:N0} шт.); пунктов данных браузеров: {browserDetails.Items.Count}. Пароли и автозаполнение под защитой.";
+            RaiseCleanButtonState();
 
             await _onActionCompletedAsync($"Анализ очистки завершен: {report.FormattedTotalReclaimable}");
         }
@@ -660,11 +848,29 @@ public sealed class CleanerStudioViewModel : ObservableObject
         {
             var options = BuildCleanupOptions();
             var result = await _cleanerService.ExecuteCleanupAsync(_lastScanReport, options);
-            LastCleanupOutcome = result.UserSummaryMessage;
+            var summary = result.UserSummaryMessage;
+
+            if (CleanBrowserHistory || CleanBrowserDownloads || CleanBrowserCookies || CleanBrowserSessions)
+            {
+                var browserSelection = new BrowserCleanupSelection
+                {
+                    CleanCache = CleanBrowserCaches,
+                    CleanHistory = CleanBrowserHistory,
+                    CleanDownloads = CleanBrowserDownloads,
+                    CleanCookies = CleanBrowserCookies,
+                    CleanSessions = CleanBrowserSessions,
+                    KeepCookieDomains = BrowserDataCleaner.ParseKeepCookieDomains(KeepCookieDomainsText)
+                };
+                var browserRes = await _cleanerService.CleanBrowserDataDetailsAsync(browserSelection);
+                summary = summary + " " + browserRes.UserSummaryMessage;
+            }
+
+            LastCleanupOutcome = summary;
             _lastScanReport = null;
             Categories.Clear();
+            BrowserDetailItems.Clear();
             CandidateFilesPreview.Clear();
-            ScanSummaryHeadline = "Очистка успешно выполнена.";
+            ScanSummaryHeadline = summary;
             ReloadVolumes();
             await _onActionCompletedAsync(result.UserSummaryMessage);
         }
@@ -824,15 +1030,152 @@ public sealed class CleanerStudioViewModel : ObservableObject
         }
     }
 
+    public async Task ScanAppRulesAsync()
+    {
+        if (IsScanningAppRules || IsCleaningAppRules) return;
+        IsScanningAppRules = true;
+        AppRulesStatusText = "Анализ программ по каталогу правил под защитой BrowserVaultGuard...";
+
+        try
+        {
+            var scan = await _cleanerService.ScanAppRulesAsync();
+            _allRuleFindings.Clear();
+            foreach (var finding in scan.Findings.Where(f => f.IsPresent).OrderByDescending(f => f.TotalBytes).ThenBy(f => f.Application))
+            {
+                _allRuleFindings.Add(new SelectableRuleFindingViewModel(finding, () => UpdateAppRulesSelectionHeadline()));
+            }
+
+            ApplyAppRulesFilter();
+            UpdateAppRulesSelectionHeadline(scan.Elapsed);
+            await _onActionCompletedAsync($"Каталог программ проверен за {scan.Elapsed.TotalSeconds:F2} сек: найдено {scan.FormattedTotal}");
+        }
+        catch (Exception ex)
+        {
+            AppRulesStatusText = $"Ошибка анализа правил: {ex.Message}";
+        }
+        finally
+        {
+            IsScanningAppRules = false;
+        }
+    }
+
+    private async Task ExecuteSelectedAppRulesAsync()
+    {
+        if (IsCleaningAppRules || IsScanningAppRules) return;
+        var chosen = _allRuleFindings.Where(f => f.IsSelected && f.CanSelect).Select(f => f.Finding).ToList();
+        if (chosen.Count == 0) return;
+
+        IsCleaningAppRules = true;
+        try
+        {
+            var exec = await _cleanerService.ExecuteAppRulesAsync(chosen);
+            AppRulesStatusText = exec.UserSummaryMessage;
+            ReloadVolumes();
+            await _onActionCompletedAsync(exec.UserSummaryMessage);
+            await ScanAppRulesAsync();
+        }
+        catch (Exception ex)
+        {
+            AppRulesStatusText = $"Очистка правил прервана: {ex.Message}";
+        }
+        finally
+        {
+            IsCleaningAppRules = false;
+        }
+    }
+
+    private void BrowseAndImportWinapp2()
+    {
+        var dlg = new OpenFileDialog
+        {
+            Title = "Подключить файл правил формата Winapp2.ini",
+            Filter = "Файлы правил Winapp2 (*.ini)|*.ini|Все файлы (*.*)|*.*"
+        };
+
+        if (dlg.ShowDialog() != true || string.IsNullOrWhiteSpace(dlg.FileName))
+        {
+            return;
+        }
+
+        ImportWinapp2FromPath(dlg.FileName);
+    }
+
+    public void ImportWinapp2FromPath(string filePath)
+    {
+        try
+        {
+            var res = _cleanerService.ImportExternalWinapp2File(filePath);
+            ExternalWinapp2Badge = $"Подключён «{res.SourceName}»: правил {res.Rules.Count:N0} (пропущено несовместимых: {res.Skipped.Count:N0})";
+            OnPropertyChanged(nameof(HasExternalWinapp2));
+            AppRulesStatusText = $"Файл «{res.SourceName}» загружен. Все внешние правила по умолчанию сняты и проверяются защитой путей. Нажмите «Найти хвосты программ».";
+        }
+        catch (Exception ex)
+        {
+            AppRulesStatusText = $"Не удалось прочитать файл Winapp2.ini: {ex.Message}";
+        }
+    }
+
+    public void ClearImportedWinapp2()
+    {
+        _cleanerService.ClearExternalWinapp2Rules();
+        ExternalWinapp2Badge = "Внешний Winapp2.ini не подключён (работает встроенный каталог программ)";
+        OnPropertyChanged(nameof(HasExternalWinapp2));
+        AppRulesStatusText = "Внешние правила отключены — оставлен только встроенный каталог.";
+    }
+
+    private void ApplyAppRulesFilter()
+    {
+        var q = _appRuleSearchText.Trim();
+        AppRuleFindings.Clear();
+        foreach (var item in _allRuleFindings)
+        {
+            if (_showOnlyNonEmptyRules && !item.Finding.HasAnythingToClean)
+            {
+                continue;
+            }
+
+            if (q.Length > 0 &&
+                !item.Application.Contains(q, StringComparison.OrdinalIgnoreCase) &&
+                !item.RuleTitle.Contains(q, StringComparison.OrdinalIgnoreCase) &&
+                !item.SectionTitle.Contains(q, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            AppRuleFindings.Add(item);
+        }
+
+        OnPropertyChanged(nameof(CanExecuteAppRules));
+        ExecuteAppRulesCommand.RaiseCanExecuteChanged();
+    }
+
+    private void UpdateAppRulesSelectionHeadline(TimeSpan? elapsed = null)
+    {
+        var selected = _allRuleFindings.Where(f => f.IsSelected && f.CanSelect).ToList();
+        var bytes = selected.Sum(f => f.Finding.TotalBytes);
+        var files = selected.Sum(f => f.Finding.FileCount);
+        var timePart = elapsed is { } el ? $" за {el.TotalSeconds:F2} сек" : "";
+        AppRulesStatusText = _allRuleFindings.Count == 0
+            ? "Установленных программ с временными данными из каталога не обнаружено."
+            : $"Найдено правил для установленных программ: {_allRuleFindings.Count}{timePart}. Выбрано к очистке: {selected.Count} ({ByteFormatter.Format(bytes)}, файлов: {files:N0}).";
+        OnPropertyChanged(nameof(CanExecuteAppRules));
+        ExecuteAppRulesCommand.RaiseCanExecuteChanged();
+    }
+
     private CleanupOptions BuildCleanupOptions() => new()
     {
         PreservePasswordsAndAutofill = PreservePasswordsAndAutofill,
-        PreserveBrowserSessions = PreserveBrowserSessions,
+        PreserveBrowserSessions = PreserveBrowserSessions && !CleanBrowserSessions,
         CleanBrowserCaches = CleanBrowserCaches,
         CleanSystemTempAndShaders = CleanSystemTempAndShaders,
         CleanRegistryOrphans = CleanRegistryOrphans,
         EmptyRecycleBin = EmptyRecycleBin,
-        IncludeDeveloperCaches = IncludeDeveloperCaches
+        IncludeDeveloperCaches = IncludeDeveloperCaches,
+        CleanBrowserHistory = CleanBrowserHistory,
+        CleanBrowserDownloads = CleanBrowserDownloads,
+        CleanBrowserCookies = CleanBrowserCookies,
+        CleanBrowserSessions = CleanBrowserSessions,
+        KeepCookieDomains = BrowserDataCleaner.ParseKeepCookieDomains(KeepCookieDomainsText)
     };
 
     private void BrowseFolderFor(bool isDuplicatePicker)

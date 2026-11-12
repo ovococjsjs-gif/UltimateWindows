@@ -1,0 +1,318 @@
+{
+  "schemaVersion": 2,
+
+  "tweaks": [
+    {
+      "id": "explorer.show-file-extensions",
+      "category": "Explorer",
+      "title": "Показывать расширения файлов",
+      "explanation": "Проводник показывает имя файла целиком: «отчёт.pdf.exe» больше не выглядит как «отчёт.pdf». Так проще заметить программу, замаскированную под документ.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "HideFileExt", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "explorer.show-hidden-files",
+      "category": "Explorer",
+      "title": "Показывать скрытые файлы и папки",
+      "explanation": "В Проводнике становятся видны скрытые папки, например AppData. Защищённые системные файлы остаются скрытыми.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "Hidden", "kind": "dword", "value": 1, "default": 2 }
+      ]
+    },
+    {
+      "id": "explorer.open-this-pc",
+      "category": "Explorer",
+      "title": "Открывать Проводник на странице «Этот компьютер»",
+      "explanation": "Новое окно Проводника (Win+E) открывается со списком дисков, а не со страницы «Главная» с недавними файлами.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "LaunchTo", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "explorer.hide-recent-in-quick-access",
+      "category": "Explorer",
+      "title": "Не показывать недавние файлы и частые папки в Проводнике",
+      "explanation": "Со страницы «Главная» (быстрого доступа) пропадают недавно открытые файлы и часто используемые папки. Закреплённые вручную папки остаются.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer", "name": "ShowRecent", "kind": "dword", "value": 0, "default": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer", "name": "ShowFrequent", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "explorer.classic-context-menu",
+      "category": "Explorer",
+      "title": "Вернуть полное контекстное меню Windows 11",
+      "explanation": "Правый щелчок сразу открывает полное меню, без промежуточного пункта «Показать дополнительные параметры».",
+      "risk": "Safe",
+      "restart": "explorer",
+      "requirements": { "minWindowsBuild": 22000 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Classes\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\\InprocServer32", "name": "", "kind": "string", "value": "", "removeEmptyKey": true }
+      ]
+    },
+    {
+      "id": "explorer.compact-view",
+      "category": "Explorer",
+      "title": "Компактный вид в Проводнике",
+      "explanation": "Уменьшает отступы между строками в Проводнике Windows 11: на экран помещается больше файлов.",
+      "risk": "Safe",
+      "requirements": { "minWindowsBuild": 22000 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "UseCompactMode", "kind": "dword", "value": 1, "default": 0 }
+      ]
+    },
+    {
+      "id": "explorer.full-path-in-title",
+      "category": "Explorer",
+      "title": "Показывать полный путь в заголовке окна",
+      "explanation": "В заголовке окна и вкладки Проводника виден полный путь к папке, а не только её имя.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\CabinetState", "name": "FullPath", "kind": "dword", "value": 1, "default": 0 }
+      ]
+    },
+    {
+      "id": "explorer.separate-process",
+      "category": "Explorer",
+      "title": "Открывать окна папок в отдельном процессе",
+      "explanation": "Окна Проводника работают отдельно от панели задач и рабочего стола: если окно зависнет, они не пропадут. Расходуется немного больше памяти.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "SeparateProcess", "kind": "dword", "value": 1, "default": 0 }
+      ]
+    },
+    {
+      "id": "explorer.expand-to-current-folder",
+      "category": "Explorer",
+      "title": "Разворачивать дерево папок до открытой папки",
+      "explanation": "Панель слева в Проводнике сама раскрывается до папки, в которой вы находитесь.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "NavPaneExpandToCurrentFolder", "kind": "dword", "value": 1, "default": 0 }
+      ]
+    },
+    {
+      "id": "explorer.restore-folders-at-logon",
+      "category": "Explorer",
+      "title": "Восстанавливать открытые папки после входа",
+      "explanation": "После перезагрузки Windows заново открывает окна Проводника, которые были открыты перед выключением.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "PersistBrowsers", "kind": "dword", "value": 1, "default": 0 }
+      ]
+    },
+    {
+      "id": "explorer.no-shortcut-suffix",
+      "category": "Explorer",
+      "title": "Не добавлять «— ярлык» к названиям ярлыков",
+      "explanation": "Новые ярлыки называются так же, как исходный файл, без приписки «— ярлык».",
+      "risk": "Safe",
+      "restart": "explorer",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\NamingTemplates", "name": "ShortcutNameTemplate", "kind": "string", "value": "%s.lnk" }
+      ]
+    },
+    {
+      "id": "explorer.this-pc-on-desktop",
+      "category": "Explorer",
+      "title": "Показывать значок «Этот компьютер» на рабочем столе",
+      "explanation": "На рабочем столе появляется значок «Этот компьютер».",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\HideDesktopIcons\\NewStartPanel", "name": "{20D04FE0-3AEA-1069-A2D8-08002B30309D}", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "explorer.hide-spotlight-icon",
+      "category": "Explorer",
+      "title": "Убрать значок «Подробнее об этом изображении» с рабочего стола",
+      "explanation": "Скрывает значок, который появляется на рабочем столе, когда фоном выбрана подборка «Windows: интересное».",
+      "risk": "Safe",
+      "requirements": { "minWindowsBuild": 22621 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\HideDesktopIcons\\NewStartPanel", "name": "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "explorer.hide-gallery",
+      "category": "Explorer",
+      "title": "Убрать «Галерею» из Проводника",
+      "explanation": "Из панели слева в Проводнике Windows 11 пропадает пункт «Галерея». Фотографии остаются на месте.",
+      "risk": "Safe",
+      "restart": "explorer",
+      "requirements": { "minWindowsBuild": 22631 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Classes\\CLSID\\{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}", "name": "System.IsPinnedToNameSpaceTree", "kind": "dword", "value": 0, "removeEmptyKey": true }
+      ]
+    },
+    {
+      "id": "explorer.hide-onedrive-nav",
+      "category": "Explorer",
+      "title": "Убрать OneDrive из панели Проводника",
+      "explanation": "Из панели слева в Проводнике пропадает значок OneDrive. Синхронизация продолжает работать, папка доступна из профиля пользователя.",
+      "risk": "Safe",
+      "restart": "explorer",
+      "requirements": {
+        "installedAny": [ "HKCU\\Software\\Classes\\CLSID\\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" ],
+        "installedNote": "OneDrive не настроен в этой учётной записи."
+      },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Classes\\CLSID\\{018D5C66-4533-4307-9B53-224DE2ED1FE6}", "name": "System.IsPinnedToNameSpaceTree", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "explorer.no-thumbs-db-on-network",
+      "category": "Explorer",
+      "title": "Не создавать файлы Thumbs.db в сетевых папках",
+      "explanation": "Windows перестаёт оставлять в сетевых папках скрытые файлы с эскизами. Эскизы в таких папках будут каждый раз строиться заново.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Policies\\Microsoft\\Windows\\Explorer", "name": "DisableThumbsDBOnNetworkFolders", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "explorer.no-store-open-with",
+      "category": "Explorer",
+      "title": "Не предлагать поиск приложения в Microsoft Store",
+      "explanation": "При открытии файла неизвестного типа Windows показывает только установленные программы, без пункта «Найти приложение в Microsoft Store».",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer", "name": "NoUseStoreOpenWith", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "explorer.no-new-app-alert",
+      "category": "Explorer",
+      "title": "Не сообщать о новых приложениях для открытия файлов",
+      "explanation": "После установки программы Windows перестаёт показывать уведомление «У вас есть новые приложения, которые могут открывать файлы этого типа».",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer", "name": "NoNewAppAlert", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "explorer.disable-aero-shake",
+      "category": "Explorer",
+      "title": "Отключить сворачивание окон встряхиванием",
+      "explanation": "Если потрясти окно за заголовок, остальные окна больше не сворачиваются.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "DisallowShaking", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "explorer.disable-snap-suggestions",
+      "category": "Explorer",
+      "title": "Не предлагать окна для второй половины экрана",
+      "explanation": "Когда вы прикрепляете окно к краю экрана, Windows больше не показывает набор окон для оставшегося места.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "SnapAssist", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "explorer.disable-snap-layouts",
+      "category": "Explorer",
+      "title": "Отключить всплывающие макеты прикрепления",
+      "explanation": "Макеты расположения окон больше не всплывают при наведении на кнопку «Развернуть» и при перетаскивании окна к верху экрана. Сочетания Win+стрелки работают.",
+      "risk": "Safe",
+      "requirements": { "minWindowsBuild": 22000 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "EnableSnapAssistFlyout", "kind": "dword", "value": 0, "default": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "EnableSnapBar", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "explorer.menu-delay",
+      "category": "Explorer",
+      "title": "Быстрее открывать подменю",
+      "explanation": "Вложенные меню раскрываются через 100 мс после наведения вместо 400 мс.",
+      "risk": "Safe",
+      "restart": "signout",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Control Panel\\Desktop", "name": "MenuShowDelay", "kind": "string", "value": "100", "default": "400" }
+      ]
+    },
+    {
+      "id": "explorer.wallpaper-quality",
+      "category": "Explorer",
+      "title": "Не сжимать обои рабочего стола",
+      "explanation": "Windows сохраняет фоновую картинку в полном качестве вместо сжатия до 85 %. Заметно на плавных переходах цвета; картинку нужно выбрать заново.",
+      "risk": "Safe",
+      "restart": "signout",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Control Panel\\Desktop", "name": "JPEGImportQuality", "kind": "dword", "value": 100 }
+      ]
+    },
+    {
+      "id": "explorer.dark-theme",
+      "category": "Explorer",
+      "title": "Тёмная тема Windows и приложений",
+      "explanation": "Переключает панель задач, меню «Пуск», «Параметры» и поддерживающие это приложения на тёмное оформление.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", "name": "AppsUseLightTheme", "kind": "dword", "value": 0, "default": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", "name": "SystemUsesLightTheme", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "explorer.sticky-keys-hotkey-off",
+      "category": "Explorer",
+      "title": "Отключить залипание клавиш по пятикратному Shift",
+      "explanation": "Окно «Включить залипание клавиш?» больше не появляется при частом нажатии Shift. Заодно отключаются сочетания для фильтрации ввода и озвучивания переключений.",
+      "risk": "Safe",
+      "restart": "signout",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Control Panel\\Accessibility\\StickyKeys", "name": "Flags", "kind": "string", "value": "506", "default": "510" },
+        { "type": "registry", "hive": "HKCU", "key": "Control Panel\\Accessibility\\Keyboard Response", "name": "Flags", "kind": "string", "value": "122", "default": "126" },
+        { "type": "registry", "hive": "HKCU", "key": "Control Panel\\Accessibility\\ToggleKeys", "name": "Flags", "kind": "string", "value": "58", "default": "62" }
+      ]
+    },
+    {
+      "id": "explorer.classic-print-screen",
+      "category": "Explorer",
+      "title": "Не открывать «Ножницы» клавишей Print Screen",
+      "explanation": "Клавиша Print Screen снова копирует весь экран в буфер обмена, как раньше. «Ножницы» открываются сочетанием Win+Shift+S.",
+      "risk": "Safe",
+      "requirements": { "minWindowsBuild": 22621 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Control Panel\\Keyboard", "name": "PrintScreenKeyForSnippingEnabled", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "explorer.no-logon-blur",
+      "category": "Explorer",
+      "title": "Не размывать фон на экране входа",
+      "explanation": "Картинка на экране ввода пароля показывается чётко, без размытия.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\System", "name": "DisableAcrylicBackgroundOnLogon", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "explorer.no-startup-sound",
+      "category": "Explorer",
+      "title": "Отключить звук запуска Windows",
+      "explanation": "Windows включается без мелодии.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "name": "DisableStartupSound", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "explorer.verbose-logon",
+      "category": "Explorer",
+      "title": "Подробные сообщения при входе и выключении",
+      "explanation": "Вместо «Добро пожаловать» и «Завершение работы» Windows показывает, что именно она делает. Помогает понять, на чём задерживается вход или выключение.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "name": "VerboseStatus", "kind": "dword", "value": 1 }
+      ]
+    }
+  ]
+}

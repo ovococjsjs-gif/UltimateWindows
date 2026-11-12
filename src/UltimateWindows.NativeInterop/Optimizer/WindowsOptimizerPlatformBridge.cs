@@ -14,9 +14,9 @@ using UltimateWindows.NativeInterop.Security;
 namespace UltimateWindows.NativeInterop.Optimizer;
 
 /// <summary>
-/// Полноценный нативный мост Фазы 4 для Windows 10/11:
-/// безопасное чтение/запись реестра твиков, управление StartupApproved и политикой Shell Extensions\Blocked,
-/// детектор занятых файлов через Restart Manager (RM_PROCESS_INFO), переключение DNS и список программ.
+/// Мост Оптимизатора для Windows 10/11: реестр, службы (SCM) и задания планировщика для твиков,
+/// автозагрузка (StartupApproved), политика Shell Extensions\Blocked, поиск процессов, держащих файл
+/// (Restart Manager), переключение DNS, приложения Windows и список программ.
 /// </summary>
 public sealed class WindowsOptimizerPlatformBridge : DefaultOptimizerPlatformBridge
 {
@@ -118,6 +118,103 @@ public sealed class WindowsOptimizerPlatformBridge : DefaultOptimizerPlatformBri
             return false;
         }
     }
+
+    public override bool RegistryKeyExists(string hive, string subKeyPath)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
+        try
+        {
+            using var baseKey = OpenHive(hive);
+            using var key = baseKey.OpenSubKey(subKeyPath, writable: false);
+            return key is not null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public override string? FindFirstMissingRegistryKey(string hive, string subKeyPath)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return null;
+        }
+
+        try
+        {
+            using var baseKey = OpenHive(hive);
+            var current = "";
+            foreach (var part in subKeyPath.Split('\\', StringSplitOptions.RemoveEmptyEntries))
+            {
+                current = current.Length == 0 ? part : $@"{current}\{part}";
+                using var key = baseKey.OpenSubKey(current, writable: false);
+                if (key is null)
+                {
+                    return current;
+                }
+            }
+
+            return null;
+        }
+        catch
+        {
+            // Раздел есть, но закрыт для чтения: считаем, что мы его не создаём
+            return null;
+        }
+    }
+
+    public override bool DeleteRegistryKeyIfEmpty(string hive, string subKeyPath)
+    {
+        if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(subKeyPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var baseKey = OpenHive(hive);
+            using (var key = baseKey.OpenSubKey(subKeyPath, writable: false))
+            {
+                if (key is null || key.ValueCount > 0 || key.SubKeyCount > 0)
+                {
+                    return false;
+                }
+            }
+
+            baseKey.DeleteSubKey(subKeyPath, throwOnMissingSubKey: false);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public override ServiceConfigSnapshot? QueryServiceConfig(string serviceName) =>
+        WindowsServiceControl.Query(serviceName);
+
+    public override PlatformActionResult SetServiceStartup(string serviceName, ServiceStartupMode mode) =>
+        WindowsServiceControl.SetStartup(serviceName, mode);
+
+    public override Task<PlatformActionResult> ControlServiceAsync(string serviceName, bool start, CancellationToken ct = default) =>
+        WindowsServiceControl.ControlAsync(serviceName, start, TimeSpan.FromSeconds(30), ct);
+
+    public override Task<IReadOnlyList<WindowsServiceInfo>> GetServicesAsync(CancellationToken ct = default) =>
+        Task.Run(() => WindowsServiceControl.List(ct), ct);
+
+    public override IReadOnlyDictionary<string, ScheduledTaskSnapshot> QueryScheduledTasks(IReadOnlyCollection<string> taskPaths) =>
+        WindowsTaskScheduler.Query(taskPaths);
+
+    public override PlatformActionResult SetScheduledTaskEnabled(string taskPath, bool enabled) =>
+        WindowsTaskScheduler.SetEnabled(taskPath, enabled);
+
+    public override Task<IReadOnlyList<ScheduledTaskInfo>> GetScheduledTasksAsync(CancellationToken ct = default) =>
+        Task.Run(() => WindowsTaskScheduler.List(ct), ct);
 
     public override Task<IReadOnlyList<StartupEntryInfo>> GetStartupEntriesAsync(CancellationToken ct = default)
     {

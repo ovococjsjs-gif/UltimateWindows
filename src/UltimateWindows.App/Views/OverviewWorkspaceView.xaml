@@ -112,7 +112,7 @@
             <StackPanel Orientation="Horizontal">
               <Button Style="{StaticResource PrimaryButtonStyle}"
                       Command="{Binding JumpToDiskAnalyzerCommand}"
-                      Content="Анализ диска (WizTree)"
+                      Content="Анализ диска"
                       Margin="0,0,8,0" />
               <Button Style="{StaticResource SecondaryButtonStyle}"
                       Command="{Binding JumpToSpaceSaverCommand}"
@@ -194,8 +194,8 @@
                     Command="{Binding NavigateCommand}" CommandParameter="SmartCleaner"
                     Content="Открыть Диск, Кэш и Реестр →" />
             <StackPanel>
-              <TextBlock Text="Диск (WizTree), Очистка и Реестр" FontSize="14" FontWeight="SemiBold" />
-              <TextBlock Text="Дерево папок, типы файлов и карта блоков диска, бережная очистка кэша браузеров без потери паролей, 10 категорий реестра и поиск дублей SHA-256."
+              <TextBlock Text="Диск, очистка 2.0 и реестр" FontSize="14" FontWeight="SemiBold" />
+              <TextBlock Text="Прямое чтение индекса NTFS $MFT, карта блоков диска, 98+ правил очистки программ без потери паролей, 13 категорий реестра и дубли SHA-256."
                          FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0" />
             </StackPanel>
           </DockPanel>
@@ -206,10 +206,10 @@
           <DockPanel>
             <Button DockPanel.Dock="Bottom" Style="{StaticResource SecondaryButtonStyle}" Margin="0,12,0,0"
                     Command="{Binding NavigateCommand}" CommandParameter="Optimizer"
-                    Content="Открыть Твики, UWP и Сеть →" />
+                    Content="Открыть Твики, Службы и Сеть →" />
             <StackPanel>
-              <TextBlock Text="Оптимизатор, UWP и Программы" FontSize="14" FontWeight="SemiBold" />
-              <TextBlock Text="39 живых переключателей системы, телеметрии ПО (Office/Chrome/Firefox/Edge/NVIDIA) и игр, удаление UWP и программ, автозапуск, Пингер, DNS и редактор Hosts."
+              <TextBlock Text="Оптимизатор 2.0 (167 настроек)" FontSize="14" FontWeight="SemiBold" />
+              <TextBlock Text="167 переключателей Windows 10/11, телеметрии и игр, менеджер служб и заданий Планировщика, автозапуск, UWP, Пингер, DNS и Hosts."
                          FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0" />
             </StackPanel>
           </DockPanel>
@@ -220,10 +220,10 @@
           <DockPanel>
             <Button DockPanel.Dock="Bottom" Style="{StaticResource SecondaryButtonStyle}" Margin="0,12,0,0"
                     Command="{Binding NavigateCommand}" CommandParameter="AntiMiner"
-                    Content="Открыть Охотник на майнеры →" />
+                    Content="Открыть Защиту 2.0 →" />
             <StackPanel>
-              <TextBlock Text="Защита от скрытых майнеров" FontSize="14" FontWeight="SemiBold" />
-              <TextBlock Text="Детектор майнеров, прячущихся при открытии Диспетчера задач (Drop-on-Inspect), Stratum-пулов и разблокировка реестра/служб после заражения."
+              <TextBlock Text="Анти-Майнер и Защита 2.0" FontSize="14" FontWeight="SemiBold" />
+              <TextBlock Text="Ревизия 18 зон автозагрузки, детектор скрытых майнеров и Stratum-пулов, проверка исключений Защитника, брандмауэра и осады ОС."
                          FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0" />
             </StackPanel>
           </DockPanel>
@@ -236,8 +236,8 @@
                     Command="{Binding NavigateCommand}" CommandParameter="DllAndRepair"
                     Content="Открыть Ремонт ОС и DLL →" />
             <StackPanel>
-              <TextBlock Text="Ремонт Windows, DLL и BSOD" FontSize="14" FontWeight="SemiBold" />
-              <TextBlock Text="Рецепты DISM/SFC, сброс сети и Центра обновления, PE-доктор ошибки 0xC000007B, пакеты Visual C++ / DirectX и расшифровка дампов BSOD."
+              <TextBlock Text="Ремонт 2.0 (107 рецептов и BSOD)" FontSize="14" FontWeight="SemiBold" />
+              <TextBlock Text="107 проверок ОС, 23 официальных пакета VC++ / .NET / DirectX, рекурсивный PE-доктор, справочник ошибок и расшифровка дампов BSOD."
                          FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0" />
             </StackPanel>
           </DockPanel>
@@ -250,22 +250,22 @@
                     Command="{Binding NavigateCommand}" CommandParameter="HardwareAndDrivers"
                     Content="Открыть Железо и Драйверы →" />
             <StackPanel>
-              <TextBlock Text="Железо, S.M.A.R.T. и WHQL Драйверы" FontSize="14" FontWeight="SemiBold" />
-              <TextBlock Text="Подробные характеристики CPU, SMBIOS, слотов ОЗУ, NVMe/SATA дисков, мониторов EDID, стресс-тест и подбор подписанных драйверов по PCI SUBSYS."
+              <TextBlock Text="Железо 2.0, Бенчмарки и Драйверы" FontSize="14" FontWeight="SemiBold" />
+              <TextBlock Text="Паспорт уровня AIDA64, датчики без WinRing0, экспресс-бенчмарк CPU/GPU/ОЗУ/Диска, живой поиск Microsoft Update Catalog и 39 пакетов драйверов."
                          FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0" />
             </StackPanel>
           </DockPanel>
         </Border>
 
-        <!-- 6. Машина времени -->
+        <!-- 6. Программы, Windows 11 и Автопилот -->
         <Border Style="{StaticResource CardBorderStyle}">
           <DockPanel>
             <Button DockPanel.Dock="Bottom" Style="{StaticResource SecondaryButtonStyle}" Margin="0,12,0,0"
-                    Command="{Binding NavigateCommand}" CommandParameter="TimeMachineVault"
-                    Content="Открыть Журнал откатов →" />
+                    Command="{Binding NavigateCommand}" CommandParameter="AppsAndAutomation"
+                    Content="Открыть Программы и Автопилот →" />
             <StackPanel>
-              <TextBlock Text="Машина времени (Zero-Bloat Vault)" FontSize="14" FontWeight="SemiBold" />
-              <TextBlock Text="Мгновенный откат любого твика, записи реестра, файла hosts или DNS-профиля. Жесткая квота без засорения системного диска."
+              <TextBlock Text="Программы winget, Win 11 и Автопилот" FontSize="14" FontWeight="SemiBold" />
+              <TextBlock Text="Обновление всех программ и каталог из 36 утилит без рекламы, чистый деинсталлятор с поиском хвостов, готовность к Windows 11, расписание и .zip-отчёт."
                          FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0" />
             </StackPanel>
           </DockPanel>

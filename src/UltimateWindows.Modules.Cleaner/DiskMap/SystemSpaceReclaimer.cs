@@ -60,6 +60,51 @@ public sealed class SystemSpaceReclaimer
                 RequiresAdmin: true,
                 ActionButtonLabel: "Очистить кэш обновлений"));
 
+            // 3б. Кэш оптимизации доставки (Delivery Optimization)
+            var doCachePath = Path.Combine(winDir, "ServiceProfiles", "NetworkService", "AppData", "Local", "Microsoft", "Windows", "DeliveryOptimization", "Cache");
+            var doBytes = Directory.Exists(doCachePath) ? TrySumDirectoryQuick(doCachePath, maxSeconds: 2, ct) : 0;
+            items.Add(new SystemSpaceReserveItem(
+                Kind: SystemReserveKind.DeliveryOptimizationCache,
+                Title: "Кэш оптимизации доставки обновлений (Delivery Optimization)",
+                Description: "Части скачанных обновлений и приложений Store, хранящиеся для раздачи другим ПК в локальной сети.",
+                PathDisplay: doCachePath,
+                SizeBytes: doBytes,
+                CanActionReclaim: doBytes > 0,
+                RequiresAdmin: true,
+                ActionButtonLabel: "Очистить кэш доставки"));
+
+            // 3в. Системные дампы памяти ядра (MEMORY.DMP, Minidump, LiveKernelReports)
+            var fullDumpPath = Path.Combine(winDir, "MEMORY.DMP");
+            var minidumpDir = Path.Combine(winDir, "Minidump");
+            var liveKernelDir = Path.Combine(winDir, "LiveKernelReports");
+            var dumpBytes = TryGetAnyFileLength(fullDumpPath)
+                + (Directory.Exists(minidumpDir) ? TrySumDirectoryQuick(minidumpDir, maxSeconds: 1, ct) : 0)
+                + (Directory.Exists(liveKernelDir) ? TrySumDirectoryQuick(liveKernelDir, maxSeconds: 1, ct) : 0);
+            items.Add(new SystemSpaceReserveItem(
+                Kind: SystemReserveKind.SystemMemoryDumps,
+                Title: "Системные дампы памяти после сбоев (MEMORY.DMP / Minidump)",
+                Description: "Снимки памяти прошлых синих экранов. Удаляйте, только если разбор прошлых сбоев уже не нужен.",
+                PathDisplay: $"{fullDumpPath}; {minidumpDir}",
+                SizeBytes: dumpBytes,
+                CanActionReclaim: dumpBytes > 0,
+                RequiresAdmin: true,
+                ActionButtonLabel: "Удалить дампы сбоев"));
+
+            // 3г. Архивные журналы установки и обслуживания (CBS / DISM / Panther)
+            var logsDir = Path.Combine(winDir, "Logs");
+            var pantherDir = Path.Combine(winDir, "Panther");
+            var logsBytes = (Directory.Exists(logsDir) ? TrySumDirectoryQuick(logsDir, maxSeconds: 1, ct) : 0)
+                + (Directory.Exists(pantherDir) ? TrySumDirectoryQuick(pantherDir, maxSeconds: 1, ct) : 0);
+            items.Add(new SystemSpaceReserveItem(
+                Kind: SystemReserveKind.WindowsSetupAndCbsLogs,
+                Title: "Журналы установки и обслуживания Windows (Logs\\CBS, DISM, Panther)",
+                Description: "Накопленные текстовые журналы прошлых обновлений и проверок целостности старше суток.",
+                PathDisplay: logsDir,
+                SizeBytes: logsBytes,
+                CanActionReclaim: logsBytes > 0,
+                RequiresAdmin: true,
+                ActionButtonLabel: "Очистить старые журналы"));
+
             // 4. Хранилище компонентов WinSxS (штатная очистка DISM StartComponentCleanup)
             var winSxsPath = Path.Combine(winDir, "WinSxS");
             var winSxsBytes = Directory.Exists(winSxsPath) ? TrySumDirectoryQuick(winSxsPath, maxSeconds: 2, ct) : 0;
@@ -158,6 +203,34 @@ public sealed class SystemSpaceReclaimer
                     : (false, "Часть файлов Windows.old защищена TrustedInstaller — используйте штатную «Очистку системных файлов» или права Администратора.");
             }
 
+            case SystemReserveKind.DeliveryOptimizationCache:
+            {
+                _ = await RunSystemToolAsync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "Delete-DeliveryOptimizationCache -Force -ErrorAction SilentlyContinue"], ct).ConfigureAwait(false);
+                int deleted = DeleteDirectoryContentsBestEffort(item.PathDisplay);
+                return (true, $"Кэш оптимизации доставки очищен (удалено элементов: {deleted}).");
+            }
+
+            case SystemReserveKind.SystemMemoryDumps:
+            {
+                var winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+                int deleted = 0;
+                var memoryDmp = Path.Combine(winDir, "MEMORY.DMP");
+                try { if (File.Exists(memoryDmp)) { File.Delete(memoryDmp); deleted++; } } catch { }
+                deleted += DeleteFilesByExtensionBestEffort(Path.Combine(winDir, "Minidump"), ".dmp", minAgeHours: 0);
+                deleted += DeleteFilesByExtensionBestEffort(Path.Combine(winDir, "LiveKernelReports"), ".dmp", minAgeHours: 0);
+                return (true, $"Удалено файлов дампов памяти: {deleted}.");
+            }
+
+            case SystemReserveKind.WindowsSetupAndCbsLogs:
+            {
+                var winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+                int deleted = 0;
+                deleted += DeleteFilesByExtensionBestEffort(Path.Combine(winDir, "Logs", "CBS"), ".log", minAgeHours: 24, prefixFilter: "CbsPersist_");
+                deleted += DeleteFilesByExtensionBestEffort(Path.Combine(winDir, "Logs", "DISM"), ".log", minAgeHours: 24);
+                deleted += DeleteFilesByExtensionBestEffort(Path.Combine(winDir, "Panther"), ".log", minAgeHours: 24);
+                return (true, $"Удалено старых журналов обслуживания: {deleted}.");
+            }
+
             case SystemReserveKind.WinSxSComponentStore:
             {
                 var ok = await RunSystemToolAsync("Dism.exe", ["/Online", "/Cleanup-Image", "/StartComponentCleanup"], ct).ConfigureAwait(false);
@@ -169,6 +242,61 @@ public sealed class SystemSpaceReclaimer
             default:
                 return (false, "Этот системный файл защищен от удаления для стабильности ОС.");
         }
+    }
+
+    private static int DeleteDirectoryContentsBestEffort(string dirPath)
+    {
+        if (string.IsNullOrWhiteSpace(dirPath) || !Directory.Exists(dirPath)) return 0;
+        int deleted = 0;
+        try
+        {
+            foreach (var entry in Directory.EnumerateFileSystemEntries(dirPath))
+            {
+                try
+                {
+                    if (Directory.Exists(entry)) Directory.Delete(entry, recursive: true);
+                    else File.Delete(entry);
+                    deleted++;
+                }
+                catch { }
+            }
+        }
+        catch { }
+        return deleted;
+    }
+
+    private static int DeleteFilesByExtensionBestEffort(string dirPath, string extension, int minAgeHours, string? prefixFilter = null)
+    {
+        if (string.IsNullOrWhiteSpace(dirPath) || !Directory.Exists(dirPath)) return 0;
+        int deleted = 0;
+        var cutoff = DateTime.UtcNow.AddHours(-Math.Max(0, minAgeHours));
+        var opts = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint };
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(dirPath, "*" + extension, opts))
+            {
+                try
+                {
+                    var name = Path.GetFileName(file);
+                    if (prefixFilter is not null && !name.StartsWith(prefixFilter, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var fi = new FileInfo(file);
+                    if (minAgeHours > 0 && fi.LastWriteTimeUtc > cutoff)
+                    {
+                        continue;
+                    }
+
+                    fi.Delete();
+                    deleted++;
+                }
+                catch { }
+            }
+        }
+        catch { }
+        return deleted;
     }
 
     private static long TryGetAnyFileLength(string path)

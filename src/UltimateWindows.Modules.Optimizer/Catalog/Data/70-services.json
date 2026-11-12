@@ -1,0 +1,315 @@
+{
+  "schemaVersion": 2,
+
+  "tweaks": [
+    {
+      "id": "svc.disable-fax",
+      "category": "BackgroundServices",
+      "title": "Отключить службу факсов",
+      "explanation": "Отключает отправку и приём факсов через модем. Нужна только тем, кто пользуется приложением «Факсы и сканирование» для факсов.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "service", "name": "Fax", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "svc.disable-print-spooler",
+      "category": "BackgroundServices",
+      "title": "Отключить диспетчер печати",
+      "explanation": "Отключает службы печати. Подходит, если вы никогда не печатаете: перестанут работать все принтеры, включая «Печать в PDF», а список принтеров в «Параметрах» станет пустым.",
+      "risk": "Low",
+      "restart": "reboot",
+      "actions": [
+        { "type": "service", "name": "Spooler", "startup": "disabled", "default": "automatic" },
+        { "type": "service", "name": "PrintNotify", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "svc.disable-maps",
+      "category": "BackgroundServices",
+      "title": "Отключить обновление автономных карт",
+      "explanation": "Отключает службу и задания, которые скачивают и обновляют карты для приложения «Карты». Если карты не скачаны, вы ничего не потеряете.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "service", "name": "MapsBroker", "startup": "disabled", "default": "automaticDelayed" },
+        { "type": "task", "path": "\\Microsoft\\Windows\\Maps\\MapsUpdateTask", "enabled": false },
+        { "type": "task", "path": "\\Microsoft\\Windows\\Maps\\MapsToastTask", "enabled": false }
+      ]
+    },
+    {
+      "id": "svc.disable-retail-demo",
+      "category": "BackgroundServices",
+      "title": "Отключить демонстрационный режим для магазинов",
+      "explanation": "Отключает службу и задание, которые нужны только витринным компьютерам в магазинах.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "service", "name": "RetailDemo", "startup": "disabled", "default": "manual" },
+        { "type": "task", "path": "\\Microsoft\\Windows\\RetailDemo\\CleanupOfflineContent", "enabled": false }
+      ]
+    },
+    {
+      "id": "svc.disable-media-sharing",
+      "category": "BackgroundServices",
+      "title": "Отключить общий доступ к медиатеке",
+      "explanation": "Проигрыватель Windows Media перестаёт раздавать музыку и видео другим устройствам в сети (DLNA). Воспроизведение на самом компьютере не меняется.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "service", "name": "WMPNetworkSvc", "startup": "disabled", "default": "manual" },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\WindowsMediaPlayer", "name": "PreventLibrarySharing", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "svc.disable-xbox",
+      "category": "BackgroundServices",
+      "title": "Отключить службы Xbox",
+      "explanation": "Отключает вход в сеть Xbox, облачные сохранения, сетевые функции и поддержку аксессуаров Xbox. Не будут работать приложение Xbox, Game Pass и игры из Microsoft Store, которым нужен вход в учётную запись Xbox. Игры из Steam и других магазинов не затрагиваются.",
+      "risk": "Low",
+      "actions": [
+        { "type": "service", "name": "XblAuthManager", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "XblGameSave", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "XboxNetApiSvc", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "XboxGipSvc", "startup": "disabled", "default": "manual" },
+        { "type": "task", "path": "\\Microsoft\\XblGameSave\\XblGameSaveTask", "enabled": false }
+      ]
+    },
+    {
+      "id": "svc.disable-link-tracking",
+      "category": "BackgroundServices",
+      "title": "Отключить отслеживание перемещённых файлов",
+      "explanation": "Отключает службу, которая чинит ярлыки, когда их файл перенесли на другой том или компьютер в домене. На домашнем компьютере почти не используется.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "service", "name": "TrkWks", "startup": "disabled", "default": "automatic" }
+      ]
+    },
+    {
+      "id": "svc.disable-phone",
+      "category": "BackgroundServices",
+      "title": "Отключить телефонную службу",
+      "explanation": "Отключает службу состояния телефонии. Звонки через «Связь с телефоном» и приложения-телефоны из Microsoft Store перестанут работать.",
+      "risk": "Low",
+      "actions": [
+        { "type": "service", "name": "PhoneSvc", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "svc.disable-payments-nfc",
+      "category": "BackgroundServices",
+      "title": "Отключить службы платежей и NFC",
+      "explanation": "Отключает диспетчер платежей и защищённого элемента NFC и службу кошелька. Бесконтактная оплата с компьютера в России не используется.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "service", "name": "SEMgrSvc", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "WalletService", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "svc.disable-smart-cards",
+      "category": "BackgroundServices",
+      "title": "Отключить службы смарт-карт",
+      "explanation": "Отключает поддержку смарт-карт и USB-токенов. Не включайте, если пользуетесь электронной подписью (Рутокен, JaCarta, eToken) или входите в систему по карте — они перестанут определяться.",
+      "risk": "Low",
+      "actions": [
+        { "type": "service", "name": "SCardSvr", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "ScDeviceEnum", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "SCPolicySvc", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "svc.disable-bluetooth",
+      "category": "BackgroundServices",
+      "title": "Отключить службы Bluetooth",
+      "explanation": "Отключает поддержку Bluetooth. Подходит только компьютеру без Bluetooth-устройств: наушники, мыши, клавиатуры и геймпады по Bluetooth перестанут работать.",
+      "risk": "Low",
+      "restart": "reboot",
+      "actions": [
+        { "type": "service", "name": "bthserv", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "BTAGService", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "BthAvctpSvc", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "svc.disable-remote-desktop",
+      "category": "BackgroundServices",
+      "title": "Отключить службы удалённого рабочего стола",
+      "explanation": "К этому компьютеру нельзя будет подключиться по удалённому рабочему столу (RDP). Подключаться с него к другим компьютерам можно как раньше.",
+      "risk": "Low",
+      "restart": "reboot",
+      "actions": [
+        { "type": "service", "name": "TermService", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "SessionEnv", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "UmRdpService", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "svc.disable-parental-controls",
+      "category": "BackgroundServices",
+      "title": "Отключить родительский контроль",
+      "explanation": "Отключает службу и задания «Семейной безопасности Microsoft». Не включайте, если на компьютере есть детские учётные записи с ограничениями — ограничения перестанут действовать.",
+      "risk": "Low",
+      "actions": [
+        { "type": "service", "name": "WpcMonSvc", "startup": "disabled", "default": "manual" },
+        { "type": "task", "path": "\\Microsoft\\Windows\\Shell\\FamilySafetyMonitor", "enabled": false },
+        { "type": "task", "path": "\\Microsoft\\Windows\\Shell\\FamilySafetyRefreshTask", "enabled": false }
+      ]
+    },
+    {
+      "id": "svc.disable-alljoyn",
+      "category": "BackgroundServices",
+      "title": "Отключить маршрутизатор AllJoyn",
+      "explanation": "Отключает службу устаревшего протокола для устройств «умного дома». Современные устройства его не используют.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "service", "name": "AJRouter", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "svc.disable-diagnostics-hub",
+      "category": "BackgroundServices",
+      "title": "Отключить сборщик центра диагностики",
+      "explanation": "Отключает службу сбора событий для средств диагностики. Перестанут работать профилировщик и средства диагностики в Visual Studio; остальным она не нужна.",
+      "risk": "Low",
+      "actions": [
+        { "type": "service", "name": "diagnosticshub.standardcollector.service", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "svc.disable-scanner",
+      "category": "BackgroundServices",
+      "title": "Отключить службу сканеров и камер",
+      "explanation": "Отключает службу загрузки изображений Windows (WIA). Сканеры и фотоаппараты, подключённые как устройства обработки изображений, перестанут работать; веб-камеры не затрагиваются.",
+      "risk": "Low",
+      "actions": [
+        { "type": "service", "name": "stisvc", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "svc.disable-mobile-hotspot",
+      "category": "BackgroundServices",
+      "title": "Отключить мобильный хот-спот",
+      "explanation": "Компьютер не сможет раздавать интернет другим устройствам через «Мобильный хот-спот».",
+      "risk": "Low",
+      "actions": [
+        { "type": "service", "name": "icssvc", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "svc.disable-ip-helper",
+      "category": "BackgroundServices",
+      "title": "Отключить вспомогательную службу IP",
+      "explanation": "Отключает службу туннелей IPv6 и перенаправления портов. Перестанут работать правила netsh portproxy — ими пользуются для проброса портов в WSL и виртуальные машины.",
+      "risk": "Low",
+      "restart": "reboot",
+      "actions": [
+        { "type": "service", "name": "iphlpsvc", "startup": "disabled", "default": "automatic" }
+      ]
+    },
+    {
+      "id": "svc.disable-sensors",
+      "category": "BackgroundServices",
+      "title": "Отключить службы датчиков",
+      "explanation": "Отключает службы датчиков положения, освещённости и других. На настольном компьютере без датчиков ничего не изменится.",
+      "risk": "Low",
+      "requirements": { "batteryWarning": "Это устройство с батареей. На ноутбуках и планшетах без служб датчиков перестают работать автоповорот экрана и автоматическая яркость." },
+      "actions": [
+        { "type": "service", "name": "SensorService", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "SensrSvc", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "SensorDataService", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "svc.disable-insider",
+      "category": "BackgroundServices",
+      "title": "Отключить службу программы предварительной оценки",
+      "explanation": "Отключает службу, которая нужна для получения предварительных сборок Windows. Обычные обновления приходят как раньше.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "service", "name": "wisvc", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "svc.disable-hyperv-guest",
+      "category": "BackgroundServices",
+      "title": "Отключить гостевые службы Hyper-V",
+      "explanation": "Отключает службы, которые нужны Windows, только когда она сама работает внутри виртуальной машины Hyper-V. На обычном компьютере они не используются; виртуальные машины, запущенные на этом компьютере, продолжают работать.",
+      "risk": "Low",
+      "actions": [
+        { "type": "service", "name": "vmicguestinterface", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "vmicheartbeat", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "vmickvpexchange", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "vmicrdv", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "vmicshutdown", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "vmictimesync", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "vmicvmsession", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "vmicvss", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "svc.disable-iscsi",
+      "category": "BackgroundServices",
+      "title": "Отключить инициатор iSCSI",
+      "explanation": "Отключает подключение сетевых дисков по протоколу iSCSI. Используется в основном с серверными хранилищами.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "service", "name": "MSiSCSI", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "svc.disable-work-folders",
+      "category": "BackgroundServices",
+      "title": "Отключить рабочие папки",
+      "explanation": "Отключает синхронизацию файлов с сервером организации через «Рабочие папки». На домашнем компьютере не используется.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "service", "name": "workfolderssvc", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "svc.disable-speech-download-task",
+      "category": "BackgroundServices",
+      "title": "Отключить загрузку моделей распознавания речи",
+      "explanation": "Отключает задание, которое в фоне скачивает и обновляет языковые модели для распознавания речи. Уже установленные модели работают.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "task", "path": "\\Microsoft\\Windows\\Speech\\SpeechModelDownloadTask", "enabled": false }
+      ]
+    },
+    {
+      "id": "svc.disable-background-apps",
+      "category": "BackgroundServices",
+      "title": "Запретить приложениям Microsoft Store работать в фоне",
+      "explanation": "Приложения из Microsoft Store в Windows 10 перестают работать в фоне: не обновляют плитки и не присылают уведомления, пока закрыты. Обычные программы не затрагиваются.",
+      "risk": "Low",
+      "requirements": { "maxWindowsBuild": 19045 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications", "name": "GlobalUserDisabled", "kind": "dword", "value": 1, "default": 0 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Search", "name": "BackgroundAppGlobalToggle", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "svc.disable-network-discovery",
+      "category": "BackgroundServices",
+      "title": "Отключить сетевое обнаружение",
+      "explanation": "Отключает службы обнаружения SSDP, UPnP и публикации ресурсов. Компьютер перестаёт видеть другие устройства в «Сети» и сам становится невидим; не будут находиться сетевые принтеры, телевизоры и приставки для трансляции.",
+      "risk": "Moderate",
+      "restart": "reboot",
+      "actions": [
+        { "type": "service", "name": "SSDPSRV", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "upnphost", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "FDResPub", "startup": "disabled", "default": "manual" },
+        { "type": "service", "name": "fdPHost", "startup": "disabled", "default": "manual" }
+      ]
+    },
+    {
+      "id": "svc.disable-file-sharing",
+      "category": "BackgroundServices",
+      "title": "Отключить общий доступ к файлам и принтерам",
+      "explanation": "Отключает службу «Сервер»: другие компьютеры не смогут открывать общие папки и принтеры этого компьютера. Подключаться к чужим общим папкам можно как раньше.",
+      "risk": "Moderate",
+      "restart": "reboot",
+      "actions": [
+        { "type": "service", "name": "LanmanServer", "startup": "disabled", "default": "automatic" }
+      ]
+    }
+  ]
+}

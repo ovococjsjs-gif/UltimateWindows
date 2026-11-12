@@ -1,0 +1,129 @@
+<UserControl x:Class="UltimateWindows.App.Views.OptimizerTabs.ServicesTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid Margin="14,12,14,12">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="2" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- Поиск и фильтры -->
+    <DockPanel Grid.Row="0" Margin="0,0,0,8">
+      <Button DockPanel.Dock="Right"
+              Style="{StaticResource CompactButtonStyle}"
+              Command="{Binding RefreshCommand}"
+              Content="Обновить"
+              VerticalAlignment="Center"
+              Margin="10,0,0,0" />
+      <TextBox DockPanel.Dock="Left"
+               Style="{StaticResource SearchBoxStyle}"
+               Width="250"
+               Tag="Название, имя или издатель"
+               Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+               Margin="0,0,12,0" />
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <RadioButton GroupName="SvcFilter" Style="{StaticResource SegmentRadioStyle}"
+                     IsChecked="{Binding FilterMode, Converter={StaticResource IntEq}, ConverterParameter=0}" Content="Все" />
+        <RadioButton GroupName="SvcFilter" Style="{StaticResource SegmentRadioStyle}"
+                     IsChecked="{Binding FilterMode, Converter={StaticResource IntEq}, ConverterParameter=1}" Content="Сторонние"
+                     ToolTip="Службы, исполняемый файл которых выпущен не Microsoft" />
+        <RadioButton GroupName="SvcFilter" Style="{StaticResource SegmentRadioStyle}"
+                     IsChecked="{Binding FilterMode, Converter={StaticResource IntEq}, ConverterParameter=2}" Content="Работают" />
+        <RadioButton GroupName="SvcFilter" Style="{StaticResource SegmentRadioStyle}"
+                     IsChecked="{Binding FilterMode, Converter={StaticResource IntEq}, ConverterParameter=3}" Content="Отключены" />
+        <RadioButton GroupName="SvcFilter" Style="{StaticResource SegmentRadioStyle}"
+                     IsChecked="{Binding FilterMode, Converter={StaticResource IntEq}, ConverterParameter=4}" Content="Из каталога"
+                     ToolTip="Службы, которые отключают настройки из каталога" />
+      </StackPanel>
+    </DockPanel>
+
+    <DockPanel Grid.Row="1" Margin="2,0,0,6">
+      <TextBlock DockPanel.Dock="Right"
+                 Visibility="{Binding IsLimited, Converter={StaticResource BoolToVis}}"
+                 Text="Без прав администратора службы можно только смотреть"
+                 FontSize="11"
+                 Foreground="{DynamicResource AmberTextBrush}"
+                 Margin="12,0,0,0" />
+      <TextBlock Text="{Binding SummaryText}"
+                 FontSize="11.5"
+                 Foreground="{DynamicResource TextSecondaryBrush}" />
+    </DockPanel>
+
+    <ProgressBar Grid.Row="2"
+                 Style="{StaticResource LoadingBarStyle}"
+                 Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}" />
+
+    <DataGrid Grid.Row="3"
+              ItemsSource="{Binding View}"
+              IsReadOnly="True"
+              RowHeaderWidth="0">
+      <DataGrid.Columns>
+        <DataGridTemplateColumn Header="Служба" Width="5*" MinWidth="220" SortMemberPath="DisplayName">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <StackPanel Margin="0,1" ToolTip="{Binding NoteToolTip}">
+                <TextBlock Text="{Binding DisplayName}" FontSize="12.5" FontWeight="Medium" TextWrapping="Wrap" MaxHeight="34" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding ServiceName}" FontSize="10.5" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+
+        <DataGridTemplateColumn Header="Состояние" Width="116" SortMemberPath="StateText">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <ContentControl Content="{Binding StateChip}"
+                              ContentTemplate="{StaticResource ChipTemplate}"
+                              Focusable="False"
+                              Margin="0,4,0,0" />
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+
+        <DataGridTemplateColumn Header="Тип запуска" Width="236" SortMemberPath="StartupText">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <ComboBox ItemsSource="{Binding StartupChoices}"
+                        SelectedValuePath="Mode"
+                        DisplayMemberPath="Title"
+                        SelectedValue="{Binding SelectedStartup, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        IsEnabled="{Binding CanChange}"
+                        FontSize="12" />
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+
+        <DataGridTextColumn Header="Издатель" Binding="{Binding Publisher}" Width="140" />
+
+        <DataGridTemplateColumn Header="Пояснение" Width="4*" MinWidth="170" SortMemberPath="Note">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding Note}"
+                         ToolTip="{Binding NoteToolTip}"
+                         FontSize="11.5"
+                         Foreground="{DynamicResource TextSecondaryBrush}"
+                         TextTrimming="CharacterEllipsis"
+                         TextWrapping="Wrap"
+                         MaxHeight="31" />
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+
+        <DataGridTemplateColumn Header="" Width="106">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <Button Style="{StaticResource CompactButtonStyle}"
+                      Padding="8,3"
+                      FontSize="11"
+                      Command="{Binding ControlCommand}"
+                      IsEnabled="{Binding CanControl}"
+                      Content="{Binding ControlButtonText}" />
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+      </DataGrid.Columns>
+    </DataGrid>
+  </Grid>
+</UserControl>

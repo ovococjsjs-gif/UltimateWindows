@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 2,
+
+  "tweaks": [
+    {
+      "id": "gaming.disable-game-dvr",
+      "category": "Gaming",
+      "title": "Отключить фоновую запись игр",
+      "explanation": "Xbox Game Bar перестаёт записывать игру в фоне и не сможет сохранить «последние 30 секунд». Запись по кнопке тоже отключается; снимки экрана работают.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "System\\GameConfigStore", "name": "GameDVR_Enabled", "kind": "dword", "value": 0, "default": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\GameDVR", "name": "AppCaptureEnabled", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "gaming.no-game-bar-on-controller",
+      "category": "Gaming",
+      "title": "Не открывать Game Bar кнопкой геймпада",
+      "explanation": "Центральная кнопка геймпада Xbox больше не вызывает Game Bar поверх игры. Открыть его можно сочетанием Win+G.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\GameBar", "name": "UseNexusForGameBarEnabled", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "gaming.mouse-acceleration-off",
+      "category": "Gaming",
+      "title": "Отключить ускорение мыши",
+      "explanation": "Выключает «повышенную точность установки указателя»: курсор проходит одно и то же расстояние при одинаковом движении руки, с какой бы скоростью вы ни двигали мышь. К новому ощущению придётся привыкнуть.",
+      "risk": "Safe",
+      "restart": "signout",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Control Panel\\Mouse", "name": "MouseSpeed", "kind": "string", "value": "0", "default": "1" },
+        { "type": "registry", "hive": "HKCU", "key": "Control Panel\\Mouse", "name": "MouseThreshold1", "kind": "string", "value": "0", "default": "6" },
+        { "type": "registry", "hive": "HKCU", "key": "Control Panel\\Mouse", "name": "MouseThreshold2", "kind": "string", "value": "0", "default": "10" }
+      ]
+    },
+    {
+      "id": "gaming.network-throttling-off",
+      "category": "Gaming",
+      "title": "Снять сетевое ограничение при воспроизведении мультимедиа",
+      "explanation": "Пока играет звук или видео, Windows ограничивает обработку остальных сетевых пакетов и держит 20 % процессора для фоновых задач. Настройка снимает сетевое ограничение и уменьшает резерв до 10 %. Помогает в сетевых играх с голосовым чатом; на слабом процессоре звук может начать заикаться.",
+      "risk": "Low",
+      "restart": "reboot",
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile", "name": "NetworkThrottlingIndex", "kind": "dword", "value": "0xFFFFFFFF", "default": 10 },
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile", "name": "SystemResponsiveness", "kind": "dword", "value": 10, "default": 20 }
+      ]
+    },
+    {
+      "id": "gaming.hags",
+      "category": "Gaming",
+      "title": "Включить планирование GPU с аппаратным ускорением",
+      "explanation": "Видеокарта сама распределяет свою память и очередь команд. Нужно для генерации кадров DLSS 3 и FSR 3. На старых видеокартах и драйверах не действует или вызывает подёргивания — тогда выключите.",
+      "risk": "Low",
+      "restart": "reboot",
+      "requirements": { "minWindowsBuild": 19041 },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers", "name": "HwSchMode", "kind": "dword", "value": 2 }
+      ]
+    },
+    {
+      "id": "gaming.disable-memory-integrity",
+      "category": "Gaming",
+      "title": "Отключить целостность памяти (изоляцию ядра)",
+      "explanation": "Отключает проверку драйверов гипервизором. В играх это даёт прибавку в несколько процентов кадров, но вредоносному драйверу становится проще получить права ядра. Microsoft допускает такое отключение только на время игры.",
+      "risk": "High",
+      "restart": "reboot",
+      "requirements": { "minWindowsBuild": 19041 },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\\Scenarios\\HypervisorEnforcedCodeIntegrity", "name": "Enabled", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    }
+  ]
+}

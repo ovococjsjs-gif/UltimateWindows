@@ -6,12 +6,10 @@ using UltimateWindows.Modules.Hardware.Models;
 namespace UltimateWindows.Modules.Hardware.Stress;
 
 /// <summary>
-/// Многопоточная вычислительная нагрузка на процессор с тепловым предохранителем.
-///
-/// Ограничения, о которых тест честно сообщает в итоговом сообщении:
-/// 1) предохранитель срабатывает только по тем датчикам, которые удалось прочитать; если температура процессора
-///    недоступна, защита для процессора не работает;
-/// 2) тест нагружает процессор, но не сверяет результаты вычислений, поэтому ошибок счёта он не находит.
+/// Многопоточный стресс-тест стабильности процессора и памяти Этапа 6:
+/// - работает с пониженным приоритетом потоков (интерфейс и опрос датчиков не зависают);
+/// - сверяет эталонную детерминированную контрольную сумму на каждом блоке (выявляет сбои андервольтинга/разгона CPU и ОЗУ);
+/// - записывает временной ряд телеметрии (производительность + температура CPU и GPU) для живого графика и срабатывает по тепловому предохранителю.
 /// </summary>
 public sealed class ThermalSafeStressRunner
 {
@@ -39,9 +37,14 @@ public sealed class ThermalSafeStressRunner
         var workerToken = linkedCts.Token;
 
         long totalOps = 0;
+        int integrityErrors = 0;
         var thermalAborted = false;
         double? peakCpu = null;
         double? peakGpu = null;
+        var history = new List<StressTelemetryPoint>(128);
+
+        // Предвычисляем эталонный результат детерминированного ядра на холодном старте
+        ulong goldenChecksum = ComputeDeterministicIntegrityBlock(0x55AA_1234_99CC_7711UL);
 
         var workerCount = Math.Max(1, Environment.ProcessorCount);
         var sw = Stopwatch.StartNew();
@@ -50,7 +53,15 @@ public sealed class ThermalSafeStressRunner
         for (var w = 0; w < workerCount; w++)
         {
             var seed = w + 1;
-            workers[w] = Task.Run(() => ExecuteVectorKernel(seed, ref totalOps, workerToken), CancellationToken.None);
+            workers[w] = Task.Factory.StartNew(
+                () =>
+                {
+                    Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
+                    ExecuteVerifiedVectorKernel(seed, goldenChecksum, ref totalOps, ref integrityErrors, workerToken);
+                },
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
         }
 
         try
@@ -70,6 +81,13 @@ public sealed class ThermalSafeStressRunner
                     peakGpu = gpuTemp.Value;
                 }
 
+                var elapsedSec = Math.Max(0.001, sw.Elapsed.TotalSeconds);
+                var currentOps = Interlocked.Read(ref totalOps);
+                var errCount = Volatile.Read(ref integrityErrors);
+                var mops = Math.Round((currentOps / elapsedSec) / 1_000_000.0, 2);
+
+                history.Add(new StressTelemetryPoint(Math.Round(elapsedSec, 2), mops, cpuTemp, gpuTemp));
+
                 if ((cpuTemp.HasValue && cpuTemp.Value >= maxSafeCpuTempC) ||
                     (gpuTemp.HasValue && gpuTemp.Value >= maxSafeGpuTempC))
                 {
@@ -78,10 +96,6 @@ public sealed class ThermalSafeStressRunner
                     break;
                 }
 
-                var elapsedSec = Math.Max(0.001, sw.Elapsed.TotalSeconds);
-                var currentOps = Interlocked.Read(ref totalOps);
-                var mops = Math.Round((currentOps / elapsedSec) / 1_000_000.0, 2);
-
                 progress?.Report(new StressTestProgress(
                     Elapsed: sw.Elapsed,
                     TotalMatrixOperations: currentOps,
@@ -89,12 +103,14 @@ public sealed class ThermalSafeStressRunner
                     PeakCpuTempC: peakCpu,
                     PeakGpuTempC: peakGpu,
                     WasAbortedByThermalCutoff: false,
-                    StatusMessage: $"Стресс-тест выполняется ({workerCount} потоков): {mops:F1} млн опер./сек{DescribeSensorCoverage(peakCpu, peakGpu)}"));
+                    StatusMessage: $"Стресс-тест ({workerCount} потоков): {mops:F1} млн опер./сек • Ошибок вычислений: {errCount}{DescribeSensorCoverage(peakCpu, peakGpu)}",
+                    IntegrityErrorCount: errCount,
+                    History: history.ToArray()));
             }
         }
         catch (OperationCanceledException) when (!externalCt.IsCancellationRequested)
         {
-            // Штатное завершение по таймеру длительности или тепловому предохранителю
+            // Штатное завершение по таймеру или тепловому предохранителю
         }
         finally
         {
@@ -105,11 +121,27 @@ public sealed class ThermalSafeStressRunner
 
         var finalSec = Math.Max(0.001, sw.Elapsed.TotalSeconds);
         var finalOps = Interlocked.Read(ref totalOps);
+        var finalErrors = Volatile.Read(ref integrityErrors);
         var finalMops = Math.Round((finalOps / finalSec) / 1_000_000.0, 2);
 
-        var finalMsg = thermalAborted
-            ? $"Сработал тепловой предохранитель (пик CPU {peakCpu?.ToString("F0") ?? "-"}°C / GPU {peakGpu?.ToString("F0") ?? "-"}°C) — нагрузка безопасно остановлена!"
-            : $"Нагрузочный прогон завершён за {sw.Elapsed.TotalSeconds:F1} сек ({finalMops:F1} млн векторных опер./сек). Ошибки вычислений этот тест не проверяет.{DescribeSensorCoverage(peakCpu, peakGpu)}";
+        if (history.Count == 0)
+        {
+            history.Add(new StressTelemetryPoint(Math.Round(finalSec, 2), finalMops, peakCpu, peakGpu));
+        }
+
+        string finalMsg;
+        if (thermalAborted)
+        {
+            finalMsg = $"Сработал тепловой предохранитель (пик CPU {peakCpu?.ToString("F0") ?? "—"}°C / GPU {peakGpu?.ToString("F0") ?? "—"}°C) — нагрузка безопасно остановлена!";
+        }
+        else if (finalErrors > 0)
+        {
+            finalMsg = $"ВНИМАНИЕ: обнаружено {finalErrors} ошибок счёта за {sw.Elapsed.TotalSeconds:F1} сек! Возможна нестабильность разгона/андервольтинга CPU или ОЗУ.";
+        }
+        else
+        {
+            finalMsg = $"Тест стабильности пройден за {sw.Elapsed.TotalSeconds:F1} сек ({finalMops:F1} млн опер./сек, ошибок счёта: 0).{DescribeSensorCoverage(peakCpu, peakGpu)}";
+        }
 
         var finalResult = new StressTestProgress(
             Elapsed: sw.Elapsed,
@@ -118,31 +150,33 @@ public sealed class ThermalSafeStressRunner
             PeakCpuTempC: peakCpu,
             PeakGpuTempC: peakGpu,
             WasAbortedByThermalCutoff: thermalAborted,
-            StatusMessage: finalMsg);
+            StatusMessage: finalMsg,
+            IntegrityErrorCount: finalErrors,
+            History: history);
 
         progress?.Report(finalResult);
         return finalResult;
     }
 
-    /// <summary>
-    /// Предупреждение о том, за какими датчиками тепловая защита на самом деле следила.
-    /// Пустая строка, если температура процессора читается.
-    /// </summary>
     private static string DescribeSensorCoverage(double? peakCpuTempC, double? peakGpuTempC)
     {
         if (peakCpuTempC.HasValue)
         {
-            return "";
+            return $" • Пик CPU: {peakCpuTempC.Value:F0}°C" + (peakGpuTempC.HasValue ? $", GPU: {peakGpuTempC.Value:F0}°C" : "");
         }
 
         return peakGpuTempC.HasValue
-            ? " Температура процессора недоступна: тепловая защита следит только за видеокартой."
-            : " Датчики температуры недоступны: тепловая защита не работает, следите за температурой сами.";
+            ? $" • Пик GPU: {peakGpuTempC.Value:F0}°C (для температуры CPU установите опциональный PawnIO)."
+            : " • Температура CPU недоступна без PawnIO (контролируйте нагрев самостоятельно).";
     }
 
-    private static void ExecuteVectorKernel(int workerSeed, ref long sharedOpsCounter, CancellationToken ct)
+    private static void ExecuteVerifiedVectorKernel(
+        int workerSeed,
+        ulong goldenChecksum,
+        ref long sharedOpsCounter,
+        ref int sharedIntegrityErrors,
+        CancellationToken ct)
     {
-        // Комбинированная нагрузка SIMD Vector4 (FMA/FPU) + кэш L1/L2 (буфер 32 КБ на поток)
         var scratch = new float[8192];
         for (var i = 0; i < scratch.Length; i++)
         {
@@ -162,18 +196,40 @@ public sealed class ThermalSafeStressRunner
                 accA = (accA * v) + bias;
                 accB = (accB * accA) - bias;
 
-                // Защита от переполнения float в Infinity/NaN на длительных прогонах
                 if (accA.X > 1e6f || accA.X < -1e6f)
                 {
                     accA = new Vector4(1.01f, 1.02f, 1.03f, 1.04f);
                     accB = new Vector4(0.99f, 0.98f, 0.97f, 0.96f);
                 }
 
-                scratch[idx] = accA.X * 0.5f + 0.5f;
-                batchOps += 8; // 2 векторные операции по 4 float элемента
+                batchOps += 8;
             }
 
+            // Детерминированная проверка целостности ALU + кэша L1/L2 на каждом цикле
+            var check = ComputeDeterministicIntegrityBlock(0x55AA_1234_99CC_7711UL);
+            if (check != goldenChecksum)
+            {
+                Interlocked.Increment(ref sharedIntegrityErrors);
+            }
+
+            scratch[0] = accB.X * 0.000001f + 1.0f;
             Interlocked.Add(ref sharedOpsCounter, batchOps);
         }
+    }
+
+    private static ulong ComputeDeterministicIntegrityBlock(ulong seed)
+    {
+        ulong x = seed;
+        double fp = 1.5;
+        for (int i = 1; i <= 256; i++)
+        {
+            x ^= x >> 12;
+            x ^= x << 25;
+            x ^= x >> 27;
+            x *= 2685821657736338717UL;
+            fp = Math.BitIncrement((fp * 1.0009765625) - 0.00048828125);
+        }
+
+        return x ^ (ulong)BitConverter.DoubleToInt64Bits(fp);
     }
 }

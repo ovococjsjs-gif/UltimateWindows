@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 2,
+
+  "tweaks": [
+    {
+      "id": "ads.disable-start-suggestions",
+      "category": "AdsAndSuggestions",
+      "title": "Не показывать рекомендуемые приложения в меню «Пуск»",
+      "explanation": "Из меню «Пуск» пропадают плитки и строки с приложениями, которые Microsoft предлагает установить.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SystemPaneSuggestionsEnabled", "kind": "dword", "value": 0, "default": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-338388Enabled", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "ads.disable-start-recommendations",
+      "category": "AdsAndSuggestions",
+      "title": "Не показывать советы и продвижение приложений в меню «Пуск»",
+      "explanation": "В разделе «Рекомендуем» меню «Пуск» остаются только ваши недавние файлы и приложения, без советов и предложений из Microsoft Store.",
+      "risk": "Safe",
+      "requirements": { "minWindowsBuild": 22621 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "Start_IrisRecommendations", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "ads.disable-silent-app-installs",
+      "category": "AdsAndSuggestions",
+      "title": "Запретить автоматическую установку рекомендованных приложений",
+      "explanation": "Windows перестаёт сама устанавливать продвигаемые приложения и игры из Microsoft Store. Уже установленные остаются — их можно удалить на вкладке «Приложения».",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SilentInstalledAppsEnabled", "kind": "dword", "value": 0, "default": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "PreInstalledAppsEnabled", "kind": "dword", "value": 0, "default": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "OemPreInstalledAppsEnabled", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "ads.disable-lock-screen-tips",
+      "category": "AdsAndSuggestions",
+      "title": "Убрать советы и рекламу с экрана блокировки",
+      "explanation": "С экрана блокировки пропадают «интересные факты», советы и предложения. Картинка остаётся прежней.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "RotatingLockScreenOverlayEnabled", "kind": "dword", "value": 0, "default": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-338387Enabled", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "ads.disable-tips",
+      "category": "AdsAndSuggestions",
+      "title": "Не показывать советы и подсказки по Windows",
+      "explanation": "Windows перестаёт присылать уведомления с советами, как пользоваться системой и службами Microsoft.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SoftLandingEnabled", "kind": "dword", "value": 0, "default": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-338389Enabled", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "ads.disable-welcome-experience",
+      "category": "AdsAndSuggestions",
+      "title": "Не показывать экран «Добро пожаловать» после обновлений",
+      "explanation": "После крупных обновлений Windows перестаёт открывать страницу с рассказом о новых возможностях.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-310093Enabled", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "ads.disable-settings-suggestions",
+      "category": "AdsAndSuggestions",
+      "title": "Не показывать рекомендации в «Параметрах»",
+      "explanation": "Из приложения «Параметры» пропадают блоки с рекомендуемым содержимым и предложениями служб Microsoft.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-338393Enabled", "kind": "dword", "value": 0, "default": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-353694Enabled", "kind": "dword", "value": 0, "default": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-353696Enabled", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "ads.disable-settings-365-ads",
+      "category": "AdsAndSuggestions",
+      "title": "Убрать рекламу Microsoft 365 из «Параметров»",
+      "explanation": "С главной страницы «Параметров» пропадают предложения оформить подписку Microsoft 365 и другие сообщения о состоянии учётной записи.",
+      "risk": "Safe",
+      "requirements": { "minWindowsBuild": 22621 },
+      "actions": [
+        { "type": "registry", "hive": "HKLM", "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent", "name": "DisableConsumerAccountStateContent", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "ads.disable-finish-setup",
+      "category": "AdsAndSuggestions",
+      "title": "Не предлагать «завершить настройку устройства»",
+      "explanation": "После обновлений Windows перестаёт показывать на весь экран предложение включить OneDrive, Microsoft 365 и другие службы.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\UserProfileEngagement", "name": "ScoobeSystemSettingEnabled", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "ads.disable-explorer-ads",
+      "category": "AdsAndSuggestions",
+      "title": "Убрать рекламу OneDrive и Microsoft 365 из Проводника",
+      "explanation": "В окнах Проводника перестают появляться полосы с предложениями облачного хранилища и подписок.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "ShowSyncProviderNotifications", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    },
+    {
+      "id": "ads.disable-account-notifications",
+      "category": "AdsAndSuggestions",
+      "title": "Не показывать уведомления учётной записи Microsoft",
+      "explanation": "Из меню «Пуск» и «Параметров» пропадают напоминания войти в учётную запись Microsoft, создать резервную копию и подключить службы.",
+      "risk": "Safe",
+      "requirements": { "minWindowsBuild": 22621 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "Start_AccountNotifications", "kind": "dword", "value": 0, "default": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\SystemSettings\\AccountNotifications", "name": "EnableAccountNotifications", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "ads.disable-suggested-notifications",
+      "category": "AdsAndSuggestions",
+      "title": "Отключить уведомления с предложениями",
+      "explanation": "Windows перестаёт присылать уведомления, которые предлагают отключить «лишние» уведомления или попробовать функции системы.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Notifications\\Settings\\Windows.SystemToast.Suggested", "name": "Enabled", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "ads.disable-backup-reminders",
+      "category": "AdsAndSuggestions",
+      "title": "Не напоминать о резервном копировании в OneDrive",
+      "explanation": "Windows перестаёт присылать уведомления с предложением включить резервное копирование папок в OneDrive.",
+      "risk": "Safe",
+      "requirements": { "minWindowsBuild": 22621 },
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Notifications\\Settings\\Windows.SystemToast.BackupReminder", "name": "Enabled", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "ads.disable-phone-link-suggestions",
+      "category": "AdsAndSuggestions",
+      "title": "Не предлагать связать телефон с компьютером",
+      "explanation": "Windows перестаёт показывать предложения подключить телефон через «Связь с телефоном». Уже настроенная связь продолжает работать.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Mobility", "name": "OptedIn", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "ads.disable-spotlight",
+      "category": "AdsAndSuggestions",
+      "title": "Отключить «Windows: интересное»",
+      "explanation": "Отключает подборку фотографий, советов и предложений Microsoft на экране блокировки и рабочем столе. Останется картинка, которую вы выберете сами.",
+      "risk": "Low",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Policies\\Microsoft\\Windows\\CloudContent", "name": "DisableWindowsSpotlightFeatures", "kind": "dword", "value": 1 }
+      ]
+    },
+    {
+      "id": "ads.disable-bing-in-start",
+      "category": "AdsAndSuggestions",
+      "title": "Убрать поиск в интернете из меню «Пуск»",
+      "explanation": "Поиск в «Пуске» ищет только на компьютере и не отправляет набранное в Bing. Заодно пропадают подсказки прошлых запросов в поле поиска Проводника.",
+      "risk": "Safe",
+      "restart": "explorer",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Policies\\Microsoft\\Windows\\Explorer", "name": "DisableSearchBoxSuggestions", "kind": "dword", "value": 1 },
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Search", "name": "BingSearchEnabled", "kind": "dword", "value": 0 }
+      ]
+    },
+    {
+      "id": "ads.disable-search-highlights",
+      "category": "AdsAndSuggestions",
+      "title": "Убрать «главное в поиске»",
+      "explanation": "Из поля и окна поиска пропадают картинки дня, подборки новостей и рекламные поводы.",
+      "risk": "Safe",
+      "actions": [
+        { "type": "registry", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\SearchSettings", "name": "IsDynamicSearchBoxEnabled", "kind": "dword", "value": 0, "default": 1 }
+      ]
+    }
+  ]
+}

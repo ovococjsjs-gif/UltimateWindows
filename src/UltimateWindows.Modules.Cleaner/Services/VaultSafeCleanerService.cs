@@ -4,9 +4,11 @@ using UltimateWindows.Core.Contracts;
 using UltimateWindows.Core.Enums;
 using UltimateWindows.Core.Guards;
 using UltimateWindows.Core.Models;
+using UltimateWindows.Modules.Cleaner.Browsers;
 using UltimateWindows.Modules.Cleaner.Contracts;
 using UltimateWindows.Modules.Cleaner.DiskMap;
 using UltimateWindows.Modules.Cleaner.Models;
+using UltimateWindows.Modules.Cleaner.Rules;
 using UltimateWindows.Modules.Cleaner.Scanners;
 using UltimateWindows.Modules.Cleaner.Utilities;
 
@@ -97,6 +99,17 @@ public class DefaultCleanerPlatformBridge : ICleanerPlatformBridge
 
         return Task.FromResult(false);
     }
+
+    public virtual bool RegistryKeyExists(string keyPath) => false;
+
+    public virtual string? ReadRegistryString(string keyPath, string valueName) => null;
+
+    public virtual Task<DiskSpaceAnalysisReport?> TryAnalyzeNtfsVolumeViaMftAsync(
+        string rootPath,
+        int topDirectoryLimit = 12,
+        int largestFilesLimit = 15,
+        CancellationToken ct = default)
+        => Task.FromResult<DiskSpaceAnalysisReport?>(null);
 }
 
 /// <summary>
@@ -109,25 +122,114 @@ public sealed class VaultSafeCleanerService
     private readonly IVaultService _vaultService;
     private readonly ICleanerPlatformBridge _platformBridge;
     private readonly BrowserCacheScanner _browserScanner;
+    private readonly BrowserDataCleaner _browserDataCleaner;
     private readonly SystemJunkScanner _systemJunkScanner;
+    private readonly CleanupRuleEngine _ruleEngine;
     private readonly FastDiskSpaceAnalyzer _diskAnalyzer;
     private readonly DuplicateFileFinder _duplicateFinder;
     private readonly SystemSpaceReclaimer _spaceReclaimer;
+    private readonly List<CleanupRule> _externalWinapp2Rules = [];
 
     public VaultSafeCleanerService(
         IVaultService vaultService,
         ICleanerPlatformBridge? platformBridge = null,
         BrowserCacheScanner? browserScanner = null,
         SystemJunkScanner? systemJunkScanner = null,
-        FastDiskSpaceAnalyzer? diskAnalyzer = null)
+        FastDiskSpaceAnalyzer? diskAnalyzer = null,
+        CleanupEnvironment? ruleEnvironment = null,
+        TimeProvider? timeProvider = null)
     {
         _vaultService = vaultService ?? throw new ArgumentNullException(nameof(vaultService));
         _platformBridge = platformBridge ?? new DefaultCleanerPlatformBridge();
         _browserScanner = browserScanner ?? new BrowserCacheScanner(_platformBridge);
-        _systemJunkScanner = systemJunkScanner ?? new SystemJunkScanner();
-        _diskAnalyzer = diskAnalyzer ?? new FastDiskSpaceAnalyzer();
+        _browserDataCleaner = new BrowserDataCleaner(_platformBridge);
+        _systemJunkScanner = systemJunkScanner ?? new SystemJunkScanner(timeProvider: timeProvider);
+        _ruleEngine = new CleanupRuleEngine(
+            _platformBridge,
+            ruleEnvironment ?? CleanupEnvironment.FromSystem(),
+            extraProtectedDirectories: [Path.Combine(AppContext.BaseDirectory, "Data", "Vault")],
+            timeProvider: timeProvider);
+        _diskAnalyzer = diskAnalyzer ?? new FastDiskSpaceAnalyzer(_platformBridge);
         _duplicateFinder = new DuplicateFileFinder();
         _spaceReclaimer = new SystemSpaceReclaimer();
+    }
+
+    public IReadOnlyList<CleanupRule> ExternalRules => _externalWinapp2Rules;
+
+    /// <summary>
+    /// Возвращает все активные правила каталога: встроенные + подключённые пользователем из файла формата Winapp2.ini.
+    /// </summary>
+    public IReadOnlyList<CleanupRule> GetCatalogRules()
+    {
+        var builtIn = CleanupRuleCatalogLoader.LoadBuiltIn().Rules;
+        if (_externalWinapp2Rules.Count == 0)
+        {
+            return builtIn;
+        }
+
+        var combined = new List<CleanupRule>(builtIn.Count + _externalWinapp2Rules.Count);
+        combined.AddRange(builtIn);
+        combined.AddRange(_externalWinapp2Rules);
+        return combined;
+    }
+
+    /// <summary>
+    /// Подключает внешний файл правил формата Winapp2.ini. Все внешние правила по умолчанию сняты и проходят усиленную проверку <see cref="CleanupPathGuard"/>.
+    /// </summary>
+    public Winapp2ReadResult ImportExternalWinapp2File(string filePath)
+    {
+        var parsed = Winapp2Reader.ReadFile(filePath);
+        _externalWinapp2Rules.Clear();
+        _externalWinapp2Rules.AddRange(parsed.Rules);
+        return parsed;
+    }
+
+    public void ClearExternalWinapp2Rules() => _externalWinapp2Rules.Clear();
+
+    /// <summary>
+    /// Анализ по каталогу правил программ (встроенный каталог + подключённый Winapp2.ini) без удаления файлов.
+    /// </summary>
+    public Task<CleanupRuleScanResult> ScanAppRulesAsync(CancellationToken ct = default)
+    {
+        var rules = GetCatalogRules();
+        return Task.Run(() => _ruleEngine.Scan(rules, ct), ct);
+    }
+
+    /// <summary>
+    /// Очистка отмеченных находок каталога правил программ.
+    /// </summary>
+    public Task<CleanupRuleExecutionResult> ExecuteAppRulesAsync(
+        IReadOnlyList<CleanupRuleFinding> selectedFindings,
+        CancellationToken ct = default)
+        => Task.Run(() => _ruleEngine.Execute(selectedFindings, ct), ct);
+
+    /// <summary>
+    /// Анализ данных браузеров по пунктам (история, список загрузок, cookie с учётом списка исключений, вкладки сеансов).
+    /// </summary>
+    public Task<BrowserDataScanReport> ScanBrowserDataDetailsAsync(
+        IReadOnlyList<string>? keepCookieDomains = null,
+        CancellationToken ct = default)
+    {
+        return Task.Run(() =>
+        {
+            var profiles = _browserScanner.DiscoverProfiles();
+            return _browserDataCleaner.Scan(profiles, keepCookieDomains, ct);
+        }, ct);
+    }
+
+    /// <summary>
+    /// Выборочная очистка отмеченных пунктов браузеров (история, загрузки, cookie со списком «сохранить», сеансы).
+    /// Пароли, автозаполнение и закладки защищены всегда.
+    /// </summary>
+    public Task<BrowserDataCleanResult> CleanBrowserDataDetailsAsync(
+        BrowserCleanupSelection selection,
+        CancellationToken ct = default)
+    {
+        return Task.Run(() =>
+        {
+            var profiles = _browserScanner.DiscoverProfiles();
+            return _browserDataCleaner.Clean(profiles, selection, ct);
+        }, ct);
     }
 
     public IReadOnlyList<DiskVolumeSummary> GetMountedVolumes() => FastDiskSpaceAnalyzer.GetReadyVolumes();

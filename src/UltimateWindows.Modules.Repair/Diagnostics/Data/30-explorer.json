@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 1,
+  "section": "ExplorerAndShell",
+  "rules": [
+    {
+      "id": "explorer.winlogon-shell",
+      "title": "Штатная оболочка входа в систему (Winlogon\\Shell = explorer.exe)",
+      "symptom": "После ввода пароля открывается пустой чёрный экран с курсором мыши, Рабочий стол и Панель задач не загружаются.",
+      "explanation": "Вредоносные программы и майнеры заменяют параметр Shell в разделе Winlogon на свой файл; после удаления вируса антивирусом вместо Проводника при входе ничего не запускается.",
+      "fixSummary": "Возвращает штатное значение Shell = explorer.exe в HKLM и удаляет переопределение Shell в HKCU.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+          "valueName": "Shell",
+          "expectation": "MustEqualString",
+          "expectedString": "explorer.exe",
+          "fixKind": "SetString",
+          "fixString": "explorer.exe"
+        },
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+          "valueName": "Shell",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "explorer.winlogon-userinit",
+      "title": "Целостность инициализации входа пользователя (Winlogon\\Userinit)",
+      "symptom": "Сразу после входа в систему Windows мгновенно завершает сеанс и выбрасывает обратно на экран блокировки.",
+      "explanation": "Параметр Userinit повреждён или не содержит путь к системному C:\\Windows\\system32\\userinit.exe.",
+      "fixSummary": "Восстанавливает штатную строку C:\\Windows\\system32\\userinit.exe, в разделе Winlogon.",
+      "severity": "Critical",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+          "valueName": "Userinit",
+          "expectation": "MustContainSubstring",
+          "expectedString": "userinit.exe",
+          "fixKind": "SetString",
+          "fixString": "C:\\Windows\\system32\\userinit.exe,"
+        }
+      ]
+    },
+    {
+      "id": "explorer.no-desktop-policy",
+      "title": "Скрытие всех значков Рабочего стола политикой (NoDesktop)",
+      "symptom": "На Рабочем столе не отображается ни один ярлык и не работает правая кнопка мыши.",
+      "explanation": "В политиках Проводника включён параметр NoDesktop = 1.",
+      "fixSummary": "Удаляет политику NoDesktop в HKCU и HKLM.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "NoDesktop",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "NoDesktop",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "explorer.context-menu-disabled",
+      "title": "Заблокированное контекстное меню правой кнопки мыши (NoViewContextMenu)",
+      "symptom": "Правый клик мыши в Проводнике и на Рабочем столе ничего не открывает.",
+      "explanation": "Выставлена политика NoViewContextMenu, отключающая контекстные меню оболочки.",
+      "fixSummary": "Удаляет политику NoViewContextMenu в HKCU и HKLM.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "NoViewContextMenu",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "NoViewContextMenu",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "explorer.hidden-drives-policy",
+      "title": "Скрытые локальные диски в окне «Этот компьютер» (NoDrives / NoViewOnDrive)",
+      "symptom": "Диск C:\\ или D:\\ есть в Управлении дисками, но скрыт из Проводника либо пишет «Доступ к диску запрещён».",
+      "explanation": "Маска политик NoDrives или NoViewOnDrive скрывает буквы дисков в Проводнике.",
+      "fixSummary": "Удаляет политики NoDrives и NoViewOnDrive в HKCU и HKLM.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "NoDrives",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "NoViewOnDrive",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "NoDrives",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "explorer.thumbnails-policy",
+      "title": "Политика отключения эскизов изображений и видео в Проводнике",
+      "symptom": "Вместо миниатюр фотографий и видеороликов в папках отображаются только одинаковые стандартные значки.",
+      "explanation": "Политика DisableThumbnails отключает генерацию превью в Проводнике.",
+      "fixSummary": "Удаляет политику DisableThumbnails.",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": false,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "valueName": "DisableThumbnails",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "explorer.recycle-bin-desktop",
+      "title": "Значок и структура Корзины на Рабочем столе",
+      "symptom": "Значок Корзины пропал с Рабочего стола или при удалении файла появляется сообщение «Корзина на диске C:\\ повреждена».",
+      "explanation": "Проверяет политику NoPropertiesRecycleBin и скрытие GUID Корзины {645FF040-5081-101B-9F08-00AA002F954E}.",
+      "fixSummary": "Возвращает отображение значка Корзины на Рабочий стол и обновляет оболочку.",
+      "severity": "Info",
+      "risk": "Safe",
+      "requiresAdmin": false,
+      "reversible": true,
+      "customProbe": "shell-recycle-bin"
+    },
+    {
+      "id": "explorer.cdrom-filters",
+      "title": "Конфликтные драйверы-фильтры оптических и виртуальных приводов (UpperFilters / LowerFilters)",
+      "symptom": "Виртуальные образы ISO или DVD-привод отображаются с жёлтым восклицательным знаком (Код 19 или Код 39 в Диспетчере устройств).",
+      "explanation": "После удаления старых программ записи дисков в классе {4D36E965-E325-11CE-BFC1-08002BE10318} остаются несуществующие драйверы фильтрации.",
+      "fixSummary": "Проверяет и удаляет осиротевшие UpperFilters/LowerFilters класса CD/DVD, если указанные .sys отсутствуют в drivers.",
+      "severity": "Warning",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E965-E325-11CE-BFC1-08002BE10318}",
+          "valueName": "UpperFilters",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue",
+          "onlyIfKeyExists": true
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E965-E325-11CE-BFC1-08002BE10318}",
+          "valueName": "LowerFilters",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue",
+          "onlyIfKeyExists": true
+        }
+      ]
+    },
+    {
+      "id": "explorer.icon-thumb-cache",
+      "title": "Состояние баз кэша значков и миниатюр Проводника (iconcache / thumbcache)",
+      "symptom": "Ярлыки программ на Рабочем столе и в панели задач превратились в пустые белые листы.",
+      "explanation": "Проверяет целостность и разрастание баз iconcache_*.db в %LocalAppData%\\Microsoft\\Windows\\Explorer.",
+      "fixSummary": "Пересобирает незанятые базы кэша иконок и обновляет кэш оболочки через ie4uinit.exe -show.",
+      "severity": "Info",
+      "risk": "Safe",
+      "requiresAdmin": false,
+      "reversible": false,
+      "customProbe": "shell-icon-thumb-cache"
+    }
+  ]
+}

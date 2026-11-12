@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "section": "WmiAndInstaller",
+  "rules": [
+    {
+      "id": "wmi.msi-installer-service",
+      "title": "Служба установщика Windows Installer (msiserver)",
+      "symptom": "При установке или удалении программ .msi возникает ошибка 1601 / 1719 («Не удаётся получить доступ к службе Windows Installer»).",
+      "explanation": "Служба msiserver переведена в состояние «Отключена» (Start = 4).",
+      "fixSummary": "Возвращает службе msiserver штатный запуск «Вручную».",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x80070641", "0x80070643", "1601", "1603"],
+      "services": [
+        { "serviceName": "msiserver", "healthyStartup": "Manual" }
+      ]
+    },
+    {
+      "id": "wmi.disable-msi-policy",
+      "title": "Политика запрета установки пакетов MSI (DisableMSI)",
+      "symptom": "Любой установщик MSI закрывается с сообщением «Системный администратор настроил политику для предотвращения этой установки» (код 1625).",
+      "explanation": "В разделе Policies\\Microsoft\\Windows\\Installer установлен параметр DisableMSI = 2.",
+      "fixSummary": "Удаляет блокирующую политику DisableMSI.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["1625", "1603"],
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\Installer",
+          "valueName": "DisableMSI",
+          "expectation": "MustNotEqualDword",
+          "expectedDword": 2,
+          "fixKind": "DeleteValue",
+          "onlyIfKeyExists": true
+        }
+      ]
+    },
+    {
+      "id": "wmi.always-install-elevated-cleanup",
+      "title": "Опасная политика AlwaysInstallElevated в ветке пользователя",
+      "symptom": "Повышенный риск локального повышения привилегий через MSI-пакеты или конфликты прав установщика.",
+      "explanation": "Параметр AlwaysInstallElevated = 1 в HKCU часто оставляется сомнительными сборками и создаёт дыру безопасности.",
+      "fixSummary": "Удаляет параметр AlwaysInstallElevated из HKCU (с возможностью отката).",
+      "severity": "Warning",
+      "risk": "Safe",
+      "requiresAdmin": false,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKCU",
+          "subKey": "Software\\Policies\\Microsoft\\Windows\\Installer",
+          "valueName": "AlwaysInstallElevated",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "wmi.service-and-dcom",
+      "title": "Инструментарий управления Windows (служба Winmgmt)",
+      "symptom": "Не открываются Сведения о системе, программы мониторинга температур и установщики драйверов падают с ошибкой 0x80041002.",
+      "explanation": "Служба Winmgmt отключена или остановлена.",
+      "fixSummary": "Восстанавливает автоматический запуск службы Winmgmt и запускает её.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x80041002", "0x80041010", "0x80041013"],
+      "services": [
+        { "serviceName": "Winmgmt", "healthyStartup": "Automatic", "startIfStopped": true }
+      ]
+    },
+    {
+      "id": "wmi.enable-dcom",
+      "title": "Глобальная поддержка распределённого COM (EnableDCOM = Y)",
+      "symptom": "Десятки системных окон выдают «Класс не зарегистрирован» (0x80040154) или «Сервер RPC недоступен» (0x800706BA).",
+      "explanation": "В разделе HKLM\\SOFTWARE\\Microsoft\\Ole отключён базовый механизм COM/DCOM (EnableDCOM != Y).",
+      "fixSummary": "Возвращает штатное значение EnableDCOM = Y.",
+      "severity": "Critical",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x80040154", "0x800706BA", "0x80080005"],
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Microsoft\\Ole",
+          "valueName": "EnableDCOM",
+          "expectation": "MustEqualString",
+          "expectedString": "Y",
+          "fixKind": "SetString",
+          "fixString": "Y"
+        }
+      ]
+    },
+    {
+      "id": "wmi.repository-consistency",
+      "title": "Консистентность репозитория WMI (winmgmt /verifyrepository)",
+      "symptom": "Запросы к WMI зависают или возвращают «Недопустимый класс» (0x80041010) / «Не найден» (0x80041002).",
+      "explanation": "Выполняет неразрушающую проверку базы wbem\\Repository через winmgmt /verifyrepository.",
+      "fixSummary": "При нарушении целостности выполняет мягкое восстановление winmgmt /salvagerepository без удаления сторонних пространств имён.",
+      "severity": "Broken",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": false,
+      "errorCodes": ["0x80041002", "0x80041010", "0x80041013"],
+      "customProbe": "wmi-repository"
+    }
+  ]
+}

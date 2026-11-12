@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "section": "Network",
+  "rules": [
+    {
+      "id": "net.dead-local-proxy",
+      "title": "Зависший локальный прокси-сервер (127.0.0.1) после закрытия VPN или прокси",
+      "symptom": "Пинг до 8.8.8.8 идёт, но браузеры, Microsoft Store и игры пишут «Нет подключения к прокси-серверу» (0x80072EFD).",
+      "explanation": "После некорректного завершения VPN-клиента, Clash, Nekoray, Fiddler или Charles в реестре остался включённым ProxyEnable=1 на порт 127.0.0.1, который сейчас никто не слушает.",
+      "fixSummary": "Отключает зависший системный прокси (ProxyEnable = 0), сохраняя прежние настройки прокси в Машине времени.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": false,
+      "reversible": true,
+      "errorCodes": ["0x80072EFD", "0x80072EE2", "0x8024402C"],
+      "customProbe": "net-dead-local-proxy"
+    },
+    {
+      "id": "net.core-services",
+      "title": "Базовые сетевые службы (DHCP, DNS-клиент, NSI, NlaSvc, netprofm)",
+      "symptom": "Пропал значок интернета в трее, компьютер не получает IP-адрес или не открывает сайты по имени.",
+      "explanation": "Для работы сети обязательны службы Dhcp, Dnscache, nsi, NlaSvc и netprofm. Отключение любой из них ломает маршрутизацию или индикатор сети Windows.",
+      "fixSummary": "Возвращает базовым сетевым службам штатный тип запуска и запускает остановленные.",
+      "severity": "Critical",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x80072EE7", "0x8024402C"],
+      "services": [
+        { "serviceName": "Dhcp", "healthyStartup": "Automatic", "startIfStopped": true },
+        { "serviceName": "Dnscache", "healthyStartup": "Automatic" },
+        { "serviceName": "nsi", "healthyStartup": "Automatic", "startIfStopped": true },
+        { "serviceName": "NlaSvc", "healthyStartup": "Automatic" },
+        { "serviceName": "netprofm", "healthyStartup": "Manual" }
+      ]
+    },
+    {
+      "id": "net.wlan-autoconfig",
+      "title": "Служба автонастройки беспроводной сети Wi-Fi (WlanSvc)",
+      "symptom": "Из панели быстрых действий пропала кнопка Wi-Fi и список беспроводных сетей.",
+      "explanation": "Если служба WlanSvc переведена в состояние «Отключена», Windows полностью скрывает управление Wi-Fi адаптерами.",
+      "fixSummary": "Восстанавливает запуск службы WlanSvc.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "WlanSvc", "healthyStartup": "Automatic" }
+      ]
+    },
+    {
+      "id": "net.smb-workstation",
+      "title": "Служба «Рабочая станция» (LanmanWorkstation) для сетевых папок и NAS",
+      "symptom": "Не открываются общие папки в локальной сети (\\\\server\\share) и сетевые диски.",
+      "explanation": "Клиент SMB зависит от службы LanmanWorkstation. При её отключении доступ к общим ресурсам Windows и NAS прекращается.",
+      "fixSummary": "Восстанавливает автоматический запуск службы LanmanWorkstation.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "services": [
+        { "serviceName": "LanmanWorkstation", "healthyStartup": "Automatic", "startIfStopped": true }
+      ]
+    },
+    {
+      "id": "net.winhttp-autoproxy",
+      "title": "Служба автоматического обнаружения веб-прокси WinHTTP",
+      "symptom": "Системные компоненты (Центр обновления, Store, вход в аккаунт Microsoft) не видят интернет, хотя браузер работает.",
+      "explanation": "Если WinHttpAutoProxySvc принудительно отключена через реестр (Start = 4), системные HTTP-запросы завершаются ошибкой.",
+      "fixSummary": "Возвращает штатное значение Start = 3 (Вручную) для WinHttpAutoProxySvc.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SYSTEM\\CurrentControlSet\\Services\\WinHttpAutoProxySvc",
+          "valueName": "Start",
+          "expectation": "MustNotEqualDword",
+          "expectedDword": 4,
+          "fixKind": "SetDword",
+          "fixDword": 3,
+          "onlyIfKeyExists": true
+        }
+      ]
+    },
+    {
+      "id": "net.proxy-policy-lock",
+      "title": "Блокировка изменения настроек прокси политикой (ProxySettingsPerUser = 0)",
+      "symptom": "Переключатель прокси-сервера в Параметрах Windows заблокирован и не даёт выключить чужой прокси.",
+      "explanation": "Вредоносное ПО и рекламные прокси выставляют политику ProxySettingsPerUser = 0, запрещая пользователю менять прокси.",
+      "fixSummary": "Удаляет принудительную политику ProxySettingsPerUser и политику ProxyServer в HKLM.",
+      "severity": "Broken",
+      "risk": "Safe",
+      "requiresAdmin": true,
+      "reversible": true,
+      "registry": [
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+          "valueName": "ProxySettingsPerUser",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        },
+        {
+          "hive": "HKLM",
+          "subKey": "SOFTWARE\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+          "valueName": "ProxyServer",
+          "expectation": "MustNotExist",
+          "fixKind": "DeleteValue"
+        }
+      ]
+    },
+    {
+      "id": "net.hosts-file-health",
+      "title": "Проверка файла hosts на подмену серверов Microsoft, антивирусов и браузеров",
+      "symptom": "Не открываются сайты Microsoft, Центр обновления, антивирусные базы или популярные сервисы.",
+      "explanation": "Проверяет C:\\Windows\\System32\\drivers\\etc\\hosts на отсутствие самого файла или подозрительную блокировку доменов microsoft.com / windowsupdate.com.",
+      "fixSummary": "Сохраняет текущий файл hosts в Машину времени и очищает строки, блокирующие системные серверы обновления и защиты.",
+      "severity": "Broken",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": true,
+      "errorCodes": ["0x8024401C", "0x800F0906", "0x80092013"],
+      "customProbe": "net-hosts-health"
+    },
+    {
+      "id": "net.dns-winsock-stack",
+      "title": "Целостность каталога сокетов Winsock и кэша DNS",
+      "symptom": "Сайты открываются через раз, возникают ошибки ERR_SOCKET_NOT_CONNECTED после удаления антивируса или VPN.",
+      "explanation": "Проверяет наличие базовых провайдеров Winsock2 и работоспособность системного резолвера.",
+      "fixSummary": "Очищает кэш DNS (ipconfig /flushdns) и выполняет мягкий сброс каталога сокетов (netsh winsock reset) без удаления паролей Wi-Fi.",
+      "severity": "Warning",
+      "risk": "Low",
+      "requiresAdmin": true,
+      "reversible": false,
+      "errorCodes": ["0x80072EE7", "0x80072EE2"],
+      "customProbe": "net-dns-winsock"
+    }
+  ]
+}

@@ -197,7 +197,20 @@ public static class SmbiosBinaryParser
         }
 
         var manufacturer = GetString(strings, ReadByteOrZero(formatted, 0x17), "").Trim();
+        var serialNumber = GetString(strings, ReadByteOrZero(formatted, 0x18), "").Trim();
         var partNumber = GetString(strings, ReadByteOrZero(formatted, 0x1A), "").Trim();
+
+        var totalWidth = ReadUInt16OrZero(formatted, 0x08);
+        var dataWidth = ReadUInt16OrZero(formatted, 0x0A);
+        var formFactorCode = ReadByteOrZero(formatted, 0x0E);
+        var formFactor = DecodeFormFactor(formFactorCode);
+
+        var attr = ReadByteOrZero(formatted, 0x1B);
+        int? ranks = (attr & 0x0F) is > 0 and <= 8 ? (attr & 0x0F) : null;
+
+        int? configuredMv = formatted.Length >= 0x28
+            ? ReadUInt16OrZero(formatted, 0x26) switch { > 400 and <= 3000 and var mv => mv, _ => null }
+            : null;
 
         return new MemoryModuleSlotInfo(
             DeviceLocator: devLocator,
@@ -207,8 +220,22 @@ public static class SmbiosBinaryParser
             RatedSpeedMtPerSec: ratedSpeed,
             ConfiguredSpeedMtPerSec: configuredSpeed,
             Manufacturer: manufacturer,
-            PartNumber: partNumber);
+            PartNumber: partNumber,
+            FormFactor: formFactor,
+            ConfiguredVoltageMillivolts: configuredMv,
+            DataWidthBits: dataWidth is > 0 and not 0xFFFF ? dataWidth : null,
+            TotalWidthBits: totalWidth is > 0 and not 0xFFFF ? totalWidth : null,
+            SerialNumber: serialNumber,
+            Ranks: ranks);
     }
+
+    private static string DecodeFormFactor(byte code) => code switch
+    {
+        0x09 => "DIMM",
+        0x0C => "Распаяна (Onboard)",
+        0x0D => "SO-DIMM",
+        _ => ""
+    };
 
     private static string DecodeMemoryType(byte code) => code switch
     {
