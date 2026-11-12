@@ -199,6 +199,46 @@ public sealed class MainWindowSmokeTests
             notes.Add($"драйверы-store: {drvVm.DriverStoreHeadline}");
             notes.Add($"драйверы-byovd: {drvVm.VulnerableHeadline}");
 
+            reached = "программы, автопилот и выпуск (этап 7): все 5 вкладок, каталог 36, Win11 и .zip-архив";
+            main.SelectedDomain = SystemDomain.AppsAndAutomation;
+            var appsVm = main.AppsStudio;
+            await appsVm.InitializeFastAsync();
+            Assert.Equal(36, appsVm.FilteredCatalogItems.Count);
+            Assert.Equal(7, appsVm.Win11Checks.Count);
+
+            if (appsVm.FilteredInstalledApps.Count > 0)
+            {
+                appsVm.SelectedInstalledApp = appsVm.FilteredInstalledApps[0];
+                await appsVm.ScanSelectedAppLeftoversAsync();
+            }
+
+            var diagZipPath = Path.Combine(Path.GetTempPath(), $"uw-smoke-diag-{Guid.NewGuid():N}.zip");
+            var bundleRes = await appsVm.ExportSupportBundleInternalAsync(diagZipPath);
+            Assert.True(File.Exists(bundleRes.ArchivePath) && bundleRes.FileSizeBytes > 512, "Диагностический .zip-архив не сформировался.");
+            try { File.Delete(diagZipPath); } catch { }
+
+            window.Width = 1024;
+            window.Height = 768;
+            appsVm.SelectedSubTabIndex = 3;
+            await surface.SettleAsync();
+            surface.Save("apps-tab-3-1024");
+
+            window.Width = 1360;
+            window.Height = 840;
+            for (var atab = 0; atab <= 4; atab++)
+            {
+                appsVm.SelectedSubTabIndex = atab;
+                await surface.SettleAsync();
+                surface.Save($"apps-tab-{atab}");
+            }
+
+            Assert.Empty(trace.Errors);
+            notes.Add($"программы-winget: {appsVm.WingetStatusHeadline}");
+            notes.Add($"программы-каталог: {appsVm.CatalogHeadline}");
+            notes.Add($"программы-win11: {appsVm.Win11Headline}");
+            notes.Add($"программы-батарея-сон: {appsVm.BatteryHeadline} | {appsVm.LastWakeSourceText}");
+            notes.Add($"программы-автопилот: {appsVm.ScheduleNextRunText} | архив: {bundleRes.FormattedSize}");
+
             reached = "конец";
         }
         finally

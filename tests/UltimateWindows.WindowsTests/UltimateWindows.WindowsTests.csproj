@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\src\UltimateWindows.App\UltimateWindows.App.csproj" />
     <ProjectReference Include="..\..\src\UltimateWindows.NativeInterop\UltimateWindows.NativeInterop.csproj" />
     <ProjectReference Include="..\..\src\UltimateWindows.Modules.Optimizer\UltimateWindows.Modules.Optimizer.csproj" />
+    <ProjectReference Include="..\..\src\UltimateWindows.Modules.Apps\UltimateWindows.Modules.Apps.csproj" />
     <ProjectReference Include="..\..\src\UltimateWindows.Modules.Safety\UltimateWindows.Modules.Safety.csproj" />
     <ProjectReference Include="..\..\src\UltimateWindows.Core\UltimateWindows.Core.csproj" />
   </ItemGroup>

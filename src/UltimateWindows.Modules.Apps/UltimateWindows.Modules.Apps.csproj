@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>UltimateWindows.Modules.Apps</RootNamespace>
+    <Description>Этап 7 (Программы, автоматизация и выпуск): обновление и каталог программ через winget, чистый деинсталлятор с поиском хвостов, аудит готовности к Windows 11 и статуса Windows 10 ESU, диагностика сна/батареи/памяти, фоновое расписание автообслуживания и единый диагностический архив.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Data\*.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UltimateWindows.Core\UltimateWindows.Core.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Safety\UltimateWindows.Modules.Safety.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Hardware\UltimateWindows.Modules.Hardware.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Cleaner\UltimateWindows.Modules.Cleaner.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Repair\UltimateWindows.Modules.Repair.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Optimizer\UltimateWindows.Modules.Optimizer.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Security\UltimateWindows.Modules.Security.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Drivers\UltimateWindows.Modules.Drivers.csproj" />
+  </ItemGroup>
+</Project>

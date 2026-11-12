@@ -2,7 +2,7 @@
 
 **UltimateWindows** — модульный центр комплексного обслуживания, диагностики, восстановления, очистки, защиты и тонкой настройки Windows 10 / Windows 11 (x64 / ARM64).
 
-> **Статус (ноябрь 2026):** базовый каркас и первые версии всех модулей готовы, работа идёт поэтапно по плану из раздела 6 [`docs/05-AUDIT-AND-GAP-ANALYSIS.md`](./docs/05-AUDIT-AND-GAP-ANALYSIS.md). Выполнены этапы 0 (фундамент), 1 (Оптимизатор 2.0), 2 (Очистка 2.0), 3 (Ремонт и DLL 2.0), 4 (Анти-майнер и Защита 2.0) и 5 (Драйверы 2.0 и серверный каталог драйверов).
+> **Статус (релиз v2.0 — все этапы 0–7 выполнены ✅):** все модули и целевая дорожная карта из [`docs/05-AUDIT-AND-GAP-ANALYSIS.md`](./docs/05-AUDIT-AND-GAP-ANALYSIS.md) полностью реализованы на **.NET 10** и проверены на Windows: Этап 0 (фундамент и UAC), Этап 1 (Оптимизатор 2.0), Этап 2 (Очистка 2.0 и `$MFT`), Этап 3 (Ремонт и DLL 2.0), Этап 4 (Анти-майнер и Защита 2.0), Этап 5 (Драйверы 2.0), Этап 6 (Железо уровня AIDA64 и лёгкие бенчмарки) и Этап 7 (Программы `winget`, чистый деинсталлятор, готовность к Windows 11, автопилот и единый диагностический `.zip`-архив).
 
 Цель проекта — объединить лучшие инженерные решения разрозненных системных утилит (оптимизаторов, детекторов скрытых майнеров, очистителей диска и реестра, менеджеров драйверов и системных библиотек, аппаратных анализаторов уровня AIDA64/HWiNFO) в едином быстром нативном приложении с **гарантией безопасности и 100% обратимости каждого действия**.
 
@@ -18,8 +18,7 @@
 3. **Правильное лечение DLL и сред выполнения (No Loose DLLs)**
    Полный отказ от опасной практики скачивания одиночных `.dll` из сомнительных источников. Вместо этого — разбор PE-заголовков и таблиц импорта проблемного `.exe` (выявление `0xc000007b` x86/x64 несовместимости), автоматический подбор и установка официальных подписанных пакетов Microsoft Visual C++ (2005–2022), DirectX End-User Runtime, .NET, Vulkan/OpenAL и восстановление системного хранилища через `DISM` + `SFC`.
 4. **Совместимость с современной защитой ядра (HVCI / Core Isolation / Anti-Cheat)**
-   Отказ от устаревших уязвимых драйверов вроде `WinRing0x64.sys`, блокируемых Windows 11 и античитами. Используются только штатные интерфейсы пользовательского режима: `SMBIOS`, `NVMe IOCTL`, `CPUID`, `EDID`, `PDH`, `nvml.dll`.
-   Обратная сторона честно: без ядерного драйвера (например, `PawnIO`) температура процессора, обороты вентиляторов и напряжения недоступны. Сейчас из датчиков читается только температура видеокарт NVIDIA; для остального интерфейс прямо пишет «датчик недоступен», а не показывает выдуманные числа.
+   Отказ от устаревших уязвимых драйверов вроде `WinRing0x64.sys`, блокируемых Windows 11 и античитами. По умолчанию мониторинг работает в 100% безопасном пользовательском режиме (`SMBIOS`, `NVMe IOCTL`, `CPUID`, `EDID`, `PDH`, `LibreHardwareMonitor` без ядерного драйвера: датчики видеокарт AMD / Intel / NVIDIA, дисков и батареи), а при установленном опциональном подписанном драйвере `PawnIO` автоматически раскрываются температуры ядер CPU и вентиляторы материнской платы.
 5. **Легальность, прозрачность и честные пометки об опасном**
    Проект работает только в рамках легального администрирования Windows: подписанные WHQL/Authenticode драйверы, официальные дистрибутивы библиотек. Обход активации и лицензирования Windows заблокирован на уровне кода (`TweakSafetyGuard`) и не появится никогда.
    Настройки, которые ослабляют защиту системы (например, отключение Защитника Windows или SmartScreen), в проекте разрешены, но помечены как **опасные**: они не входят ни в один готовый набор, включаются только после отдельного подтверждения в интерфейсе и требуют явного ключа `--force` в CLI. Пользователь вправе распоряжаться своей системой, но не должен делать это случайно.
@@ -37,8 +36,8 @@
 | **5** | **Official Driver Engine 2.0** | `WUApiLib`, `MSCatalog`, `LOLDrivers` | Версии, даты, поставщики и подписи для всех устройств `CfgMgr32`; живой поиск и загрузка `.cab` из Каталога Microsoft по `Hardware ID`; серверный каталог из 39 драйверов на все случаи жизни (LAN, Wi-Fi 6/7, USB-модемы смартфонов, Intel VMD NVMe, USB-COM, VirtIO, PawnIO); очистка дублей в `DriverStore`, офлайн-флешка спасения сети и аудит уязвимых драйверов ядра (`BYOVD`) |
 | **6** | **DLL & Runtime Doctor** | `lucasg/Dependencies`, `abbodi1406/vcredist` | Диагностика ошибок `0xc000007b` и отсутствующих DLL по PE-таблице импорта, автоустановка официальных пакетов VC++, DirectX, .NET, XNA, OpenAL и проверка целостности `WinSxS` (`DISM` + `SFC`) |
 | **7** | **System & BSOD Auto-Fixer** | `WhoCrashed`, Windows Troubleshooters | Разбор дампов ядра (`PAGEDU64`/`PAGEDUMP`): код остановки из справочника из 76 кодов, список драйверов, стек вызовов и вероятный виновник с пометкой надёжности; отдельно распознаются дампы упавших программ (`MDMP`). Плюс анализ событий `WHEA-Logger` / `Kernel-Power` / `TDR` и рецепты починки сети, Центра обновления, WMI, печати и хранилища Appx |
-| **8** | **Hardware Diagnostics & Tuner** | `AIDA64`, `LibreHardwareMonitor`, `HWiNFO` | Паспорт железа, S.M.A.R.T. NVMe/SSD, детектор скрытых узких мест (не включён XMP/EXPO, видеокарта в режиме PCIe x8 вместо x16, монитор 144 Гц работает на 60 Гц, троттлинг) и нагрузочный тест процессора. Датчики: только температура NVIDIA GPU; вентиляторы, напряжения и температура CPU — этап 6 (нужен подписанный драйвер `PawnIO`) |
-| **9** | **App Lifecycle, Startup & Network** | `Bulk Crap Uninstaller`, `Winget` | Пакетная установка и обновление программ через `winget`, полное удаление программ с зачисткой хвостов, менеджер автозагрузки и медленных расширений контекстного меню Проводника, тест задержек сети (Bufferbloat / DoH DNS) |
+| **8** | **Hardware 2.0 & Benchmarks** | `AIDA64`, `LibreHardwareMonitor`, `HWiNFO` | Паспорт железа SMBIOS 3.x (слоты DIMM, ранги, ECC, вольтаж), датчики AMD/Intel/NVIDIA без `WinRing0` (+ опциональный `PawnIO`), экспресс-бенчмарк CPU SIMD / GPU Direct3D 11 DirectCompute (`cs_5_0`) / латентности ОЗУ / Диска за ~5 сек, стресс-тест с эталонными суммами, схемы питания `PowrProf` и отчёты HTML/JSON/TXT |
+| **9** | **Apps, Autopilot & Win11 Readiness** | `Bulk Crap Uninstaller`, `Winget`, `WhyNotWin11` | Обновление всех программ в 1 клик и каталог из 36 проверенных утилит через `winget`, чистый деинсталлятор с поиском хвостов в `AppData`/`ProgramData`/реестре и карантином, проверка готовности к Windows 11 (24H2 `SSE4.2`+`POPCNT`, `TPM 2.0`, `Secure Boot`) и статуса Windows 10 ESU, диагностика батареи/сна/ОЗУ, расписание автообслуживания и `.zip`-архив диагностики |
 
 ---
 
@@ -55,11 +54,13 @@
 - [**`docs/08-REPAIR-CATALOG.md`**](./docs/08-REPAIR-CATALOG.md) — Каталог 107 правил диагностики и ремонта Windows, 23 пакетов сред выполнения, справочника из 160 кодов ошибок и анализаторов `CBS.log` / `AppCrash`.
 - [**`docs/09-SECURITY-CATALOG.md`**](./docs/09-SECURITY-CATALOG.md) — Архитектура «Анти-майнер и Защита 2.0»: 18 зон автозакрепления, двухфазный детект CPU+GPU `Drop-on-Inspect`, интеграция с Microsoft Defender, брандмауэром и подключаемыми `PE-sieve` / `YARA`.
 - [**`docs/10-DRIVER-CATALOG.md`**](./docs/10-DRIVER-CATALOG.md) — Архитектура «Драйверы 2.0»: серверный каталог из 39 драйверов на все случаи жизни, прямой клиент Каталога Microsoft Update (`.cab`), очистка дублей в `DriverStore`, офлайн-набор спасения сети/NVMe и аудит уязвимых драйверов ядра (`BYOVD`).
-- [**`docs/05-AUDIT-AND-GAP-ANALYSIS.md`**](./docs/05-AUDIT-AND-GAP-ANALYSIS.md) — Аудит текущего кода (ноябрь 2026), измеренное сравнение с эталонами, матрица разрывов и поэтапный план доведения до их уровня.
+- [**`docs/11-HARDWARE-AND-BENCHMARKS.md`**](./docs/11-HARDWARE-AND-BENCHMARKS.md) — Архитектура «Железо 2.0 и Бенчмарки»: сквозные датчики без `WinRing0`, опциональный `PawnIO`, вычислительный шейдер DirectCompute `cs_5_0`, бенчмарки CPU/ОЗУ/Диска и генератор отчётов.
+- [**`docs/12-APPS-AUTOMATION-AND-RELEASE.md`**](./docs/12-APPS-AUTOMATION-AND-RELEASE.md) — Архитектура «Программы, Автопилот и Выпуск»: парсер и каталог `winget` (36 пакетов), чистый деинсталлятор с поиском хвостов, аудит Windows 11 / Windows 10 ESU, диагностика сна и памяти, расписание обслуживания и единый `.zip`-архив поддержки.
+- [**`docs/05-AUDIT-AND-GAP-ANALYSIS.md`**](./docs/05-AUDIT-AND-GAP-ANALYSIS.md) — Аудит кода, измеренное сравнение с эталонами, матрица разрывов и выполненный поэтапный план доведения до уровня `v2.0`.
 
 ---
 
-## Быстрый старт и сборка (Релиз v1.0 — Все Фазы 0–6 Реализованы ✅)
+## Быстрый старт и сборка (Релиз v2.0 — Все Этапы 0–7 Выполнены ✅)
 
 Требования: **.NET 10 SDK** на Windows 10 (22H2) или Windows 11. Версия SDK закреплена в [`global.json`](./global.json).
 
@@ -82,6 +83,12 @@ dotnet run --project src/UltimateWindows.App/UltimateWindows.App.csproj
 
 # Примеры использования консольного интерфейса (CLI)
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- smart-audit
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- hardware-sensors
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- hardware-bench all
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- apps-upgrades
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- apps-catalog --preset home
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- win11-check
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- support-bundle --out "Diag.zip"
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- hardware-audit
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- drivers-audit --online
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- driver-backup oem42.inf

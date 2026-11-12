@@ -11,7 +11,8 @@ public enum SystemDomain
     AntiMiner = 3,
     DllAndRepair = 4,
     HardwareAndDrivers = 5,
-    TimeMachineVault = 6
+    TimeMachineVault = 6,
+    AppsAndAutomation = 7
 }
 
 /// <summary>

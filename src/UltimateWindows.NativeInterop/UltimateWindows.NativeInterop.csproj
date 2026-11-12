@@ -19,5 +19,6 @@
     <ProjectReference Include="..\UltimateWindows.Modules.Optimizer\UltimateWindows.Modules.Optimizer.csproj" />
     <ProjectReference Include="..\UltimateWindows.Modules.Security\UltimateWindows.Modules.Security.csproj" />
     <ProjectReference Include="..\UltimateWindows.Modules.Drivers\UltimateWindows.Modules.Drivers.csproj" />
+    <ProjectReference Include="..\UltimateWindows.Modules.Apps\UltimateWindows.Modules.Apps.csproj" />
   </ItemGroup>
 </Project>

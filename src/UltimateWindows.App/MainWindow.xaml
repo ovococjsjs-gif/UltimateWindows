@@ -6,7 +6,7 @@
         Title="UltimateWindows — диск, очистка, настройка, защита и ремонт Windows"
         Width="1360"
         Height="840"
-        MinWidth="1060"
+        MinWidth="1020"
         MinHeight="660"
         WindowStartupLocation="CenterScreen"
         SnapsToDevicePixels="True"
@@ -141,6 +141,12 @@
 
           <RadioButton GroupName="MainNav"
                        Style="{StaticResource NavRadioButtonStyle}"
+                       Tag="{StaticResource IconApps}"
+                       IsChecked="{Binding IsAppsNav, Mode=TwoWay}"
+                       Content="Программы и Автопилот" />
+
+          <RadioButton GroupName="MainNav"
+                       Style="{StaticResource NavRadioButtonStyle}"
                        Tag="{StaticResource IconVault}"
                        IsChecked="{Binding IsVaultNav, Mode=TwoWay}"
                        Content="Машина времени" />
@@ -227,6 +233,10 @@
 
         <views:HardwareWorkspaceView
           Visibility="{Binding IsHardwareVisible, Converter={StaticResource BoolToVis}}" />
+
+        <views:AppsWorkspaceView
+          DataContext="{Binding AppsStudio}"
+          Visibility="{Binding DataContext.IsAppsVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}" />
 
         <views:VaultWorkspaceView
           Visibility="{Binding IsTimeMachineVisible, Converter={StaticResource BoolToVis}}" />

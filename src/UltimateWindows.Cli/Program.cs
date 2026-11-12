@@ -1,6 +1,9 @@
 using System.Text;
 using System.Text.Json;
 using UltimateWindows.Core.Guards;
+using UltimateWindows.Modules.Apps.Catalog;
+using UltimateWindows.Modules.Apps.Models;
+using UltimateWindows.Modules.Apps.Services;
 using UltimateWindows.Modules.Cleaner.Browsers;
 using UltimateWindows.Modules.Cleaner.Models;
 using UltimateWindows.Modules.Cleaner.Rules;
@@ -21,6 +24,7 @@ using UltimateWindows.Modules.Safety.Services;
 using UltimateWindows.Modules.Security.Models;
 using UltimateWindows.Modules.Security.Services;
 using UltimateWindows.NativeInterop.Cleaner;
+using UltimateWindows.NativeInterop.Apps;
 using UltimateWindows.NativeInterop.Drivers;
 using UltimateWindows.NativeInterop.Hardware;
 using UltimateWindows.NativeInterop.Optimizer;
@@ -39,6 +43,15 @@ var optimizer = new SmartOptimizerService(vault, new WindowsOptimizerPlatformBri
 var security = new AntiMinerSecurityService(vault, new WindowsSecurityPlatformBridge());
 var drivers = new OfficialDriverService(vault, new WindowsDriverPlatformBridge());
 var smartAudit = new SmartSystemAuditOrchestrator(hardware, drivers, cleaner, repair, optimizer, security);
+var appsService = new AppsAndAutomationService(
+    vault,
+    new WindowsAppsPlatformBridge(),
+    hardware,
+    drivers,
+    cleaner,
+    repair,
+    security,
+    smartAudit);
 var command = args.Length > 0 ? args[0].ToLowerInvariant() : "status";
 
 switch (command)
@@ -1328,9 +1341,232 @@ switch (command)
         break;
     }
 
+    case "apps-upgrades":
+    {
+        var (avail, ver, pkgs) = await appsService.ScanAvailableUpgradesAsync();
+        Console.WriteLine($"=== Этап 7 — Центр обновлений программ (winget {ver}) ===");
+        if (!avail)
+        {
+            Console.WriteLine("Пакетный менеджер winget не обнаружен в системе.");
+            return 1;
+        }
+
+        if (pkgs.Count == 0)
+        {
+            Console.WriteLine("[OK] Все установленные программы актуальны.");
+            break;
+        }
+
+        Console.WriteLine($"Доступно обновлений: {pkgs.Count}");
+        foreach (var p in pkgs)
+        {
+            Console.WriteLine($"  {p.PackageId,-36} | {p.Name,-30} | {p.VersionTransitionDisplay,-24} | {p.Source}");
+        }
+        break;
+    }
+
+    case "apps-upgrade":
+    {
+        if (args.Length < 2)
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli apps-upgrade <package-id | --all>");
+            return 1;
+        }
+
+        if (HasFlag(args, "--all"))
+        {
+            var (_, _, pkgs) = await appsService.ScanAvailableUpgradesAsync();
+            foreach (var p in pkgs)
+            {
+                var r = await appsService.UpgradePackageAsync(p.PackageId, p.Name);
+                Console.WriteLine($"  [{(r.Succeeded ? "OK" : "ERR")}] {r.Summary}");
+            }
+        }
+        else
+        {
+            var r = await appsService.UpgradePackageAsync(args[1]);
+            Console.WriteLine(r.Summary);
+            return r.Succeeded ? 0 : 1;
+        }
+        break;
+    }
+
+    case "apps-catalog":
+    {
+        var presetArg = GetOptionValue(args, "--preset");
+        var statuses = await appsService.EvaluateEssentialCatalogAsync(queryWingetList: HasFlag(args, "--winget"));
+        IEnumerable<EssentialAppStatus> filtered = statuses;
+
+        if (!string.IsNullOrWhiteSpace(presetArg))
+        {
+            var preset = presetArg.ToLowerInvariant() switch
+            {
+                "gamer" => EssentialAppBundlePreset.GamerPc,
+                "dev" => EssentialAppBundlePreset.PowerUserAndDev,
+                _ => EssentialAppBundlePreset.FreshHomeInstall
+            };
+            filtered = statuses.Where(s => s.Entry.Presets.Contains(preset));
+        }
+
+        var list = filtered.ToList();
+        Console.WriteLine($"=== Каталог программ первой необходимости ({list.Count} пакетов) ===");
+        foreach (var s in list)
+        {
+            Console.WriteLine($"  [{s.StatusBadge,-18}] {s.Entry.Id,-16} | {s.Entry.WingetId,-34} | {s.Entry.DisplayName}");
+        }
+        break;
+    }
+
+    case "apps-install":
+    {
+        if (args.Length < 2)
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli apps-install <id | winget-id | --preset home|gamer|dev>");
+            return 1;
+        }
+
+        var presetName = GetOptionValue(args, "--preset");
+        List<EssentialAppEntry> targets;
+        if (!string.IsNullOrWhiteSpace(presetName))
+        {
+            var preset = presetName.ToLowerInvariant() switch
+            {
+                "gamer" => EssentialAppBundlePreset.GamerPc,
+                "dev" => EssentialAppBundlePreset.PowerUserAndDev,
+                _ => EssentialAppBundlePreset.FreshHomeInstall
+            };
+            targets = EssentialSoftwareCatalog.GetByPreset(preset).ToList();
+        }
+        else
+        {
+            var targetId = args[1];
+            var found = EssentialSoftwareCatalog.GetAll().FirstOrDefault(e =>
+                string.Equals(e.Id, targetId, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(e.WingetId, targetId, StringComparison.OrdinalIgnoreCase));
+            if (found is null)
+            {
+                Console.WriteLine($"Пакет «{targetId}» не найден во встроенном каталоге.");
+                return 1;
+            }
+            targets = [found];
+        }
+
+        foreach (var entry in targets)
+        {
+            var res = await appsService.InstallEssentialAppAsync(entry);
+            Console.WriteLine($"  [{(res.Succeeded ? "OK" : "ERR")}] {res.Summary}");
+        }
+        break;
+    }
+
+    case "apps-leftovers":
+    {
+        if (args.Length < 2)
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli apps-leftovers \"<часть названия установленной программы>\"");
+            return 1;
+        }
+
+        var query = args[1];
+        var allApps = await appsService.GetInstalledApplicationsAsync();
+        var match = allApps.FirstOrDefault(a => a.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase));
+        if (match is null)
+        {
+            Console.WriteLine($"Установленная программа по запросу «{query}» не найдена.");
+            return 1;
+        }
+
+        var leftovers = await appsService.ScanApplicationLeftoversAsync(match);
+        Console.WriteLine($"=== Поиск хвостов для «{match.DisplayName}» ({leftovers.Count}) ===");
+        foreach (var item in leftovers)
+        {
+            Console.WriteLine($"  [{item.KindBadge,-22}] {item.TargetPath} ({item.FormattedSize})");
+        }
+        break;
+    }
+
+    case "win11-check":
+    {
+        var rep = await appsService.CheckWindows11ReadinessAsync();
+        Console.WriteLine("=== Готовность к Windows 11 (24H2/25H2) и статус поддержки ОС ===");
+        Console.WriteLine($"Итог         : {rep.OverallHeadline}");
+        Console.WriteLine($"Поддержка ОС : {rep.Lifecycle.SupportDeadlineText}");
+        Console.WriteLine($"Статус ESU   : {rep.Lifecycle.EsuStatusHeadline}");
+        Console.WriteLine($"Рекомендация : {rep.Lifecycle.RecommendationText}\n");
+        foreach (var c in rep.Checks)
+        {
+            Console.WriteLine($"  [{(c.Passed ? "OK " : "ВНИМ")}] {c.Title,-42} | {c.CurrentValue}");
+        }
+        break;
+    }
+
+    case "power-sleep":
+    {
+        var p = await appsService.CheckPowerSleepAndRamAsync();
+        Console.WriteLine("=== Диагностика батареи, сна и оперативной памяти ===");
+        Console.WriteLine($"Аккумулятор  : {p.BatteryStatusHeadline}");
+        Console.WriteLine($"Пробуждение  : {p.LastWakeSource}");
+        Console.WriteLine($"Блокировщики : {(p.ActivePowerBlockers.Count == 0 ? "нет" : string.Join("; ", p.ActivePowerBlockers))}");
+        Console.WriteLine($"Память (ОЗУ) : {p.LastRamDiagnosticSummary}");
+        break;
+    }
+
+    case "auto-maintenance":
+    {
+        var cleanCache = !HasFlag(args, "--no-cache");
+        var checkSmart = !HasFlag(args, "--no-smart");
+        var checkSec = !HasFlag(args, "--no-security");
+        var run = await appsService.RunAutoMaintenanceNowAsync(cleanCache, checkSmart, checkSec);
+        Console.WriteLine($"[Автопилот] {run.Headline}");
+        break;
+    }
+
+    case "schedule-maintenance":
+    {
+        if (args.Length < 2)
+        {
+            var cur = await appsService.GetMaintenanceScheduleAsync();
+            Console.WriteLine($"Текущее расписание: {cur.FrequencyDisplay} | Статус: {cur.NextRunDisplay} | Последний прогон: {cur.LastRunSummary}");
+            break;
+        }
+
+        var mode = args[1].ToLowerInvariant();
+        var freq = mode switch
+        {
+            "daily" => MaintenanceFrequency.Daily,
+            "weekly" => MaintenanceFrequency.Weekly,
+            "monthly" => MaintenanceFrequency.Monthly,
+            _ => MaintenanceFrequency.Disabled
+        };
+        var hourStr = GetOptionValue(args, "--hour");
+        var hour = int.TryParse(hourStr, out var h) ? Math.Clamp(h, 0, 23) : 12;
+
+        var updated = await appsService.SaveMaintenanceScheduleAsync(new MaintenanceScheduleProfile(
+            IsEnabled: freq != MaintenanceFrequency.Disabled,
+            Frequency: freq,
+            RunHourLocal: hour,
+            CleanSafeTempCache: !HasFlag(args, "--no-cache"),
+            CheckDriveSmartHealth: !HasFlag(args, "--no-smart"),
+            AuditSecurityAndStartup: !HasFlag(args, "--no-security"),
+            TaskSchedulerPath: @"\UltimateWindows\AutoMaintenance",
+            NextRunDisplay: string.Empty,
+            LastRunSummary: string.Empty));
+        Console.WriteLine($"Расписание обновлено: {updated.NextRunDisplay}");
+        break;
+    }
+
+    case "support-bundle":
+    {
+        var outPath = GetOptionValue(args, "--out")
+            ?? Path.Combine(Environment.CurrentDirectory, $"UltimateWindows-Diagnostics-{DateTime.Now:yyyyMMdd-HHmmss}.zip");
+        var bundle = await appsService.ExportSupportBundleAsync(outPath);
+        Console.WriteLine($"{bundle.SummaryMessage} ({bundle.FormattedSize}, файлов внутри: {bundle.IncludedFiles.Count})");
+        break;
+    }
+
     default:
     {
-        Console.WriteLine("Доступные команды: status | smart-audit | hardware-audit | hardware-sensors | hardware-bench [all|cpu|gpu|ram|disk] | hardware-report [html|json|txt] [--bench] [--out <файл>] | hardware-power [list|unlock-ultimate|set <guid>] | stress-test [сек] | drivers-audit [--online] [--all] | drivers-catalog-search <запрос> | drivers-essential-list [--matched] | drivers-essential-download <id> [--dir <папка>] [--install] | driverstore-audit | driverstore-clean | drivers-backup-all [папка] | drivers-restore-folder <папка> | drivers-rescue-pack [--dir <папка>] [--universal-servers] | drivers-byovd-audit | drivers-blocklist-enable | driver-backup <oemXX.inf> | clean-scan | clean-run | clean-apps-scan [--winapp2 <ini>] | clean-apps-run [--rule <id>] [--winapp2 <ini>] | browser-scan [--keep-cookies <домены>] | browser-clean [--history] [--downloads] [--cookies] [--sessions] [--keep-cookies <домены>] | disk-map [путь] | pe-doctor <exe> | deps-scan-installed | runtime-list | runtime-install <key> | repair-scan [раздел] [--issues] | repair-fix <id|--all-found> [--force] | error-lookup <код> | cbs-scan | bsod-scan | bsod-file <dmp> | repair-list | repair-run <id> | tweak-list [раздел] [--on|--off] | tweak-info <id> | tweak-enable <id> [--force] | tweak-disable <id> | preset-list | preset-apply <набор> [--dry-run] [--force] | tweak-export [yaml] | tweak-import <yaml> [--dry-run] [--force] | service-list [--third-party] [--running] | service-set <имя> <auto|delayed|manual|disabled> | task-list [--third-party] [--enabled] | task-enable <путь> | task-disable <путь> | startup-list | unlock-check <path> | security-scan [--fast] [--json] | persistence-audit [--anomalies] | defender-audit | defender-clean-exclusions | defender-scan [--path <путь>] | quarantine-list | quarantine-restore <id> | security-heal | history | cleanup-blobs | rollback <id> | check-path <path>");
+        Console.WriteLine("Доступные команды: status | smart-audit | hardware-audit | hardware-sensors | hardware-bench [all|cpu|gpu|ram|disk] | hardware-report [html|json|txt] [--bench] [--out <файл>] | hardware-power [list|unlock-ultimate|set <guid>] | stress-test [сек] | drivers-audit [--online] [--all] | drivers-catalog-search <запрос> | drivers-essential-list [--matched] | drivers-essential-download <id> [--dir <папка>] [--install] | driverstore-audit | driverstore-clean | drivers-backup-all [папка] | drivers-restore-folder <папка> | drivers-rescue-pack [--dir <папка>] [--universal-servers] | drivers-byovd-audit | drivers-blocklist-enable | driver-backup <oemXX.inf> | apps-upgrades | apps-upgrade <id|--all> | apps-catalog [--preset home|gamer|dev] | apps-install <id|--preset ...> | apps-leftovers <имя> | win11-check | power-sleep | auto-maintenance [--no-cache] [--no-smart] [--no-security] | schedule-maintenance [daily|weekly|monthly|off] [--hour <0..23>] | support-bundle [--out <файл.zip>] | clean-scan | clean-run | clean-apps-scan [--winapp2 <ini>] | clean-apps-run [--rule <id>] [--winapp2 <ini>] | browser-scan [--keep-cookies <домены>] | browser-clean [--history] [--downloads] [--cookies] [--sessions] [--keep-cookies <домены>] | disk-map [путь] | pe-doctor <exe> | deps-scan-installed | runtime-list | runtime-install <key> | repair-scan [раздел] [--issues] | repair-fix <id|--all-found> [--force] | error-lookup <код> | cbs-scan | bsod-scan | bsod-file <dmp> | repair-list | repair-run <id> | tweak-list [раздел] [--on|--off] | tweak-info <id> | tweak-enable <id> [--force] | tweak-disable <id> | preset-list | preset-apply <набор> [--dry-run] [--force] | tweak-export [yaml] | tweak-import <yaml> [--dry-run] [--force] | service-list [--third-party] [--running] | service-set <имя> <auto|delayed|manual|disabled> | task-list [--third-party] [--enabled] | task-enable <путь> | task-disable <путь> | startup-list | unlock-check <path> | security-scan [--fast] [--json] | persistence-audit [--anomalies] | defender-audit | defender-clean-exclusions | defender-scan [--path <путь>] | quarantine-list | quarantine-restore <id> | security-heal | history | cleanup-blobs | rollback <id> | check-path <path>");
         break;
     }
 }

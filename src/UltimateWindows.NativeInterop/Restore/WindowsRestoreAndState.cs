@@ -353,6 +353,90 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
 
                 return;
             }
+
+            if (delta.TargetPath.StartsWith("AppRegistryExport:", StringComparison.OrdinalIgnoreCase))
+            {
+                using var doc = JsonDocument.Parse(delta.PreviousStateJson);
+                var regContent = doc.RootElement.TryGetProperty("RegFileContent", out var rEl) ? rEl.GetString() : null;
+                if (!string.IsNullOrWhiteSpace(regContent))
+                {
+                    var tempReg = Path.Combine(Path.GetTempPath(), $"uw-reg-restore-{Guid.NewGuid():N}.reg");
+                    try
+                    {
+                        await File.WriteAllTextAsync(tempReg, regContent, ct).ConfigureAwait(false);
+                        var psi = new ProcessStartInfo
+                        {
+                            FileName = Path.Combine(Environment.SystemDirectory, "reg.exe"),
+                            CreateNoWindow = true,
+                            UseShellExecute = false
+                        };
+                        psi.ArgumentList.Add("import");
+                        psi.ArgumentList.Add(tempReg);
+                        using var proc = Process.Start(psi);
+                        if (proc is not null)
+                        {
+                            await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+                        }
+                    }
+                    finally
+                    {
+                        try { if (File.Exists(tempReg)) File.Delete(tempReg); } catch { }
+                    }
+                }
+
+                return;
+            }
+
+            if (string.Equals(delta.TargetPath, "MaintenanceScheduleTask", StringComparison.OrdinalIgnoreCase))
+            {
+                using var doc = JsonDocument.Parse(delta.PreviousStateJson);
+                var existed = doc.RootElement.TryGetProperty("Existed", out var exEl) && exEl.ValueKind == JsonValueKind.True;
+                var taskName = doc.RootElement.TryGetProperty("TaskName", out var tnEl) && !string.IsNullOrWhiteSpace(tnEl.GetString())
+                    ? tnEl.GetString()!
+                    : @"\UltimateWindows\AutoMaintenance";
+                var taskXml = doc.RootElement.TryGetProperty("TaskXml", out var xmlEl) ? xmlEl.GetString() : null;
+
+                var schtasks = Path.Combine(Environment.SystemDirectory, "schtasks.exe");
+                if (!existed || string.IsNullOrWhiteSpace(taskXml))
+                {
+                    var psi = new ProcessStartInfo { FileName = schtasks, CreateNoWindow = true, UseShellExecute = false };
+                    psi.ArgumentList.Add("/Delete");
+                    psi.ArgumentList.Add("/TN");
+                    psi.ArgumentList.Add(taskName);
+                    psi.ArgumentList.Add("/F");
+                    using var proc = Process.Start(psi);
+                    if (proc is not null)
+                    {
+                        await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+                    }
+                }
+                else
+                {
+                    var tempXml = Path.Combine(Path.GetTempPath(), $"uw-task-restore-{Guid.NewGuid():N}.xml");
+                    try
+                    {
+                        await File.WriteAllTextAsync(tempXml, taskXml, ct).ConfigureAwait(false);
+                        var psi = new ProcessStartInfo { FileName = schtasks, CreateNoWindow = true, UseShellExecute = false };
+                        psi.ArgumentList.Add("/Create");
+                        psi.ArgumentList.Add("/TN");
+                        psi.ArgumentList.Add(taskName);
+                        psi.ArgumentList.Add("/XML");
+                        psi.ArgumentList.Add(tempXml);
+                        psi.ArgumentList.Add("/F");
+                        using var proc = Process.Start(psi);
+                        if (proc is not null)
+                        {
+                            await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+                        }
+                    }
+                    finally
+                    {
+                        try { if (File.Exists(tempXml)) File.Delete(tempXml); } catch { }
+                    }
+                }
+
+                return;
+            }
         }
 
         await base.ApplyRollbackDeltaAsync(delta, restoreBlobBytesAsync, ct).ConfigureAwait(false);
