@@ -410,11 +410,11 @@
 
           <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}" Padding="12,10">
             <DockPanel>
-              <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
-                <TextBlock DockPanel.Dock="Right" Text="{Binding ReinstallSpaceBadge}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
-                <Button HorizontalAlignment="Left" Style="{StaticResource PrimaryButtonStyle}" Padding="10,4"
-                        Command="{Binding OpenWindowsRecoveryCommand}" Content="Открыть Восстановление Windows" />
-              </DockPanel>
+              <WrapPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                <Button Style="{StaticResource PrimaryButtonStyle}" Padding="10,4" Margin="0,0,10,2"
+                        Command="{Binding OpenWindowsRecoveryCommand}" Content="Открыть Восстановление ОС" />
+                <TextBlock Text="{Binding ReinstallSpaceBadge}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+              </WrapPanel>
               <StackPanel>
                 <TextBlock Text="{Binding ReinstallTitle}" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" />
                 <TextBlock Text="{Binding ReinstallDetails}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
