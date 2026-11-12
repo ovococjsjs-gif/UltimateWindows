@@ -227,22 +227,22 @@
       <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="10,9">
         <DockPanel>
           <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-            <DockPanel Margin="0,0,0,6">
-              <WrapPanel DockPanel.Dock="Right">
-                <Button Style="{StaticResource CompactButtonStyle}"
-                        Command="{Binding RunDefenderQuickScanCommand}"
-                        Content="Быстрый скан Defender"
-                        Margin="0,0,6,0" />
-                <Button Style="{StaticResource DangerButtonStyle}"
-                        Visibility="{Binding HasDangerousDefenderExclusions, Converter={StaticResource BoolToVis}}"
-                        Command="{Binding CleanDefenderExclusionsCommand}"
-                        Content="Убрать слепые зоны" />
-              </WrapPanel>
-              <TextBlock Text="Исключения Microsoft Defender"
-                         FontSize="13"
-                         FontWeight="SemiBold"
-                         VerticalAlignment="Center" />
-            </DockPanel>
+            <TextBlock Text="Исключения Microsoft Defender"
+                       FontSize="13"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,6" />
+
+            <WrapPanel Margin="0,0,0,6">
+              <Button Style="{StaticResource CompactButtonStyle}"
+                      Command="{Binding RunDefenderQuickScanCommand}"
+                      Content="Быстрый скан Defender"
+                      Margin="0,0,6,2" />
+              <Button Style="{StaticResource DangerButtonStyle}"
+                      Visibility="{Binding HasDangerousDefenderExclusions, Converter={StaticResource BoolToVis}}"
+                      Command="{Binding CleanDefenderExclusionsCommand}"
+                      Content="Убрать слепые зоны"
+                      Margin="0,0,0,2" />
+            </WrapPanel>
 
             <Grid>
               <Grid.ColumnDefinitions>
@@ -263,9 +263,9 @@
 
           <DataGrid ItemsSource="{Binding DefenderExclusions}">
             <DataGrid.Columns>
-              <DataGridTextColumn Header="Тип" Binding="{Binding KindLabel}" Width="90" />
+              <DataGridTextColumn Header="Тип" Binding="{Binding KindLabel}" Width="82" />
               <DataGridTextColumn Header="Оценка" Binding="{Binding RiskBadge}" Width="135" />
-              <DataGridTextColumn Header="Исключённый объект" Binding="{Binding Value}" Width="165" />
+              <DataGridTextColumn Header="Объект" Binding="{Binding Value}" Width="100" />
               <DataGridTextColumn Header="Пояснение" Binding="{Binding Reason}" Width="*" />
             </DataGrid.Columns>
           </DataGrid>
@@ -282,19 +282,26 @@
             <RowDefinition Height="0.75*" />
           </Grid.RowDefinitions>
 
-          <DockPanel Grid.Row="0" Margin="0,0,0,6">
-            <Button DockPanel.Dock="Right"
+          <Grid Grid.Row="0" Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0"
+                       Text="Блокировки ОС, Defender, MRT и hosts"
+                       FontSize="12.5"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       Margin="0,0,8,0" />
+            <Button Grid.Column="1"
                     Style="{StaticResource PrimaryButtonStyle}"
                     Padding="9,4"
                     FontSize="11.5"
                     Visibility="{Binding HasSabotageLocks, Converter={StaticResource BoolToVis}}"
                     Command="{Binding HealSabotageCommand}"
                     Content="Снять блокировки" />
-            <TextBlock Text="Блокировки ОС, Defender, MRT и hosts"
-                       FontSize="13"
-                       FontWeight="SemiBold"
-                       VerticalAlignment="Center" />
-          </DockPanel>
+          </Grid>
 
           <DataGrid Grid.Row="1" ItemsSource="{Binding SabotageLocks}">
             <DataGrid.Columns>
@@ -466,10 +473,10 @@
 
       <DataGrid Grid.Row="1" ItemsSource="{Binding QuarantineHistory}">
         <DataGrid.Columns>
-          <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampLocalText}" Width="140" />
+          <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampLocalText}" Width="145" />
           <DataGridTextColumn Header="Операция" Binding="{Binding FriendlyTitle}" Width="240" />
-          <DataGridTextColumn Header="Изолированный объект / путь" Binding="{Binding PrimaryPath}" Width="*" />
-          <DataGridTextColumn Header="Статус" Binding="{Binding StatusBadge}" Width="140" />
+          <DataGridTextColumn Header="Изолированный объект" Binding="{Binding PrimaryPath}" Width="*" />
+          <DataGridTextColumn Header="Статус" Binding="{Binding StatusBadge}" Width="145" />
           <DataGridTemplateColumn Header="Откат" Width="125">
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate>
