@@ -78,10 +78,11 @@
                     Command="{Binding HardwareStudio.RefreshHardwareCommand}"
                     Content="Обновить телеметрию" />
           </WrapPanel>
-          <TextBlock Text="Аппаратный паспорт ПК, S.M.A.R.T. накопителей и Умный советник"
+          <TextBlock Text="Аппаратный паспорт ПК, S.M.A.R.T. и Советник"
                      FontSize="13"
                      FontWeight="SemiBold"
                      VerticalAlignment="Center"
+                     Margin="0,0,10,0"
                      TextTrimming="CharacterEllipsis" />
         </DockPanel>
 
@@ -654,8 +655,8 @@
           </Grid.ColumnDefinitions>
 
           <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0">
-            <TextBlock Text="Сквозные датчики оборудования (температуры, напряжения, обороты, мощности)"
-                       FontSize="13" FontWeight="SemiBold" />
+            <TextBlock Text="Сквозные датчики оборудования"
+                       FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
             <TextBlock Text="{Binding HardwareStudio.SensorBackendHeadline}"
                        FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
                        TextWrapping="Wrap" Margin="0,2,0,0" />
@@ -691,10 +692,12 @@
               <Button DockPanel.Dock="Right"
                       Style="{StaticResource CompactButtonStyle}"
                       Padding="8,3" FontSize="11"
+                      Margin="8,0,0,0"
                       Command="{Binding HardwareStudio.UnlockUltimatePlanCommand}"
                       Content="Разблокировать Турбо" />
-              <TextBlock Text="Схемы электропитания Windows (с точкой отката)"
-                         FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+              <TextBlock Text="Схемы электропитания Windows"
+                         FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis" />
             </DockPanel>
 
             <ItemsControl ItemsSource="{Binding HardwareStudio.PowerPlans}">
@@ -757,12 +760,12 @@
       <!-- Таблица сквозных датчиков -->
       <DataGrid Grid.Row="2" ItemsSource="{Binding HardwareStudio.FilteredSensors}">
         <DataGrid.Columns>
-          <DataGridTextColumn Header="Узел оборудования" Binding="{Binding HardwareGroup}" Width="1.2*" />
-          <DataGridTextColumn Header="Датчик" Binding="{Binding SensorName}" Width="1.2*" />
-          <DataGridTextColumn Header="Категория" Binding="{Binding CategoryLabel}" Width="115" />
-          <DataGridTextColumn Header="Текущее" Binding="{Binding FormattedCurrent}" Width="105" />
-          <DataGridTextColumn Header="Мин." Binding="{Binding FormattedMin}" Width="95" />
-          <DataGridTextColumn Header="Макс." Binding="{Binding FormattedMax}" Width="95" />
+          <DataGridTextColumn Header="Узел оборудования" Binding="{Binding HardwareGroup}" Width="1.45*" />
+          <DataGridTextColumn Header="Датчик" Binding="{Binding SensorName}" Width="1.15*" />
+          <DataGridTextColumn Header="Категория" Binding="{Binding CategoryLabel}" Width="110" />
+          <DataGridTextColumn Header="Текущее" Binding="{Binding FormattedCurrent}" Width="100" />
+          <DataGridTextColumn Header="Мин." Binding="{Binding FormattedMin}" Width="86" />
+          <DataGridTextColumn Header="Макс." Binding="{Binding FormattedMax}" Width="86" />
         </DataGrid.Columns>
       </DataGrid>
     </Grid>
@@ -778,7 +781,7 @@
         <Border Style="{StaticResource CardBorderStyle}" Padding="12,10" Margin="0,0,0,10">
           <StackPanel>
             <DockPanel Margin="0,0,0,6">
-              <WrapPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+              <WrapPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
                 <Button Style="{StaticResource CompactButtonStyle}"
                         Padding="8,4" FontSize="11.5" Margin="0,0,5,0"
                         IsEnabled="{Binding HardwareStudio.CanStartBenchmark}"
@@ -805,8 +808,9 @@
                         Command="{Binding HardwareStudio.RunFullQuickBenchCommand}"
                         Content="Экспресс-тест ПК (~5 сек)" />
               </WrapPanel>
-              <TextBlock Text="Лёгкие быстрые бенчмарки (без перегрева и износа накопителей)"
-                         FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+              <TextBlock Text="Лёгкие быстрые бенчмарки ПК"
+                         FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis" />
             </DockPanel>
 
             <TextBlock Text="{Binding HardwareStudio.BenchmarkBannerText}"

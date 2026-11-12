@@ -109,6 +109,7 @@ internal static class LibreHardwareSensorBridge
                     SafeUpdateHardware(hw);
                     CollectFromHardwareNode(
                         hw,
+                        pawnIo,
                         includeAllSensorRows,
                         ref cpuTemp,
                         ref cpuLoad,
@@ -126,6 +127,7 @@ internal static class LibreHardwareSensorBridge
                         SafeUpdateHardware(sub);
                         CollectFromHardwareNode(
                             sub,
+                            pawnIo,
                             includeAllSensorRows,
                             ref cpuTemp,
                             ref cpuLoad,
@@ -275,6 +277,7 @@ internal static class LibreHardwareSensorBridge
 
     private static void CollectFromHardwareNode(
         IHardware hw,
+        bool pawnIoActive,
         bool includeAllRows,
         ref double? cpuTemp,
         ref double? cpuLoad,
@@ -290,6 +293,7 @@ internal static class LibreHardwareSensorBridge
         bool isCpu = hw.HardwareType == HardwareType.Cpu;
         bool isGpu = hw.HardwareType is HardwareType.GpuNvidia or HardwareType.GpuAmd or HardwareType.GpuIntel;
         bool isBattery = hw.HardwareType == HardwareType.Battery;
+        string hwTitle = string.IsNullOrWhiteSpace(hw.Name) ? "Устройство" : hw.Name;
 
         double? gCoreTemp = null, gHotspot = null, gMemTemp = null, gPower = null;
         int? gFanPct = null, gFanRpm = null, gLoad = null, gCoreClk = null, gMemClk = null;
@@ -307,6 +311,8 @@ internal static class LibreHardwareSensorBridge
         int ctrlCounter = 0;
         foreach (var sensor in hw.Sensors)
         {
+            var sName = string.IsNullOrWhiteSpace(sensor.Name) ? "Датчик" : sensor.Name;
+
             if (sensor.SensorType == SensorType.Control)
             {
                 if (sensor.Control is not null)
@@ -314,8 +320,8 @@ internal static class LibreHardwareSensorBridge
                     fanRpmsByIndex.TryGetValue(ctrlCounter, out var pairedRpm);
                     fans.Add(new ControllableFanChannel(
                         ChannelId: sensor.Identifier.ToString(),
-                        HardwareName: hw.Name,
-                        FanName: sensor.Name,
+                        HardwareName: hwTitle,
+                        FanName: sName,
                         CurrentDutyPercent: sensor.Value.HasValue ? (int)Math.Round(sensor.Value.Value) : null,
                         CurrentRpm: pairedRpm > 0 ? pairedRpm : null));
                     ctrlCounter++;
@@ -328,7 +334,13 @@ internal static class LibreHardwareSensorBridge
             }
 
             double val = Math.Round(sensor.Value.Value, 3);
-            var sName = sensor.Name ?? "";
+
+            // Без установленного PawnIO MSR-регистры CPU (температура, мощность, частота ядер) возвращают нулевые заглушки — не показываем фиктивные нули
+            if (isCpu && !pawnIoActive && val <= 0.001 &&
+                sensor.SensorType is SensorType.Temperature or SensorType.Power or SensorType.Clock)
+            {
+                continue;
+            }
 
             if (isCpu)
             {
@@ -411,7 +423,7 @@ internal static class LibreHardwareSensorBridge
                 double? minV = sensor.Min is { } mn && !float.IsNaN(mn) ? Math.Round(mn, 3) : null;
                 double? maxV = sensor.Max is { } mx && !float.IsNaN(mx) ? Math.Round(mx, 3) : null;
                 readings.Add(new HardwareSensorReading(
-                    HardwareGroup: hw.Name,
+                    HardwareGroup: hwTitle,
                     SensorName: sName,
                     Category: cat,
                     CurrentValue: val,
@@ -424,7 +436,7 @@ internal static class LibreHardwareSensorBridge
         if (isGpu)
         {
             gpus.Add(new GpuLhmTelemetry(
-                Name: hw.Name,
+                Name: hwTitle,
                 Type: hw.HardwareType,
                 CoreTempC: gCoreTemp,
                 HotspotTempC: gHotspot,
