@@ -4,10 +4,7 @@
 # Знак «+» после имени — снимок со сглаженным текстом (в несколько раз крупнее обычного).
 # Пустой список — снимки не делаются и не передаются.
 security-tab-0-1024
-security-tab-1
-security-tab-2
 security-tab-3
+security-tab-2
+security-tab-1
 security-tab-4
-repair-tab-0-1024
-cleaner-mft-disk
-main-Optimizer

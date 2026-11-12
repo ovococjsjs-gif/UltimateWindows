@@ -123,11 +123,11 @@
                 ItemsSource="{Binding Threats}"
                 SelectedItem="{Binding SelectedThreat}">
         <DataGrid.Columns>
-          <DataGridTextColumn Header="Подсистема" Binding="{Binding CategoryLabel}" Width="155" />
-          <DataGridTextColumn Header="Угроза" Binding="{Binding SimpleTitle}" Width="220" />
-          <DataGridTextColumn Header="Точность" Binding="{Binding ConfidenceBadge}" Width="110" />
+          <DataGridTextColumn Header="Подсистема" Binding="{Binding CategoryLabel}" Width="145" />
+          <DataGridTextColumn Header="Угроза" Binding="{Binding SimpleTitle}" Width="205" />
+          <DataGridTextColumn Header="Точность" Binding="{Binding ConfidenceBadge}" Width="132" />
           <DataGridTextColumn Header="Понятное объяснение" Binding="{Binding SimpleExplanation}" Width="*" />
-          <DataGridTemplateColumn Header="Действие" Width="130">
+          <DataGridTemplateColumn Header="Действие" Width="120">
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate>
                 <Button Style="{StaticResource DangerButtonStyle}"

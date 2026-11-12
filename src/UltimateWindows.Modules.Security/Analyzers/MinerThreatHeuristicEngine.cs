@@ -178,7 +178,10 @@ public sealed class MinerThreatHeuristicEngine
                     ? 1.0
                     : (proc.BaselineGpuPercent - proc.DuringInspectGpuPercent) / Math.Max(1.0, proc.BaselineGpuPercent);
 
-                if (gpuDropRatio >= 0.60 && (!proc.IsAuthenticodeSigned || PersistenceZoneCatalog.IsUserWritableOrStagingPath(normPath)))
+                if (gpuDropRatio >= 0.60 &&
+                    (!proc.IsAuthenticodeSigned ||
+                     PersistenceZoneCatalog.IsUserWritableOrStagingPath(normPath) ||
+                     catalog.HollowTargetBinaries.Contains(exeName)))
                 {
                     int gpuScore = proc.ExitedDuringInspect ? 96 : 92;
                     findings.Add(new SecurityThreatFinding(
@@ -193,7 +196,8 @@ public sealed class MinerThreatHeuristicEngine
                         SimpleExplanation: $"В тихом режиме процесс загружал видеокарту (3D/Compute) на {proc.BaselineGpuPercent:F0}%, но при появлении системного монитора сбросил нагрузку GPU до {proc.DuringInspectGpuPercent:F0}%.",
                         ExpertTechnicalEvidence: $"PID={proc.ProcessId} | QuietGPU={proc.BaselineGpuPercent:F1}% -> InspectGPU={proc.DuringInspectGpuPercent:F1}% | Signed={proc.IsAuthenticodeSigned} | Path='{normPath}'",
                         CanQuarantineFileSafely: isSafeToQuarantineFile,
-                        CategoryLabel: "Стелс GPU (Drop-on-Inspect)"));
+                        CategoryLabel: "Стелс GPU (Drop-on-Inspect)",
+                        RecommendedActionLabel: isSafeToQuarantineFile ? "Обезвредить" : "Остановить"));
                 }
             }
 
@@ -244,7 +248,7 @@ public sealed class MinerThreatHeuristicEngine
                         ExpertTechnicalEvidence: $"HollowTarget='{exeName}' PID={proc.ProcessId} | PrivateRWX/RX={proc.PrivateExecutableRegionCount} | CPU={proc.BaselineCpuPercent:F1}% | GPU={proc.BaselineGpuPercent:F1}% | {parentEvidence}",
                         CanQuarantineFileSafely: canQuarantineLoader,
                         CategoryLabel: "Инжекция в память",
-                        RecommendedActionLabel: canQuarantineLoader ? "Обезвредить загрузчик" : "Завершить процесс"));
+                        RecommendedActionLabel: canQuarantineLoader ? "Обезвредить" : "Остановить"));
                 }
             }
 
@@ -315,7 +319,7 @@ public sealed class MinerThreatHeuristicEngine
                 ExpertTechnicalEvidence: $"Zone={anomaly.Category} | Path='{anomaly.RegistryOrTaskPath}' | Entry='{anomaly.EntryName}' | Payload='{anomaly.PayloadCommandOrPath}' | MissingSD={anomaly.IsMissingSecurityDescriptorSd}",
                 CanQuarantineFileSafely: safeRefFile,
                 CategoryLabel: anomaly.ZoneTitle,
-                RecommendedActionLabel: safeRefFile ? "Убрать и в карантин" : "Убрать закрепление"));
+                RecommendedActionLabel: safeRefFile ? "Обезвредить" : "Отключить"));
         }
 
         // 8. Опасные исключения Microsoft Defender
@@ -334,7 +338,7 @@ public sealed class MinerThreatHeuristicEngine
                 ExpertTechnicalEvidence: $"Defender Exclusion ({excl.Kind}, Policy={excl.IsPolicyEnforced}): '{excl.Value}' @ '{excl.RegistryPath}'",
                 CanQuarantineFileSafely: false,
                 CategoryLabel: "Слепая зона Defender",
-                RecommendedActionLabel: "Удалить исключение",
+                RecommendedActionLabel: "Удалить",
                 LinkedExclusion: excl));
         }
 
@@ -354,7 +358,7 @@ public sealed class MinerThreatHeuristicEngine
                 ExpertTechnicalEvidence: $"FirewallRule='{fw.RuleId}' | Dir={fw.Direction} | Action={fw.Action} | App='{fw.ApplicationPath}' | Ports='{fw.RemotePorts}'",
                 CanQuarantineFileSafely: false,
                 CategoryLabel: "Брандмауэр Windows",
-                RecommendedActionLabel: "Удалить правило",
+                RecommendedActionLabel: "Удалить",
                 LinkedFirewallRule: fw));
         }
 

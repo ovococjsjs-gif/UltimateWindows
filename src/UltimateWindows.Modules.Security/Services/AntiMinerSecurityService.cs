@@ -241,11 +241,11 @@ public sealed class AntiMinerSecurityService
             var fullPath = Path.GetFullPath(finding.SuspectFilePath!);
             if (File.Exists(fullPath))
             {
-                await tx.QuarantineFileAsync(fullPath, ct).ConfigureAwait(false);
                 try
                 {
                     File.SetAttributes(fullPath, FileAttributes.Normal);
-                    File.Delete(fullPath);
+                    // QuarantineFileAsync шифрует/дедуплицирует файл в .uwq и сразу удаляет оригинал с диска
+                    await tx.QuarantineFileAsync(fullPath, ct).ConfigureAwait(false);
                     actionsDone++;
                     summaryParts.Add($"файл «{Path.GetFileName(fullPath)}» изолирован в карантин (.uwq)");
                 }
@@ -255,7 +255,7 @@ public sealed class AntiMinerSecurityService
                         false,
                         null,
                         actionsDone,
-                        $"Резервная копия создана, но не удалось удалить заблокированный файл «{fullPath}»: {ex.Message}");
+                        $"Не удалось изолировать заблокированный файл «{fullPath}»: {ex.Message}");
                 }
             }
             else if (actionsDone == 0)
