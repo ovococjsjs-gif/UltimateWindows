@@ -241,6 +241,18 @@ public sealed class BinaryPeDependencyDoctor
                 resolvedPath = sysCandidate;
             }
 
+            if (resolvedPath is null &&
+                safeFileName.StartsWith("api-ms-win-crt-", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(expectedSysDir))
+            {
+                // В Windows 10 и Windows 11 контракты api-ms-win-crt-*.dll разрешаются ядром через ApiSetSchema напрямую в системную ucrtbase.dll
+                var ucrtCandidate = Path.Combine(expectedSysDir, "ucrtbase.dll");
+                if (File.Exists(ucrtCandidate))
+                {
+                    resolvedPath = ucrtCandidate;
+                }
+            }
+
             if (resolvedPath is null && winSxSDir is not null && IsSideBySideVc80OrVc90Dll(safeFileName))
             {
                 resolvedPath = TryFindInWinSxS(winSxSDir, safeFileName, exeHeader.Architecture);

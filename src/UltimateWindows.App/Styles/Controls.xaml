@@ -536,6 +536,7 @@
   </Style>
 
   <Style TargetType="DataGridCell">
+    <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="8,5" />
     <Setter Property="Template">
@@ -549,6 +550,7 @@
     </Setter>
     <Style.Triggers>
       <Trigger Property="IsSelected" Value="True">
+        <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
       </Trigger>
     </Style.Triggers>

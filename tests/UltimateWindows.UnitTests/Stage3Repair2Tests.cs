@@ -281,6 +281,23 @@ public sealed class Stage3Repair2Tests : IDisposable
         var singleBroken = Assert.Single(summary.BrokenPrograms);
         Assert.Equal("Broken Game", singleBroken.Program.DisplayName);
         Assert.Contains(summary.DistinctRecommendedPackages, p => p.PackageKey == "vcredist-2015-2022-x64");
+
+        // Проверяем разрешение контрактов api-ms-win-crt-*.dll через системную ucrtbase.dll на Windows 10/11
+        var ucrtExe = Path.Combine(healthyDir, "NotepadLike.exe");
+        File.WriteAllBytes(ucrtExe, PeDoctorBsodAndRepairTests.BuildSyntheticPeBinary(
+            true,
+            ["api-ms-win-crt-runtime-l1-1-0.dll", "api-ms-win-crt-private-l1-1-0.dll"]));
+
+        var doctor = new BinaryPeDependencyDoctor();
+        // Пока ucrtbase.dll нет в FakeSystem32 — PE-Доктор рекомендует поставить VC++ v14
+        var withoutUcrt = doctor.DiagnoseExecutable(ucrtExe, sys64, sys32);
+        Assert.False(withoutUcrt.IsHealthy);
+
+        // Когда в System32 присутствует штатная 64-битная ucrtbase.dll — контракты UCRT считаются здоровыми!
+        File.WriteAllBytes(Path.Combine(sys64, "ucrtbase.dll"), PeDoctorBsodAndRepairTests.BuildSyntheticPeBinary(true, []));
+        var withUcrt = doctor.DiagnoseExecutable(ucrtExe, sys64, sys32);
+        Assert.True(withUcrt.IsHealthy);
+        Assert.Empty(withUcrt.Issues);
     }
 
     private sealed class InMemoryRepairBridge : DefaultRepairPlatformBridge

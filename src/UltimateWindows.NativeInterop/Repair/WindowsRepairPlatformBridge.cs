@@ -59,10 +59,10 @@ public sealed partial class WindowsRepairPlatformBridge : DefaultRepairPlatformB
             var items = new List<SystemCrashEventEntry>();
             var half = Math.Max(4, maxEntries / 2);
 
-            // 1. Журнал Application: вылеты (1000), зависания (1002), исключения .NET (1026) и манифесты VC++ SideBySide (33, 59, 78)
+            // 1. Журнал Application: строго по целевым источникам (Application Error 1000, Application Hang 1002, .NET Runtime 1026, SideBySide 33/59/78)
             QueryChannelEvents(
                 channelPath: "Application",
-                xpathQuery: "*[System[(EventID=1000 or EventID=1002 or EventID=1026 or EventID=33 or EventID=59 or EventID=78)]]",
+                xpathQuery: "*[System[((Provider[@Name='Application Error'] and EventID=1000) or (Provider[@Name='Application Hang'] and EventID=1002) or (Provider[@Name='.NET Runtime'] and EventID=1026) or (Provider[@Name='SideBySide'] and (EventID=33 or EventID=59 or EventID=78)))]]",
                 maxCount: half + 4,
                 sink: items,
                 ct: ct);
@@ -75,10 +75,10 @@ public sealed partial class WindowsRepairPlatformBridge : DefaultRepairPlatformB
                 sink: items,
                 ct: ct);
 
-            // 3. Журнал System: сброс видеодрайвера TDR (4101), внезапное выключение Kernel-Power (41), BSOD BugCheck (1001), WHEA (17, 18, 19)
+            // 3. Журнал System: сброс видеодрайвера TDR (Display 4101), Kernel-Power (41), BSOD BugCheck (1001) и аппаратные ошибки WHEA-Logger (17, 18, 19)
             QueryChannelEvents(
                 channelPath: "System",
-                xpathQuery: "*[System[(EventID=41 or EventID=1001 or EventID=4101 or EventID=17 or EventID=18 or EventID=19)]]",
+                xpathQuery: "*[System[((Provider[@Name='Display'] and EventID=4101) or (Provider[@Name='Microsoft-Windows-Kernel-Power'] and EventID=41) or (Provider[@Name='Microsoft-Windows-WER-SystemErrorReporting'] and EventID=1001) or (Provider[@Name='Microsoft-Windows-WHEA-Logger'] and (EventID=17 or EventID=18 or EventID=19)))]]",
                 maxCount: half,
                 sink: items,
                 ct: ct);
