@@ -1448,7 +1448,7 @@ public sealed partial class WindowsSecurityPlatformBridge
 
         try
         {
-            var result = proc.StandardOutput.ReadToEndAsync(cts.Token).AsTask().GetAwaiter().GetResult();
+            var result = proc.StandardOutput.ReadToEndAsync(cts.Token).GetAwaiter().GetResult();
             proc.WaitForExit(1000);
             return result.Trim();
         }

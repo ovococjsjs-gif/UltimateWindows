@@ -485,14 +485,14 @@ public sealed class MinerThreatHeuristicEngine
     private static string NormalizePrefix(string path) =>
         path.TrimEnd('\\', '/') + @"\";
 
-    private static string NormalizeExeName(string processName, string exePath)
+    private static string NormalizeExeName(string? processName, string? exePath)
     {
         if (!string.IsNullOrWhiteSpace(exePath))
         {
             return Path.GetFileName(exePath);
         }
 
-        var trimmed = processName.Trim();
+        var trimmed = (processName ?? "").Trim();
         return trimmed.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
             ? trimmed
             : trimmed + ".exe";
