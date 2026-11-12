@@ -160,30 +160,40 @@ public sealed class MainWindowSmokeTests
             notes.Add($"защита-сводка: {securityVm.ScanHeadline}");
             notes.Add($"защита-kpi: {securityVm.KpiSummaryStrip}");
 
-            reached = "драйверы 2.0: все 6 вкладок, каталог 39 пакетов, DriverStore и BYOVD";
+            reached = "железо 2.0 и драйверы 2.0: все 7 вкладок, датчики, экспресс-бенчмарк, отчёт и каталог 39 пакетов";
             main.SelectedDomain = SystemDomain.HardwareAndDrivers;
             var hwVm = main.HardwareStudio;
             var drvVm = main.DriverStudio;
+            await hwVm.RefreshAuditAsync();
             await drvVm.InitializeFastAsync();
             Assert.True(drvVm.FilteredEssentialPackages.Count >= 35, "Каталог основных драйверов не загрузился.");
             await drvVm.SearchLiveMicrosoftCatalogAsync();
+
+            // Запускаем живой экспресс-бенчмарк CPU / GPU DirectCompute / ОЗУ / Диска и экспорт HTML-отчёта
+            await hwVm.RunFullQuickBenchmarkAsync();
+            var htmlReportPath = await hwVm.ExportReportInternalAsync(UltimateWindows.Modules.Hardware.Models.HardwareReportFormat.Html);
+            Assert.True(File.Exists(htmlReportPath), "HTML-отчёт о железе не создался.");
+            try { File.Delete(htmlReportPath); } catch { }
 
             window.Width = 1024;
             window.Height = 768;
             hwVm.SelectedSubTabIndex = 2;
             await surface.SettleAsync();
-            surface.Save("drivers-tab-2-1024");
+            surface.Save("hardware-tab-2-1024");
 
             window.Width = 1360;
             window.Height = 840;
-            for (var dtab = 0; dtab <= 5; dtab++)
+            for (var dtab = 0; dtab <= 6; dtab++)
             {
                 hwVm.SelectedSubTabIndex = dtab;
                 await surface.SettleAsync();
-                surface.Save($"drivers-tab-{dtab}");
+                surface.Save($"hardware-tab-{dtab}");
             }
 
             Assert.Empty(trace.Errors);
+            notes.Add($"железо-датчики: {hwVm.SensorBackendHeadline}");
+            notes.Add($"железо-бенчмарк: {hwVm.BenchmarkBannerText}");
+            notes.Add($"железо-gpu-bench: {hwVm.GpuBenchHeadline} ({hwVm.GpuBenchDetails})");
             notes.Add($"драйверы-kpi: {drvVm.DriverKpiStrip}");
             notes.Add($"драйверы-каталог: {drvVm.CatalogStatusText}");
             notes.Add($"драйверы-store: {drvVm.DriverStoreHeadline}");

@@ -2,9 +2,11 @@ using System.Text.Json;
 using UltimateWindows.Core.Contracts;
 using UltimateWindows.Core.Enums;
 using UltimateWindows.Modules.Hardware.Analysis;
+using UltimateWindows.Modules.Hardware.Benchmarks;
 using UltimateWindows.Modules.Hardware.Contracts;
 using UltimateWindows.Modules.Hardware.Models;
 using UltimateWindows.Modules.Hardware.Probes;
+using UltimateWindows.Modules.Hardware.Reporting;
 using UltimateWindows.Modules.Hardware.Stress;
 
 namespace UltimateWindows.Modules.Hardware.Services;
@@ -50,7 +52,7 @@ public sealed class FallbackHardwarePlatformProvider : IHardwarePlatformProvider
             Drives: [],
             Monitors: [],
             Battery: new BatteryHealthInfo(false, true, 100, null, null),
-            ActivePowerPlan: new PowerPlanInfo(Guid.Empty, "Balanced", IsPowerSaver: false, IsHighOrUltimatePerformance: false));
+            ActivePowerPlan: new PowerPlanInfo(Guid.Empty, "Сбалансированная", IsPowerSaver: false, IsHighOrUltimatePerformance: false));
 
         return Task.FromResult(snapshot);
     }
@@ -71,13 +73,16 @@ public sealed class FallbackHardwarePlatformProvider : IHardwarePlatformProvider
 }
 
 /// <summary>
-/// Фасад Фазы 1: связывает сбор паспорта железа, Умного советника, 1-кликовые исправления с записью в Машину времени и стресс-тест.
+/// Фасад Аппаратной студии AIDA64-класса (Этап 6):
+/// связывает паспорт железа, датчики LibreHardwareMonitor/PawnIO, планы питания, управление вентиляторами,
+/// лёгкие бенчмарки CPU/GPU/RAM/Диска, стресс-тест стабильности с проверкой ошибок и экспорт отчётов HTML/JSON/TXT.
 /// </summary>
 public sealed class HardwareStudioService
 {
     private readonly IHardwarePlatformProvider _platformProvider;
     private readonly IVaultService _vaultService;
     private readonly ThermalSafeStressRunner _stressRunner;
+    private readonly LightweightBenchmarkRunner _benchmarkRunner;
 
     public HardwareStudioService(
         IVaultService vaultService,
@@ -86,6 +91,7 @@ public sealed class HardwareStudioService
         _vaultService = vaultService ?? throw new ArgumentNullException(nameof(vaultService));
         _platformProvider = platformProvider ?? new FallbackHardwarePlatformProvider();
         _stressRunner = new ThermalSafeStressRunner(_platformProvider);
+        _benchmarkRunner = new LightweightBenchmarkRunner(_platformProvider);
     }
 
     public async Task<(HardwareSnapshot Snapshot, HardwareAuditSummary Audit)> CaptureAndAnalyzeAsync(
@@ -94,6 +100,79 @@ public sealed class HardwareStudioService
         var snapshot = await _platformProvider.CaptureSnapshotAsync(ct).ConfigureAwait(false);
         var audit = HardwareBottleneckAdvisor.Analyze(snapshot);
         return (snapshot, audit);
+    }
+
+    public Task<HardwareSensorInventory> QuerySensorsAsync(CancellationToken ct = default) =>
+        _platformProvider.QuerySensorInventoryAsync(ct);
+
+    public Task<IReadOnlyList<PowerPlanInfo>> GetPowerPlansAsync(CancellationToken ct = default) =>
+        _platformProvider.EnumeratePowerPlansAsync(ct);
+
+    public async Task<(bool Success, string UserMessage)> SwitchPowerPlanAsync(
+        Guid targetSchemeGuid,
+        string friendlyName,
+        CancellationToken ct = default)
+    {
+        var (ok, prevGuid, msg) = await _platformProvider.TrySetActivePowerSchemeAsync(targetSchemeGuid, ct).ConfigureAwait(false);
+        if (!ok)
+        {
+            return (false, msg);
+        }
+
+        await using var tx = _vaultService.BeginTransaction(
+            SystemDomain.HardwareAndDrivers,
+            friendlyTitle: $"Переключение схемы электропитания на «{friendlyName}»",
+            friendlySummary: $"Активирована схема «{friendlyName}». Прежнюю схему можно вернуть в 1 клик.",
+            technicalDetails: $"PowrProf PowerSetActiveScheme: {prevGuid} -> {targetSchemeGuid}");
+
+        tx.RecordStateDelta(
+            StateTargetKind.SystemSetting,
+            "PowerActiveScheme",
+            previousStateJson: JsonSerializer.Serialize(new { SchemeGuid = prevGuid }),
+            newStateJson: JsonSerializer.Serialize(new { SchemeGuid = targetSchemeGuid }));
+
+        await tx.CommitAsync(ct: ct).ConfigureAwait(false);
+        return (true, $"Активирована схема питания «{friendlyName}» (точка отката сохранена в Машине времени).");
+    }
+
+    public Task<(bool Success, Guid? SchemeGuid, string Message)> UnlockUltimatePerformancePlanAsync(CancellationToken ct = default) =>
+        _platformProvider.UnlockUltimatePerformancePlanAsync(ct);
+
+    public Task<(bool Success, int AffectedFanCount, string Message)> ApplyFanCoolingPresetAsync(
+        FanCoolingPreset preset,
+        CancellationToken ct = default) =>
+        _platformProvider.ApplyFanCoolingPresetAsync(preset, ct);
+
+    public Task<CpuBenchmarkResult> RunCpuBenchmarkAsync(CancellationToken ct = default) =>
+        _benchmarkRunner.RunCpuBenchmarkAsync(ct: ct);
+
+    public Task<GpuBenchmarkResult> RunGpuBenchmarkAsync(CancellationToken ct = default) =>
+        _benchmarkRunner.RunGpuBenchmarkAsync(ct: ct);
+
+    public Task<MemoryBenchmarkResult> RunMemoryBenchmarkAsync(CancellationToken ct = default) =>
+        _benchmarkRunner.RunMemoryBenchmarkAsync(ct: ct);
+
+    public Task<StorageBenchmarkResult> RunStorageBenchmarkAsync(string? targetDirectory = null, CancellationToken ct = default) =>
+        _benchmarkRunner.RunStorageBenchmarkAsync(targetDirectory, testSizeMegabytes: 32, ct: ct);
+
+    public Task<HardwareBenchmarkSuiteReport> RunFullQuickBenchmarkSuiteAsync(
+        IProgress<string>? statusProgress = null,
+        CancellationToken ct = default) =>
+        _benchmarkRunner.RunFullQuickSuiteAsync(statusProgress, ct);
+
+    public async Task<string> ExportHardwareReportAsync(
+        string filePath,
+        HardwareReportFormat format,
+        HardwareSnapshot? cachedSnapshot = null,
+        HardwareAuditSummary? cachedAudit = null,
+        HardwareSensorInventory? cachedSensors = null,
+        HardwareBenchmarkSuiteReport? cachedBenchmarks = null,
+        CancellationToken ct = default)
+    {
+        var snap = cachedSnapshot ?? await _platformProvider.CaptureSnapshotAsync(ct).ConfigureAwait(false);
+        var audit = cachedAudit ?? HardwareBottleneckAdvisor.Analyze(snap);
+        var sensors = cachedSensors ?? await _platformProvider.QuerySensorInventoryAsync(ct).ConfigureAwait(false);
+        return await HardwareReportExporter.ExportToFileAsync(filePath, format, snap, audit, sensors, cachedBenchmarks, ct).ConfigureAwait(false);
     }
 
     public Task<StressTestProgress> RunThermalSafeStressTestAsync(
@@ -152,29 +231,7 @@ public sealed class HardwareStudioService
             case AdvisoryCode.PowerPlanThrottling when
                 Guid.TryParse(finding.TargetDeviceId, out var targetGuid):
             {
-                var (ok, prevGuid, msg) = await _platformProvider
-                    .TrySetActivePowerSchemeAsync(targetGuid, ct)
-                    .ConfigureAwait(false);
-
-                if (!ok)
-                {
-                    return (false, msg);
-                }
-
-                await using var tx = _vaultService.BeginTransaction(
-                    SystemDomain.HardwareAndDrivers,
-                    friendlyTitle: "Снятие ограничения мощности (выход из режима Экономии энергии)",
-                    friendlySummary: "Активирована производительная схема питания для полного раскрытия частот процессора.",
-                    technicalDetails: $"PowrProf PowerSetActiveScheme: {prevGuid} -> {targetGuid}");
-
-                tx.RecordStateDelta(
-                    StateTargetKind.SystemSetting,
-                    "PowerActiveScheme",
-                    previousStateJson: JsonSerializer.Serialize(new { SchemeGuid = prevGuid }),
-                    newStateJson: JsonSerializer.Serialize(new { SchemeGuid = targetGuid }));
-
-                await tx.CommitAsync(ct: ct).ConfigureAwait(false);
-                return (true, "Оптимальный профиль электропитания включен! Запись отката создана.");
+                return await SwitchPowerPlanAsync(targetGuid, "Оптимальная производительность", ct).ConfigureAwait(false);
             }
 
             default:

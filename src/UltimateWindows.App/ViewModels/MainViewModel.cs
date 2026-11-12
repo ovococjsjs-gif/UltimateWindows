@@ -157,7 +157,7 @@ public sealed class MainViewModel : ObservableObject
         DriverStudio = new DriverStudioViewModel(
             driverService,
             OnSubModuleActionAsync,
-            switchToCatalogTab: () => HardwareStudio.SelectedSubTabIndex = 2);
+            switchToCatalogTab: () => HardwareStudio.SelectedSubTabIndex = 4);
 
         _smartAuditOrchestrator = new SmartSystemAuditOrchestrator(
             hardwareService, driverService, cleanerService, repairService, optimizerService, securityService);

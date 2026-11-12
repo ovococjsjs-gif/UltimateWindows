@@ -7,7 +7,7 @@
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <!-- Верхние 6 вкладок раздела Железо и Драйверы 2.0 (помещаются в одну строку на 1024×768 и 1360×840) -->
+    <!-- Верхние 7 вкладок раздела Железо 2.0 и Драйверы 2.0 (помещаются в одну строку на 1024×768 и 1360×840) -->
     <Border Grid.Row="0"
             Background="{DynamicResource SurfaceSidebarBrush}"
             BorderBrush="{DynamicResource CardBorderBrush}"
@@ -16,34 +16,39 @@
       <WrapPanel Orientation="Horizontal">
         <RadioButton GroupName="HwSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
-                     Padding="11,7" FontSize="12"
+                     Padding="8,7" FontSize="11.5"
                      IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=0}"
-                     Content="Паспорт железа" />
+                     Content="Паспорт ПК" />
         <RadioButton GroupName="HwSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
-                     Padding="11,7" FontSize="12"
+                     Padding="8,7" FontSize="11.5"
                      IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=1}"
+                     Content="Датчики и Питание" />
+        <RadioButton GroupName="HwSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     Padding="8,7" FontSize="11.5"
+                     IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=2}"
+                     Content="Бенчмарк и Тест" />
+        <RadioButton GroupName="HwSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     Padding="8,7" FontSize="11.5"
+                     IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=3}"
                      Content="Устройства" />
         <RadioButton GroupName="HwSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
-                     Padding="11,7" FontSize="12"
-                     IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=2}"
-                     Content="Каталог с серверов" />
-        <RadioButton GroupName="HwSubTabs"
-                     Style="{StaticResource SubTabRadioStyle}"
-                     Padding="11,7" FontSize="12"
-                     IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=3}"
-                     Content="Хранилище и Офлайн" />
-        <RadioButton GroupName="HwSubTabs"
-                     Style="{StaticResource SubTabRadioStyle}"
-                     Padding="11,7" FontSize="12"
+                     Padding="8,7" FontSize="11.5"
                      IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=4}"
-                     Content="Уязвимые ядра" />
+                     Content="Каталог драйверов" />
         <RadioButton GroupName="HwSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
-                     Padding="11,7" FontSize="12"
+                     Padding="8,7" FontSize="11.5"
                      IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=5}"
-                     Content="Стресс-тест" />
+                     Content="DriverStore" />
+        <RadioButton GroupName="HwSubTabs"
+                     Style="{StaticResource SubTabRadioStyle}"
+                     Padding="8,7" FontSize="11.5"
+                     IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=6}"
+                     Content="Защита ядра" />
       </WrapPanel>
     </Border>
 
@@ -55,14 +60,29 @@
       <StackPanel>
 
         <DockPanel Margin="0,0,0,8">
-          <Button DockPanel.Dock="Right"
-                  Style="{StaticResource CompactButtonStyle}"
-                  Command="{Binding HardwareStudio.RefreshHardwareCommand}"
-                  Content="Обновить телеметрию" />
+          <WrapPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+            <Button Style="{StaticResource CompactButtonStyle}"
+                    Padding="8,4" FontSize="11.5" Margin="0,0,5,0"
+                    Command="{Binding HardwareStudio.ExportHtmlReportCommand}"
+                    Content="Отчёт HTML" />
+            <Button Style="{StaticResource CompactButtonStyle}"
+                    Padding="8,4" FontSize="11.5" Margin="0,0,5,0"
+                    Command="{Binding HardwareStudio.ExportJsonReportCommand}"
+                    Content="JSON" />
+            <Button Style="{StaticResource CompactButtonStyle}"
+                    Padding="8,4" FontSize="11.5" Margin="0,0,6,0"
+                    Command="{Binding HardwareStudio.ExportTxtReportCommand}"
+                    Content="TXT" />
+            <Button Style="{StaticResource PrimaryButtonStyle}"
+                    Padding="10,4" FontSize="11.5"
+                    Command="{Binding HardwareStudio.RefreshHardwareCommand}"
+                    Content="Обновить телеметрию" />
+          </WrapPanel>
           <TextBlock Text="Аппаратный паспорт ПК, S.M.A.R.T. накопителей и Умный советник"
                      FontSize="13"
                      FontWeight="SemiBold"
-                     VerticalAlignment="Center" />
+                     VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" />
         </DockPanel>
 
         <!-- Рекомендации Советника по узким местам (XMP, Гц монитора, перегрев) -->
@@ -614,41 +634,269 @@
       </DataGrid>
     </Grid>
 
-    <!-- ==================== ВКЛАДКА 5: ТЕПЛОБЕЗОПАСНЫЙ СТРЕСС-ТЕСТ CPU ==================== -->
+    <!-- ==================== ВКЛАДКА 1: СКВОЗНЫЕ ДАТЧИКИ, СХЕМЫ ПИТАНИЯ И ВЕНТИЛЯТОРЫ ==================== -->
     <Grid Grid.Row="1"
           Margin="12,10"
-          Visibility="{Binding HardwareStudio.IsStressTab, Converter={StaticResource BoolToVis}}">
-      <Border Style="{StaticResource CardBorderStyle}" VerticalAlignment="Top">
-        <StackPanel>
-          <TextBlock Text="Нагрузочный тест процессора (с тепловой защитой по доступным датчикам)"
-                     FontSize="15" FontWeight="SemiBold" Margin="0,0,0,6" />
-          <TextBlock Text="Нагружает все логические потоки вычислениями и прерывает тест, когда температура доходит до порога. Сейчас читается только температура видеокарт NVIDIA; температура процессора недоступна, поэтому за ней следите сами. Ошибки вычислений тест не проверяет."
-                     FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,16" />
+          Visibility="{Binding HardwareStudio.IsSensorsPowerTab, Converter={StaticResource BoolToVis}}">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
 
-          <WrapPanel Orientation="Horizontal" Margin="0,0,0,16">
-            <TextBlock Text="Длительность (сек):" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <TextBox Width="70" Text="{Binding HardwareStudio.StressDurationSeconds, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,18,0" />
-            <TextBlock Text="Аварийная отсечка °C:" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <TextBox Width="70" Text="{Binding HardwareStudio.ThermalCutoffCelsius, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,18,0" />
-            <Button Style="{StaticResource PrimaryButtonStyle}"
-                    IsEnabled="{Binding HardwareStudio.CanStartStress}"
-                    Command="{Binding HardwareStudio.StartStressTestCommand}"
-                    Content="Запустить тест" Margin="0,0,8,0" />
-            <Button Style="{StaticResource DangerButtonStyle}"
-                    Command="{Binding HardwareStudio.StopStressTestCommand}"
-                    Content="Остановить" />
-          </WrapPanel>
+      <!-- Шапка состояния датчиков (User-Mode / подписанный PawnIO) + фильтр + обновление -->
+      <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="12,9" Margin="0,0,0,8">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
 
-          <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" Padding="14,12">
-            <DockPanel>
-              <TextBlock DockPanel.Dock="Right"
-                         Text="{Binding HardwareStudio.StressThroughputText}"
-                         FontSize="16" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
-              <TextBlock Text="{Binding HardwareStudio.StressStatusText}" FontSize="13" VerticalAlignment="Center" />
-            </DockPanel>
-          </Border>
-        </StackPanel>
+          <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0">
+            <TextBlock Text="Сквозные датчики оборудования (температуры, напряжения, обороты, мощности)"
+                       FontSize="13" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding HardwareStudio.SensorBackendHeadline}"
+                       FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap" Margin="0,2,0,0" />
+          </StackPanel>
+
+          <TextBox Grid.Column="1"
+                   Width="185"
+                   VerticalAlignment="Center"
+                   Text="{Binding HardwareStudio.SensorSearchText, UpdateSourceTrigger=PropertyChanged}"
+                   ToolTip="Фильтр датчиков по узлу, имени или категории"
+                   Margin="0,0,8,0" />
+
+          <Button Grid.Column="2"
+                  Style="{StaticResource PrimaryButtonStyle}"
+                  Padding="10,5" FontSize="11.5"
+                  VerticalAlignment="Center"
+                  Command="{Binding HardwareStudio.RefreshSensorsCommand}"
+                  Content="Обновить датчики" />
+        </Grid>
       </Border>
+
+      <!-- Панель управления схемами питания PowrProf и профилями охлаждения -->
+      <Grid Grid.Row="1" Margin="0,0,0,8">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="1.15*" />
+          <ColumnDefinition Width="10" />
+          <ColumnDefinition Width="1*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="12,9">
+          <StackPanel>
+            <DockPanel Margin="0,0,0,6">
+              <Button DockPanel.Dock="Right"
+                      Style="{StaticResource CompactButtonStyle}"
+                      Padding="8,3" FontSize="11"
+                      Command="{Binding HardwareStudio.UnlockUltimatePlanCommand}"
+                      Content="Разблокировать Турбо" />
+              <TextBlock Text="Схемы электропитания Windows (с точкой отката)"
+                         FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </DockPanel>
+
+            <ItemsControl ItemsSource="{Binding HardwareStudio.PowerPlans}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <DockPanel Margin="0,2">
+                    <Button DockPanel.Dock="Right"
+                            Style="{StaticResource CompactButtonStyle}"
+                            Padding="8,2" FontSize="11"
+                            Visibility="{Binding CanActivate, Converter={StaticResource BoolToVis}}"
+                            Command="{Binding ActivateCommand}"
+                            Content="Включить"
+                            Margin="6,0,0,0" />
+                    <Border DockPanel.Dock="Right"
+                            Background="{DynamicResource AccentSubtleBrush}"
+                            CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding StateBadge}" FontSize="10.5" Foreground="{DynamicResource AccentBrush}" />
+                    </Border>
+                    <TextBlock Text="{Binding FriendlyName}" FontSize="11.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  </DockPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}" Padding="12,9">
+          <StackPanel>
+            <TextBlock Text="Профиль вентиляторов и охлаждения (ШИМ)"
+                       FontSize="12" FontWeight="SemiBold" Margin="0,0,0,6" />
+            <WrapPanel Orientation="Horizontal" Margin="0,0,0,6">
+              <Button Style="{StaticResource CompactButtonStyle}"
+                      Padding="8,3" FontSize="11" Margin="0,0,5,4"
+                      Command="{Binding HardwareStudio.ApplyFanPresetCommand}"
+                      CommandParameter="BiosAuto"
+                      Content="Авто (BIOS)" />
+              <Button Style="{StaticResource CompactButtonStyle}"
+                      Padding="8,3" FontSize="11" Margin="0,0,5,4"
+                      Command="{Binding HardwareStudio.ApplyFanPresetCommand}"
+                      CommandParameter="Quiet"
+                      Content="Тихий" />
+              <Button Style="{StaticResource CompactButtonStyle}"
+                      Padding="8,3" FontSize="11" Margin="0,0,5,4"
+                      Command="{Binding HardwareStudio.ApplyFanPresetCommand}"
+                      CommandParameter="Balanced"
+                      Content="Баланс" />
+              <Button Style="{StaticResource PrimaryButtonStyle}"
+                      Padding="8,3" FontSize="11" Margin="0,0,0,4"
+                      Command="{Binding HardwareStudio.ApplyFanPresetCommand}"
+                      CommandParameter="MaxCooling"
+                      Content="Максимум 100%" />
+            </WrapPanel>
+            <TextBlock Text="{Binding HardwareStudio.PowerAndFanStatusText}"
+                       FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <!-- Таблица сквозных датчиков -->
+      <DataGrid Grid.Row="2" ItemsSource="{Binding HardwareStudio.FilteredSensors}">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Узел оборудования" Binding="{Binding HardwareGroup}" Width="1.2*" />
+          <DataGridTextColumn Header="Датчик" Binding="{Binding SensorName}" Width="1.2*" />
+          <DataGridTextColumn Header="Категория" Binding="{Binding CategoryLabel}" Width="115" />
+          <DataGridTextColumn Header="Текущее" Binding="{Binding FormattedCurrent}" Width="105" />
+          <DataGridTextColumn Header="Мин." Binding="{Binding FormattedMin}" Width="95" />
+          <DataGridTextColumn Header="Макс." Binding="{Binding FormattedMax}" Width="95" />
+        </DataGrid.Columns>
+      </DataGrid>
     </Grid>
+
+    <!-- ==================== ВКЛАДКА 2: ЛЁГКИЕ БЫСТРЫЕ БЕНЧМАРКИ И СТРЕСС-ТЕСТ ==================== -->
+    <ScrollViewer Grid.Row="1"
+                  VerticalScrollBarVisibility="Auto"
+                  Padding="12,10"
+                  Visibility="{Binding HardwareStudio.IsBenchAndStressTab, Converter={StaticResource BoolToVis}}">
+      <StackPanel>
+
+        <!-- Блок 1: Лёгкие быстрые бенчмарки CPU / GPU / ОЗУ / Диска -->
+        <Border Style="{StaticResource CardBorderStyle}" Padding="12,10" Margin="0,0,0,10">
+          <StackPanel>
+            <DockPanel Margin="0,0,0,6">
+              <WrapPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Style="{StaticResource CompactButtonStyle}"
+                        Padding="8,4" FontSize="11.5" Margin="0,0,5,0"
+                        IsEnabled="{Binding HardwareStudio.CanStartBenchmark}"
+                        Command="{Binding HardwareStudio.RunCpuBenchCommand}"
+                        Content="CPU" />
+                <Button Style="{StaticResource CompactButtonStyle}"
+                        Padding="8,4" FontSize="11.5" Margin="0,0,5,0"
+                        IsEnabled="{Binding HardwareStudio.CanStartBenchmark}"
+                        Command="{Binding HardwareStudio.RunGpuBenchCommand}"
+                        Content="GPU" />
+                <Button Style="{StaticResource CompactButtonStyle}"
+                        Padding="8,4" FontSize="11.5" Margin="0,0,5,0"
+                        IsEnabled="{Binding HardwareStudio.CanStartBenchmark}"
+                        Command="{Binding HardwareStudio.RunRamBenchCommand}"
+                        Content="ОЗУ" />
+                <Button Style="{StaticResource CompactButtonStyle}"
+                        Padding="8,4" FontSize="11.5" Margin="0,0,6,0"
+                        IsEnabled="{Binding HardwareStudio.CanStartBenchmark}"
+                        Command="{Binding HardwareStudio.RunDiskBenchCommand}"
+                        Content="Диск" />
+                <Button Style="{StaticResource PrimaryButtonStyle}"
+                        Padding="10,4" FontSize="11.5"
+                        IsEnabled="{Binding HardwareStudio.CanStartBenchmark}"
+                        Command="{Binding HardwareStudio.RunFullQuickBenchCommand}"
+                        Content="Экспресс-тест ПК (~5 сек)" />
+              </WrapPanel>
+              <TextBlock Text="Лёгкие быстрые бенчмарки (без перегрева и износа накопителей)"
+                         FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </DockPanel>
+
+            <TextBlock Text="{Binding HardwareStudio.BenchmarkBannerText}"
+                       FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap" Margin="0,0,0,10" />
+
+            <!-- 4 карточки результатов бенчмарков (2×2) -->
+            <UniformGrid Columns="2">
+              <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" Padding="11,9" Margin="0,0,8,8">
+                <StackPanel>
+                  <TextBlock Text="ПРОЦЕССОР (CPU 1T + MT SIMD)" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                  <TextBlock Text="{Binding HardwareStudio.CpuBenchHeadline}" FontSize="13.5" FontWeight="Bold" Margin="0,4,0,2" />
+                  <TextBlock Text="{Binding HardwareStudio.CpuBenchDetails}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+
+              <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" Padding="11,9" Margin="0,0,0,8">
+                <StackPanel>
+                  <TextBlock Text="ВИДЕОКАРТА (GPU DIRECTCOMPUTE CS 5.0)" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                  <TextBlock Text="{Binding HardwareStudio.GpuBenchHeadline}" FontSize="13.5" FontWeight="Bold" Margin="0,4,0,2" />
+                  <TextBlock Text="{Binding HardwareStudio.GpuBenchDetails}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+
+              <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" Padding="11,9" Margin="0,0,8,0">
+                <StackPanel>
+                  <TextBlock Text="ПАМЯТЬ ОЗУ (ПРОПУСКНАЯ СПОСОБНОСТЬ И ЗАДЕРЖКА)" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                  <TextBlock Text="{Binding HardwareStudio.RamBenchHeadline}" FontSize="13.5" FontWeight="Bold" Margin="0,4,0,2" />
+                  <TextBlock Text="{Binding HardwareStudio.RamBenchDetails}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+
+              <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" Padding="11,9">
+                <StackPanel>
+                  <TextBlock Text="НАКОПИТЕЛЬ (ЭКСПРЕСС 32 МБ + 4K IOPS)" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                  <TextBlock Text="{Binding HardwareStudio.DiskBenchHeadline}" FontSize="13.5" FontWeight="Bold" Margin="0,4,0,2" />
+                  <TextBlock Text="{Binding HardwareStudio.DiskBenchDetails}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+            </UniformGrid>
+          </StackPanel>
+        </Border>
+
+        <!-- Блок 2: Теплобезопасный стресс-тест стабильности с контролем эталонных сумм -->
+        <Border Style="{StaticResource CardBorderStyle}" Padding="12,10">
+          <StackPanel>
+            <DockPanel Margin="0,0,0,6">
+              <Border DockPanel.Dock="Right"
+                      Background="{DynamicResource SurfaceElevatedBrush}"
+                      BorderBrush="{DynamicResource SafeEmeraldBrush}"
+                      BorderThickness="1" CornerRadius="5" Padding="8,3" VerticalAlignment="Center">
+                <TextBlock Text="{Binding HardwareStudio.StressIntegrityBadge}"
+                           FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource SafeEmeraldBrush}" />
+              </Border>
+              <TextBlock Text="Тест стабильности CPU и памяти с проверкой ошибок и тепловой отсечкой"
+                         FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </DockPanel>
+
+            <TextBlock Text="Проверяет каждый блок вычислений по эталонной контрольной сумме (выявляет нестабильный разгон, андервольтинг или сбои XMP/EXPO) и автоматически прерывает нагрузку при превышении порога температуры CPU или GPU."
+                       FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+            <WrapPanel Orientation="Horizontal" Margin="0,0,0,12">
+              <TextBlock Text="Длительность (сек):" VerticalAlignment="Center" Margin="0,0,8,0" />
+              <TextBox Width="65" Text="{Binding HardwareStudio.StressDurationSeconds, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,16,0" />
+              <TextBlock Text="Аварийная отсечка °C:" VerticalAlignment="Center" Margin="0,0,8,0" />
+              <TextBox Width="65" Text="{Binding HardwareStudio.ThermalCutoffCelsius, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,16,0" />
+              <Button Style="{StaticResource PrimaryButtonStyle}"
+                      Padding="10,4" FontSize="11.5"
+                      IsEnabled="{Binding HardwareStudio.CanStartStress}"
+                      Command="{Binding HardwareStudio.StartStressTestCommand}"
+                      Content="Запустить стресс-тест" Margin="0,0,8,0" />
+              <Button Style="{StaticResource DangerButtonStyle}"
+                      Padding="10,4" FontSize="11.5"
+                      Command="{Binding HardwareStudio.StopStressTestCommand}"
+                      Content="Остановить" />
+            </WrapPanel>
+
+            <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" Padding="12,10">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Right"
+                           Text="{Binding HardwareStudio.StressThroughputText}"
+                           FontSize="15" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}"
+                           Margin="12,0,0,0" />
+                <TextBlock Text="{Binding HardwareStudio.StressStatusText}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
+              </DockPanel>
+            </Border>
+          </StackPanel>
+        </Border>
+
+      </StackPanel>
+    </ScrollViewer>
   </Grid>
 </UserControl>

@@ -8,6 +8,7 @@ using UltimateWindows.Modules.Cleaner.Services;
 using UltimateWindows.Modules.Drivers.Catalog;
 using UltimateWindows.Modules.Drivers.Orchestration;
 using UltimateWindows.Modules.Drivers.Services;
+using UltimateWindows.Modules.Hardware.Models;
 using UltimateWindows.Modules.Hardware.Services;
 using UltimateWindows.Modules.Optimizer.Models;
 using UltimateWindows.Modules.Optimizer.Services;
@@ -94,9 +95,120 @@ switch (command)
     case "stress-test":
     {
         var seconds = args.Length > 1 && int.TryParse(args[1], out var s) ? Math.Clamp(s, 2, 300) : 5;
-        Console.WriteLine($"Запуск безопасного стресс-теста на {seconds} сек (Thermal Cutoff = 90°C)...");
+        Console.WriteLine($"Запуск безопасного стресс-теста на {seconds} сек (Thermal Cutoff = 90°C, с контролем эталонных сумм)...");
         var res = await hardware.RunThermalSafeStressTestAsync(TimeSpan.FromSeconds(seconds), maxSafeCpuTempC: 90, maxSafeGpuTempC: 88);
-        Console.WriteLine(res.StatusMessage);
+        Console.WriteLine($"{res.StatusMessage} | Ошибок целостности расчёта: {res.IntegrityErrorCount}");
+        break;
+    }
+
+    case "hardware-sensors":
+    {
+        var inv = await hardware.QuerySensorsAsync();
+        Console.WriteLine("=== Железо 2.0 — Сквозные датчики оборудования ===");
+        Console.WriteLine($"Режим телеметрии : {inv.BackendHeadline}");
+        if (inv.ControllableFans.Count > 0)
+        {
+            Console.WriteLine($"Каналов ШИМ      : {inv.ControllableFans.Count}");
+        }
+
+        foreach (var s in inv.Readings)
+        {
+            Console.WriteLine($"  [{s.Category,-11}] {s.HardwareGroup,-30} | {s.SensorName,-28} : {s.FormattedCurrent,12} (мин {s.FormattedMin}, макс {s.FormattedMax})");
+        }
+        break;
+    }
+
+    case "hardware-bench":
+    {
+        var mode = args.Length > 1 ? args[1].ToLowerInvariant() : "all";
+        Console.WriteLine($"=== Железо 2.0 — Лёгкий экспресс-бенчмарк ({mode}) ===");
+        switch (mode)
+        {
+            case "cpu":
+            {
+                var cpu = await hardware.RunCpuBenchmarkAsync();
+                Console.WriteLine(cpu.SummaryLine);
+                break;
+            }
+            case "gpu":
+            {
+                var gpu = await hardware.RunGpuBenchmarkAsync();
+                Console.WriteLine(gpu.SummaryLine);
+                break;
+            }
+            case "ram":
+            {
+                var ram = await hardware.RunMemoryBenchmarkAsync();
+                Console.WriteLine(ram.SummaryLine);
+                break;
+            }
+            case "disk":
+            {
+                var dsk = await hardware.RunStorageBenchmarkAsync();
+                Console.WriteLine(dsk.SummaryLine);
+                break;
+            }
+            default:
+            {
+                var suite = await hardware.RunFullQuickBenchmarkSuiteAsync(new Progress<string>(msg => Console.WriteLine("  > " + msg)));
+                Console.WriteLine($"\nОбщий индекс ПК : {suite.CompositeScore:N0} pts ({suite.OverallTierBadge}, за {suite.TotalDuration.TotalSeconds:F1} сек)");
+                if (suite.Cpu is not null) Console.WriteLine($"  CPU  : {suite.Cpu.SummaryLine}");
+                if (suite.Gpu is not null) Console.WriteLine($"  GPU  : {suite.Gpu.SummaryLine}");
+                if (suite.Memory is not null) Console.WriteLine($"  ОЗУ  : {suite.Memory.SummaryLine}");
+                if (suite.Storage is not null) Console.WriteLine($"  Диск : {suite.Storage.SummaryLine}");
+                break;
+            }
+        }
+        break;
+    }
+
+    case "hardware-report":
+    {
+        var fmtRaw = args.Length > 1 && !args[1].StartsWith("--", StringComparison.Ordinal) ? args[1].ToLowerInvariant() : "html";
+        var format = fmtRaw switch
+        {
+            "json" => HardwareReportFormat.Json,
+            "txt" => HardwareReportFormat.Txt,
+            _ => HardwareReportFormat.Html
+        };
+        var ext = format == HardwareReportFormat.Json ? "json" : format == HardwareReportFormat.Txt ? "txt" : "html";
+        var outPath = GetOptionValue(args, "--out") ?? Path.Combine(Path.GetTempPath(), $"UltimateWindows-Report-{DateTime.Now:yyyyMMdd-HHmmss}.{ext}");
+
+        var (snap, audit) = await hardware.CaptureAndAnalyzeAsync();
+        var sensors = await hardware.QuerySensorsAsync();
+        var bench = HasFlag(args, "--bench") ? await hardware.RunFullQuickBenchmarkSuiteAsync() : null;
+        var saved = await hardware.ExportHardwareReportAsync(outPath, format, snap, audit, sensors, bench);
+        Console.WriteLine($"Отчёт о системе ({ext.ToUpperInvariant()}) успешно сохранён: {saved}");
+        break;
+    }
+
+    case "hardware-power":
+    {
+        var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "list";
+        if (sub == "unlock-ultimate")
+        {
+            var (ok, schemeGuid, msg) = await hardware.UnlockUltimatePerformancePlanAsync();
+            if (ok && schemeGuid.HasValue)
+            {
+                var (_, swMsg) = await hardware.SwitchPowerPlanAsync(schemeGuid.Value, "Максимальная производительность");
+                msg = swMsg;
+            }
+            Console.WriteLine(msg);
+        }
+        else if (sub == "set" && args.Length > 2 && Guid.TryParse(args[2], out var targetGuid))
+        {
+            var (_, msg) = await hardware.SwitchPowerPlanAsync(targetGuid, targetGuid.ToString());
+            Console.WriteLine(msg);
+        }
+        else
+        {
+            var plans = await hardware.GetPowerPlansAsync();
+            Console.WriteLine("=== Схемы электропитания Windows ===");
+            foreach (var p in plans)
+            {
+                Console.WriteLine($"  {(p.IsActive ? "[АКТИВНА]" : "[       ]")} {p.SchemeGuid} | {p.FriendlyName}");
+            }
+        }
         break;
     }
 
@@ -1218,7 +1330,7 @@ switch (command)
 
     default:
     {
-        Console.WriteLine("Доступные команды: status | smart-audit | hardware-audit | stress-test [сек] | drivers-audit [--online] [--all] | drivers-catalog-search <запрос> | drivers-essential-list [--matched] | drivers-essential-download <id> [--dir <папка>] [--install] | driverstore-audit | driverstore-clean | drivers-backup-all [папка] | drivers-restore-folder <папка> | drivers-rescue-pack [--dir <папка>] [--universal-servers] | drivers-byovd-audit | drivers-blocklist-enable | driver-backup <oemXX.inf> | clean-scan | clean-run | clean-apps-scan [--winapp2 <ini>] | clean-apps-run [--rule <id>] [--winapp2 <ini>] | browser-scan [--keep-cookies <домены>] | browser-clean [--history] [--downloads] [--cookies] [--sessions] [--keep-cookies <домены>] | disk-map [путь] | pe-doctor <exe> | deps-scan-installed | runtime-list | runtime-install <key> | repair-scan [раздел] [--issues] | repair-fix <id|--all-found> [--force] | error-lookup <код> | cbs-scan | bsod-scan | bsod-file <dmp> | repair-list | repair-run <id> | tweak-list [раздел] [--on|--off] | tweak-info <id> | tweak-enable <id> [--force] | tweak-disable <id> | preset-list | preset-apply <набор> [--dry-run] [--force] | tweak-export [yaml] | tweak-import <yaml> [--dry-run] [--force] | service-list [--third-party] [--running] | service-set <имя> <auto|delayed|manual|disabled> | task-list [--third-party] [--enabled] | task-enable <путь> | task-disable <путь> | startup-list | unlock-check <path> | security-scan [--fast] [--json] | persistence-audit [--anomalies] | defender-audit | defender-clean-exclusions | defender-scan [--path <путь>] | quarantine-list | quarantine-restore <id> | security-heal | history | cleanup-blobs | rollback <id> | check-path <path>");
+        Console.WriteLine("Доступные команды: status | smart-audit | hardware-audit | hardware-sensors | hardware-bench [all|cpu|gpu|ram|disk] | hardware-report [html|json|txt] [--bench] [--out <файл>] | hardware-power [list|unlock-ultimate|set <guid>] | stress-test [сек] | drivers-audit [--online] [--all] | drivers-catalog-search <запрос> | drivers-essential-list [--matched] | drivers-essential-download <id> [--dir <папка>] [--install] | driverstore-audit | driverstore-clean | drivers-backup-all [папка] | drivers-restore-folder <папка> | drivers-rescue-pack [--dir <папка>] [--universal-servers] | drivers-byovd-audit | drivers-blocklist-enable | driver-backup <oemXX.inf> | clean-scan | clean-run | clean-apps-scan [--winapp2 <ini>] | clean-apps-run [--rule <id>] [--winapp2 <ini>] | browser-scan [--keep-cookies <домены>] | browser-clean [--history] [--downloads] [--cookies] [--sessions] [--keep-cookies <домены>] | disk-map [путь] | pe-doctor <exe> | deps-scan-installed | runtime-list | runtime-install <key> | repair-scan [раздел] [--issues] | repair-fix <id|--all-found> [--force] | error-lookup <код> | cbs-scan | bsod-scan | bsod-file <dmp> | repair-list | repair-run <id> | tweak-list [раздел] [--on|--off] | tweak-info <id> | tweak-enable <id> [--force] | tweak-disable <id> | preset-list | preset-apply <набор> [--dry-run] [--force] | tweak-export [yaml] | tweak-import <yaml> [--dry-run] [--force] | service-list [--third-party] [--running] | service-set <имя> <auto|delayed|manual|disabled> | task-list [--third-party] [--enabled] | task-enable <путь> | task-disable <путь> | startup-list | unlock-check <path> | security-scan [--fast] [--json] | persistence-audit [--anomalies] | defender-audit | defender-clean-exclusions | defender-scan [--path <путь>] | quarantine-list | quarantine-restore <id> | security-heal | history | cleanup-blobs | rollback <id> | check-path <path>");
         break;
     }
 }
