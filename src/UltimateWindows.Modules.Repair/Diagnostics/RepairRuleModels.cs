@@ -152,6 +152,14 @@ public sealed record RepairRuleDefinition(
 {
     public string SectionTitle => RepairSectionDisplay.GetTitle(Section);
 
+    public string SeverityBadge => Severity switch
+    {
+        RepairSeverity.Critical => "Критично",
+        RepairSeverity.Broken => "Сломано",
+        RepairSeverity.Warning => "Внимание",
+        _ => "Совет"
+    };
+
     public string RiskBadge => Risk switch
     {
         RiskLevel.Safe => "Безопасно",
