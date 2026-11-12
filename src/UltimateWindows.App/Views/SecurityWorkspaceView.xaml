@@ -192,12 +192,12 @@
 
       <DataGrid Grid.Row="1" ItemsSource="{Binding FilteredPersistenceEntries}">
         <DataGrid.Columns>
-          <DataGridTextColumn Header="Зона закрепления" Binding="{Binding ZoneTitle}" Width="195" />
-          <DataGridTextColumn Header="Статус" Binding="{Binding StatusBadge}" Width="110" />
-          <DataGridTextColumn Header="Имя записи" Binding="{Binding EntryName}" Width="165" />
-          <DataGridTextColumn Header="Команда / Исполняемый файл" Binding="{Binding PayloadCommandOrPath}" Width="*" />
-          <DataGridTextColumn Header="Ключ / Источник" Binding="{Binding RegistryOrTaskPath}" Width="210" />
-          <DataGridTemplateColumn Header="Действие" Width="105">
+          <DataGridTextColumn Header="Зона закрепления" Binding="{Binding ZoneTitle}" Width="165" />
+          <DataGridTextColumn Header="Статус" Binding="{Binding StatusBadge}" Width="105" />
+          <DataGridTextColumn Header="Имя записи" Binding="{Binding EntryName}" Width="140" />
+          <DataGridTextColumn Header="Команда / Исполняемый файл" Binding="{Binding PayloadCommandOrPath}" Width="1.35*" />
+          <DataGridTextColumn Header="Ключ / Источник" Binding="{Binding RegistryOrTaskPath}" Width="1*" />
+          <DataGridTemplateColumn Header="Действие" Width="100">
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate>
                 <Button Style="{StaticResource DangerButtonStyle}"
@@ -435,13 +435,13 @@
 
       <DataGrid Grid.Row="2" ItemsSource="{Binding FilteredProcessSnapshots}">
         <DataGrid.Columns>
-          <DataGridTextColumn Header="PID" Binding="{Binding ProcessId}" Width="65" />
-          <DataGridTextColumn Header="Процесс" Binding="{Binding ProcessName}" Width="140" />
-          <DataGridTextColumn Header="CPU (фон -> монитор)" Binding="{Binding CpuSummary}" Width="135" />
-          <DataGridTextColumn Header="GPU (фон -> монитор)" Binding="{Binding GpuSummary}" Width="135" />
-          <DataGridTextColumn Header="RWX/RX рег." Binding="{Binding PrivateExecutableRegionCount}" Width="85" />
+          <DataGridTextColumn Header="PID" Binding="{Binding ProcessId}" Width="62" />
+          <DataGridTextColumn Header="Процесс" Binding="{Binding ProcessName}" Width="135" />
+          <DataGridTextColumn Header="CPU (фон → монитор)" Binding="{Binding CpuSummary}" Width="152" />
+          <DataGridTextColumn Header="GPU (фон → монитор)" Binding="{Binding GpuSummary}" Width="152" />
+          <DataGridTextColumn Header="RWX память" Binding="{Binding PrivateExecutableRegionCount}" Width="100" />
           <DataGridTextColumn Header="Подпись" Binding="{Binding SignatureBadge}" Width="100" />
-          <DataGridTextColumn Header="Путь и аргументы запуска" Binding="{Binding ExecutablePath}" Width="*" />
+          <DataGridTextColumn Header="Путь исполняемого файла" Binding="{Binding ExecutablePath}" Width="*" />
         </DataGrid.Columns>
       </DataGrid>
     </Grid>
