@@ -354,16 +354,25 @@ public sealed class WindowsCleanerPlatformBridge : DefaultCleanerPlatformBridge
                     continue;
                 }
 
-                if (File.Exists(item.MissingReferencedFilePath) || Directory.Exists(item.MissingReferencedFilePath))
-                {
-                    continue;
-                }
-
                 try
                 {
                     var rootHive = string.Equals(item.HiveName, "HKLM", StringComparison.OrdinalIgnoreCase)
                         ? Registry.LocalMachine
                         : Registry.CurrentUser;
+
+                    if (item.Kind == RegistryOrphanKind.BrokenStartupApprovedEntry)
+                    {
+                        const string correspondingRunSubKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
+                        using var runKey = rootHive.OpenSubKey(correspondingRunSubKey, writable: false);
+                        if (runKey?.GetValue(item.ValueName) is not null)
+                        {
+                            continue;
+                        }
+                    }
+                    else if (File.Exists(item.MissingReferencedFilePath) || Directory.Exists(item.MissingReferencedFilePath))
+                    {
+                        continue;
+                    }
 
                     using var key = rootHive.OpenSubKey(item.SubKeyPath, writable: true);
                     if (key?.GetValue(item.ValueName) is not null)

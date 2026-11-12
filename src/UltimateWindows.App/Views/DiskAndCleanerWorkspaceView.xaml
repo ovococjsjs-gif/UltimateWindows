@@ -19,7 +19,7 @@
         <RadioButton GroupName="CleanerSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
                      IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=0}"
-                     Content="Анализатор диска" />
+                     Content="Карта диска" />
         <RadioButton GroupName="CleanerSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
                      IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=1}"
@@ -35,12 +35,12 @@
         <RadioButton GroupName="CleanerSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
                      IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=3}"
-                     Content="Поиск дублей и Резервы C:\" />
+                     Content="Дубли и резервы C:\" />
       </StackPanel>
     </Border>
 
     <!-- ========================================================================= -->
-    <!-- ВКЛАДКА 0: WIZTREE АНАЛИЗАТОР ПРОСТРАНСТВА ДИСКА + TREEMAP                -->
+    <!-- ВКЛАДКА 0: БЫСТРЫЙ АНАЛИЗАТОР ПРОСТРАНСТВА ДИСКА ($MFT + TREEMAP)         -->
     <!-- ========================================================================= -->
     <Grid Grid.Row="1"
           Margin="12,10,12,10"
@@ -57,8 +57,8 @@
       <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="10,8" Margin="0,0,0,8">
         <Grid>
           <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="270" />
-            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="215" />
+            <ColumnDefinition Width="*" MinWidth="120" />
             <ColumnDefinition Width="Auto" />
           </Grid.ColumnDefinitions>
 
@@ -179,11 +179,11 @@
                       Padding="10,0,16,0">
                 <Grid VerticalAlignment="Center">
                   <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="260" />
-                    <ColumnDefinition Width="125" />
-                    <ColumnDefinition Width="86" />
-                    <ColumnDefinition Width="68" />
-                    <ColumnDefinition Width="108" />
+                    <ColumnDefinition Width="190" />
+                    <ColumnDefinition Width="118" />
+                    <ColumnDefinition Width="82" />
+                    <ColumnDefinition Width="64" />
+                    <ColumnDefinition Width="96" />
                   </Grid.ColumnDefinitions>
                   <TextBlock Grid.Column="0" Text="Папка / Файл (2×клик — войти)" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
                   <TextBlock Grid.Column="1" Text="% от раздела" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -205,11 +205,11 @@
                                             ItemsSource="{Binding Children}">
                     <Grid Margin="2,1,8,1" HorizontalAlignment="Stretch">
                       <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="250" />
-                        <ColumnDefinition Width="125" />
-                        <ColumnDefinition Width="86" />
-                        <ColumnDefinition Width="68" />
-                        <ColumnDefinition Width="108" />
+                        <ColumnDefinition Width="180" />
+                        <ColumnDefinition Width="118" />
+                        <ColumnDefinition Width="82" />
+                        <ColumnDefinition Width="64" />
+                        <ColumnDefinition Width="96" />
                       </Grid.ColumnDefinitions>
 
                       <!-- Цветовой маркер + Имя -->
@@ -287,22 +287,22 @@
                       Background="Transparent" />
 
         <!-- Правая панель: Таблица расширений диска с цветовыми индикаторами -->
-        <DataGrid Grid.Column="2" ItemsSource="{Binding ExtensionStats}">
+        <DataGrid Grid.Column="2" ItemsSource="{Binding ExtensionStats}" ToolTip="Типы файлов на выбранном разделе">
           <DataGrid.Columns>
-            <DataGridTemplateColumn Header="" Width="26">
+            <DataGridTemplateColumn Header="" Width="24">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate>
                   <Border Width="11" Height="11" CornerRadius="2"
                           Background="{Binding ColorHex, Converter={StaticResource HexToBrush}}"
+                          ToolTip="{Binding FileTypeDescription}"
                           HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </DataTemplate>
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
-            <DataGridTextColumn Header="Расшир." Binding="{Binding Extension}" Width="78" />
-            <DataGridTextColumn Header="Описание" Binding="{Binding FileTypeDescription}" Width="*" />
-            <DataGridTextColumn Header="%" Binding="{Binding ShareLabel}" Width="58" />
-            <DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="86" />
-            <DataGridTextColumn Header="Файлы" Binding="{Binding FilesCountFormatted}" Width="66" />
+            <DataGridTextColumn Header="Расшир." Binding="{Binding Extension}" Width="74" />
+            <DataGridTextColumn Header="%" Binding="{Binding ShareLabel}" Width="56" />
+            <DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="84" />
+            <DataGridTextColumn Header="Файлы" Binding="{Binding FilesCountFormatted}" Width="*" MinWidth="60" />
           </DataGrid.Columns>
         </DataGrid>
       </Grid>
@@ -653,21 +653,21 @@
       </Grid.RowDefinitions>
 
       <!-- Панель управления каталогом и импортом Winapp2.ini -->
-      <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="12,9" Margin="0,0,0,8">
+      <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="10,8" Margin="0,0,0,8">
         <DockPanel>
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
             <Button Style="{StaticResource CompactButtonStyle}"
                     Command="{Binding ImportWinapp2Command}"
-                    Content="Подключить Winapp2.ini..."
+                    Content="Winapp2.ini..."
                     Margin="0,0,6,0" />
             <Button Style="{StaticResource CompactButtonStyle}"
                     Visibility="{Binding HasExternalWinapp2, Converter={StaticResource BoolToVis}}"
                     Command="{Binding ClearWinapp2Command}"
-                    Content="Отключить Winapp2"
-                    Margin="0,0,10,0" />
+                    Content="Сброс Winapp2"
+                    Margin="0,0,8,0" />
             <Button Style="{StaticResource SecondaryButtonStyle}"
                     Command="{Binding ScanAppRulesCommand}"
-                    Content="Найти хвосты программ"
+                    Content="Найти хвосты"
                     Margin="0,0,6,0" />
             <Button Style="{StaticResource PrimaryButtonStyle}"
                     Command="{Binding ExecuteAppRulesCommand}"
@@ -675,21 +675,23 @@
           </StackPanel>
 
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <TextBox Width="220"
+            <TextBox Width="175"
                      Text="{Binding AppRuleSearchText, UpdateSourceTrigger=PropertyChanged}"
                      ToolTip="Фильтр по названию программы, правила или раздела"
-                     Margin="0,0,10,0" />
+                     Margin="0,0,8,0" />
             <CheckBox IsChecked="{Binding ShowOnlyNonEmptyRules}"
-                      Content="Только с найденными файлами"
+                      Content="Непустые"
+                      ToolTip="Показывать только правила с найденными файлами"
                       VerticalAlignment="Center"
-                      Margin="0,0,10,0" />
+                      Margin="0,0,8,0" />
             <Button Style="{StaticResource CompactButtonStyle}"
                     Command="{Binding SelectDefaultAppRulesCommand}"
-                    Content="Безопасные по умолчанию"
-                    Margin="0,0,6,0" />
+                    Content="По умолч."
+                    ToolTip="Отметить безопасные правила по умолчанию"
+                    Margin="0,0,5,0" />
             <Button Style="{StaticResource CompactButtonStyle}"
                     Command="{Binding ClearSelectionAppRulesCommand}"
-                    Content="Снять все" />
+                    Content="Снять" />
           </StackPanel>
         </DockPanel>
       </Border>
@@ -712,7 +714,7 @@
       <!-- Таблица найденных правил по установленным программам -->
       <DataGrid Grid.Row="2" ItemsSource="{Binding AppRuleFindings}" IsReadOnly="False" RowHeaderWidth="0">
         <DataGrid.Columns>
-          <DataGridTemplateColumn Header="✓" Width="42">
+          <DataGridTemplateColumn Header="✓" Width="38">
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate>
                 <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
@@ -721,11 +723,11 @@
               </DataTemplate>
             </DataGridTemplateColumn.CellTemplate>
           </DataGridTemplateColumn>
-          <DataGridTextColumn Header="Раздел" Binding="{Binding SectionTitle}" IsReadOnly="True" Width="135" />
-          <DataGridTextColumn Header="Программа" Binding="{Binding Application}" IsReadOnly="True" Width="175" />
-          <DataGridTextColumn Header="Правило" Binding="{Binding RuleTitle}" IsReadOnly="True" Width="195" />
-          <DataGridTextColumn Header="Файлов" Binding="{Binding FileCount, StringFormat={}{0:N0}}" IsReadOnly="True" Width="75" />
-          <DataGridTextColumn Header="Объём" Binding="{Binding FormattedSize}" IsReadOnly="True" Width="95" />
+          <DataGridTextColumn Header="Раздел" Binding="{Binding SectionTitle}" IsReadOnly="True" Width="115" />
+          <DataGridTextColumn Header="Программа" Binding="{Binding Application}" IsReadOnly="True" Width="145" />
+          <DataGridTextColumn Header="Правило" Binding="{Binding RuleTitle}" IsReadOnly="True" Width="180" />
+          <DataGridTextColumn Header="Файлов" Binding="{Binding FileCount, StringFormat={}{0:N0}}" IsReadOnly="True" Width="68" />
+          <DataGridTextColumn Header="Объём" Binding="{Binding FormattedSize}" IsReadOnly="True" Width="86" />
           <DataGridTemplateColumn Header="Пояснение и защита" IsReadOnly="True" Width="*">
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate>

@@ -2,7 +2,7 @@
 
 **UltimateWindows** — модульный центр комплексного обслуживания, диагностики, восстановления, очистки, защиты и тонкой настройки Windows 10 / Windows 11 (x64 / ARM64).
 
-> **Статус (ноябрь 2026):** базовый каркас и первые версии всех модулей готовы, но до уровня топовых программ проект пока не доведён. Честный разбор того, что работает, а что пока только заявлено, — в [`docs/05-AUDIT-AND-GAP-ANALYSIS.md`](./docs/05-AUDIT-AND-GAP-ANALYSIS.md); работа идёт поэтапно по плану из его раздела 6. Выполнены этапы 0 (фундамент) и 1 (Оптимизатор 2.0).
+> **Статус (ноябрь 2026):** базовый каркас и первые версии всех модулей готовы, работа идёт поэтапно по плану из раздела 6 [`docs/05-AUDIT-AND-GAP-ANALYSIS.md`](./docs/05-AUDIT-AND-GAP-ANALYSIS.md). Выполнены этапы 0 (фундамент), 1 (Оптимизатор 2.0) и 2 (Очистка 2.0).
 
 Цель проекта — объединить лучшие инженерные решения разрозненных системных утилит (оптимизаторов, детекторов скрытых майнеров, очистителей диска и реестра, менеджеров драйверов и системных библиотек, аппаратных анализаторов уровня AIDA64/HWiNFO) в едином быстром нативном приложении с **гарантией безопасности и 100% обратимости каждого действия**.
 
@@ -33,7 +33,7 @@
 | **1** | **Rollback & Safety Core** | Системное восстановление Windows | Автоматический журнал транзакций (JSON + `.reg` diff + VSS), режим предпросмотра (`Dry-Run`) перед применением любых правок |
 | **2** | **Smart Optimizer & Privacy** | `hellzerg/optimizer`, `optimizerNXT`, `WinUtil` | 191 обратимая настройка Windows в 13 разделах: реестр, службы и задания планировщика. У каждой — пояснение, уровень риска и условия применимости. Готовые наборы с предпросмотром, менеджер служб и планировщика, профили в YAML |
 | **3** | **Anti-Miner & Persistence Hunter** | `BlendLog/MinerSearch`, `Sysinternals Autoruns` | Детект майнеров, прячущихся при открытии диспетчера задач (анализ падения загрузки GPU/CPU через ETW), поиск Stratum-соединений, IFEO-перехватов, WMI-подписок, скрытых задач без `SD` и обратимый карантин |
-| **4** | **Vault-Safe Cleaner & Registry Hygiene** | `CCleaner`, `BleachBit`, `WizTree` | Очистка кэша ОС, шейдеров GPU и браузеров с гарантированным сохранением паролей и автозаполнения форм; безопасная чистка сирот реестра без поломки COM/WinRT; карта диска обходом папок (чтение `$MFT` напрямую — в плане этапа 2) |
+| **4** | **Vault-Safe Cleaner & Registry Hygiene** | `CCleaner`, `BleachBit`, `WizTree` | Каталог из 86 правил программ с поддержкой `Winapp2.ini` под защитой `BrowserVaultGuard`; очистка браузеров по 5 пунктам (включая cookie со списком «сохранить вход») при сохранении паролей и автозаполнения; 8 системных резервов `C:\` (`WinSxS`, `Windows.old`, DO, дампы); 13 категорий реестра с откатом; быстрая карта диска через прямое чтение NTFS `$MFT` |
 | **5** | **Official Driver Engine** | `WUApiLib`, `SDIO`, OEM-каталоги | Поиск по полному 4-компонентному Hardware ID (`VEN/DEV/SUBSYS/REV`), проверка цифровой подписи `WinVerifyTrust`, авто-бэкап текущих драйверов через `pnputil /export-driver` |
 | **6** | **DLL & Runtime Doctor** | `lucasg/Dependencies`, `abbodi1406/vcredist` | Диагностика ошибок `0xc000007b` и отсутствующих DLL по PE-таблице импорта, автоустановка официальных пакетов VC++, DirectX, .NET, XNA, OpenAL и проверка целостности `WinSxS` (`DISM` + `SFC`) |
 | **7** | **System & BSOD Auto-Fixer** | `WhoCrashed`, Windows Troubleshooters | Разбор дампов ядра (`PAGEDU64`/`PAGEDUMP`): код остановки из справочника из 76 кодов, список драйверов, стек вызовов и вероятный виновник с пометкой надёжности; отдельно распознаются дампы упавших программ (`MDMP`). Плюс анализ событий `WHEA-Logger` / `Kernel-Power` / `TDR` и рецепты починки сети, Центра обновления, WMI, печати и хранилища Appx |
@@ -51,6 +51,7 @@
 - [**`docs/03-ROADMAP.md`**](./docs/03-ROADMAP.md) — Поэтапный план разработки (от ядра транзакций и MVP до релиза `v1.0` и `v2.0`), стратегия тестирования на виртуальных стендах, CI/CD и цифровая подпись.
 - [**`docs/04-UX-AND-VAULT-DESIGN.md`**](./docs/04-UX-AND-VAULT-DESIGN.md) — Дизайн дружелюбного двухуровневого интерфейса (`Простой ↔ Эксперт`) и система не засоряющих ОС бэкапов (`Zero-Bloat Vault`).
 - [**`docs/06-TWEAK-CATALOG.md`**](./docs/06-TWEAK-CATALOG.md) — Формат файлов данных каталога настроек Оптимизатора: как добавить или поправить настройку без правки кода.
+- [**`docs/07-CLEANUP-RULES.md`**](./docs/07-CLEANUP-RULES.md) — Формат правил очистки программ, совместимость с внешними базами `Winapp2.ini` и тройная защита путей (`BrowserVaultGuard` + `CleanupPathGuard`).
 - [**`docs/05-AUDIT-AND-GAP-ANALYSIS.md`**](./docs/05-AUDIT-AND-GAP-ANALYSIS.md) — Аудит текущего кода (ноябрь 2026), измеренное сравнение с эталонами, матрица разрывов и поэтапный план доведения до их уровня.
 
 ---
@@ -82,6 +83,9 @@ dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- hardw
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- drivers-audit --online
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- driver-backup oem42.inf
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- clean-scan
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- clean-apps-scan
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- browser-scan
+dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- disk-map "C:\"
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- pe-doctor "C:\Games\App\game.exe"
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- bsod-scan
 dotnet run --project src/UltimateWindows.Cli/UltimateWindows.Cli.csproj -- tweak-list
