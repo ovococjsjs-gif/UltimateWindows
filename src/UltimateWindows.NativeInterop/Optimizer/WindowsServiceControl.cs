@@ -91,6 +91,42 @@ public static class WindowsServiceControl
         }
     }
 
+    public static ServiceRunState QueryRunState(string serviceName)
+    {
+        if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(serviceName))
+        {
+            return ServiceRunState.Unknown;
+        }
+
+        var scm = OpenSCManagerW(null, null, SC_MANAGER_CONNECT);
+        if (scm == IntPtr.Zero)
+        {
+            return ServiceRunState.Unknown;
+        }
+
+        try
+        {
+            var service = OpenServiceW(scm, serviceName, SERVICE_QUERY_STATUS);
+            if (service == IntPtr.Zero)
+            {
+                return ServiceRunState.Unknown;
+            }
+
+            try
+            {
+                return ReadState(service);
+            }
+            finally
+            {
+                CloseServiceHandle(service);
+            }
+        }
+        finally
+        {
+            CloseServiceHandle(scm);
+        }
+    }
+
     public static PlatformActionResult SetStartup(string serviceName, ServiceStartupMode mode)
     {
         if (!OperatingSystem.IsWindows())

@@ -398,6 +398,14 @@ public static class OfficialRuntimeCatalog
     /// <summary>
     /// Проверяет, принадлежит ли URL прямой загрузки доверенному официальному домену издателя.
     /// </summary>
+    public static bool IsTrustedOfficialDownloadUrl(string? rawUrl) =>
+        !string.IsNullOrWhiteSpace(rawUrl) &&
+        Uri.TryCreate(rawUrl, UriKind.Absolute, out var uri) &&
+        IsTrustedOfficialDownloadUrl(uri);
+
+    /// <summary>
+    /// Проверяет, принадлежит ли URL прямой загрузки доверенному официальному домену издателя.
+    /// </summary>
     public static bool IsTrustedOfficialDownloadUrl(Uri? uri)
     {
         if (uri is null || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))

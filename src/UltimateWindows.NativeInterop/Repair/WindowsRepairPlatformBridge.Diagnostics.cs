@@ -560,7 +560,7 @@ public sealed partial class WindowsRepairPlatformBridge
         }
 
         var state = WindowsServiceControl.Query(serviceName);
-        if (!state.Exists)
+        if (state is null)
         {
             return new RepairServiceState(false, RepairServiceStartupKind.Unknown, false);
         }
@@ -574,10 +574,11 @@ public sealed partial class WindowsRepairPlatformBridge
             _ => RepairServiceStartupKind.Unknown
         };
 
+        var runState = WindowsServiceControl.QueryRunState(serviceName);
         return new RepairServiceState(
             Exists: true,
             Startup: startup,
-            IsRunning: state.RunState == OptServiceRunState.Running);
+            IsRunning: runState == OptServiceRunState.Running);
     }
 
     public override async Task<(bool Succeeded, string? Error)> RepairServiceAsync(
@@ -598,18 +599,18 @@ public sealed partial class WindowsRepairPlatformBridge
             _ => OptServiceStartupMode.Manual
         };
 
-        var (setOk, setErr) = WindowsServiceControl.SetStartup(serviceName, mapped);
-        if (!setOk)
+        var setRes = WindowsServiceControl.SetStartup(serviceName, mapped);
+        if (!setRes.Succeeded)
         {
-            return (false, setErr);
+            return (false, setRes.Error);
         }
 
         if (startIfStopped)
         {
-            var current = WindowsServiceControl.Query(serviceName);
-            if (current.Exists && current.RunState != OptServiceRunState.Running)
+            var runState = WindowsServiceControl.QueryRunState(serviceName);
+            if (runState != OptServiceRunState.Running)
             {
-                _ = await WindowsServiceControl.ControlAsync(serviceName, start: true, ct: ct).ConfigureAwait(false);
+                _ = await WindowsServiceControl.ControlAsync(serviceName, start: true, TimeSpan.FromSeconds(25), ct).ConfigureAwait(false);
             }
         }
 
