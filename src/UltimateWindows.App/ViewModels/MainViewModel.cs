@@ -154,7 +154,10 @@ public sealed class MainViewModel : ObservableObject
         AntiMinerStudio = new AntiMinerStudioViewModel(securityService, OnSubModuleActionAsync);
 
         var driverService = new OfficialDriverService(_vaultService, new WindowsDriverPlatformBridge());
-        DriverStudio = new DriverStudioViewModel(driverService, OnSubModuleActionAsync);
+        DriverStudio = new DriverStudioViewModel(
+            driverService,
+            OnSubModuleActionAsync,
+            switchToCatalogTab: () => HardwareStudio.SelectedSubTabIndex = 2);
 
         _smartAuditOrchestrator = new SmartSystemAuditOrchestrator(
             hardwareService, driverService, cleanerService, repairService, optimizerService, securityService);
@@ -192,9 +195,10 @@ public sealed class MainViewModel : ObservableObject
         {
             var vaultTask = RefreshVaultStateAsync();
             var hwTask = HardwareStudio.RefreshAuditAsync();
+            var drvTask = DriverStudio.InitializeFastAsync();
             var reservesTask = CleanerStudio.RefreshSystemReservesAsync();
             var optTask = OptimizerStudio.RefreshAllAsync();
-            await Task.WhenAll(vaultTask, hwTask, reservesTask, optTask);
+            await Task.WhenAll(vaultTask, hwTask, drvTask, reservesTask, optTask);
         }
         catch
         {

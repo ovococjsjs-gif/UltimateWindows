@@ -1,0 +1,232 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "id": "byovd-winring0",
+      "familyName": "WinRing0 / OpenLibSys Kernel Driver",
+      "fileNamesLower": ["winring0.sys", "winring0x64.sys", "winring0_1_2_0.sys", "olsx64.sys"],
+      "knownVulnerableSha256": [
+        "11bd2c9f9e2397c9a16e0990e4ed2cf0679498fe0fd418a3dfef60b5c160ee5d",
+        "eb7b1ad2b912b5fb9f9897c10e7d6c675029880a2f59efbf6905ffcb3be9dc9c"
+      ],
+      "vendorOrOrigin": "OpenLibSys / Старые утилиты мониторинга и RGB-подсветки",
+      "cveOrAdvisory": "CVE-2020-14979",
+      "severity": "Critical",
+      "abuseExplanation": "Предоставляет неконтролируемый доступ на чтение/запись физической памяти и регистров MSR любому процессу. Активно используется скрытыми майнерами (XMRig MSR mod) и программами-вымогателями для отключения Microsoft Defender.",
+      "safeAlternative": "Установите подписанный драйвер PawnIO (совместим с Windows 11 HVCI) на вкладке «Каталог с серверов» и обновите LibreHardwareMonitor / FanControl.",
+      "blockedByMicrosoftList": true
+    },
+    {
+      "id": "byovd-rtcore64",
+      "familyName": "MSI Afterburner RTCore64 / RTCore32",
+      "fileNamesLower": ["rtcore64.sys", "rtcore32.sys"],
+      "knownVulnerableSha256": [
+        "01aa278b07b58dc46c84bd0b1b5c8e9ee4e62ea0bf7a695862444af32e87f1fd"
+      ],
+      "vendorOrOrigin": "Micro-Star International (MSI Afterburner <= 4.6.2)",
+      "cveOrAdvisory": "CVE-2019-16098",
+      "severity": "Critical",
+      "abuseExplanation": "Старый драйвер MSI Afterburner позволяет произвольно читать и перезаписывать память ядра Windows (активно применяется группировками BlackByte и EDR-killer инструментами).",
+      "safeAlternative": "Обновите MSI Afterburner до актуальной версии 4.6.5+ с официального сайта MSI.",
+      "blockedByMicrosoftList": true
+    },
+    {
+      "id": "byovd-gigabyte-gdrv",
+      "familyName": "GIGABYTE Tools GDRV Driver",
+      "fileNamesLower": ["gdrv.sys"],
+      "knownVulnerableSha256": [
+        "31f4cfb4c71da44120752721103a16512444c13c2ac2d857a7e6f13cb679b427"
+      ],
+      "vendorOrOrigin": "GIGABYTE App Center / RGB Fusion (старые версии)",
+      "cveOrAdvisory": "CVE-2018-19320 / CVE-2018-19322",
+      "severity": "Critical",
+      "abuseExplanation": "Содержит критические уязвимости переполнения буфера и прямого отображения физической памяти (MapMem), используемые руткитами RobbinHood и KDU для обхода проверки подписи драйверов.",
+      "safeAlternative": "Удалите устаревший App Center и используйте актуальный GIGABYTE Control Center (GCC).",
+      "blockedByMicrosoftList": true
+    },
+    {
+      "id": "byovd-dell-dbutil",
+      "familyName": "Dell BIOS Utility Driver (dbutil_2_3 / dbutildrv2)",
+      "fileNamesLower": ["dbutil_2_3.sys", "dbutildrv2.sys"],
+      "knownVulnerableSha256": [
+        "0296e2ce999e67c76352613a718e11516fe1b0efc3ffdb8918fc999dd76a73a5"
+      ],
+      "vendorOrOrigin": "Dell Inc. (утилиты обновления прошивки BIOS <= 2.7)",
+      "cveOrAdvisory": "CVE-2021-21551 / CVE-2021-36276",
+      "severity": "Critical",
+      "abuseExplanation": "Позволяет непривилегированным процессам повышать привилегии до уровня ядра SYSTEM и отключать защиту EDR.",
+      "safeAlternative": "Удалите остаточный файл драйвера и обновите Dell Command | Update.",
+      "blockedByMicrosoftList": true
+    },
+    {
+      "id": "byovd-intel-iqvw64e",
+      "familyName": "Intel Network Adapter Diagnostic Driver (iqvw64e.sys)",
+      "fileNamesLower": ["iqvw64e.sys", "iqvw32.sys", "iqvw64.sys"],
+      "knownVulnerableSha256": [
+        "eae9299f98377c8f8145158c3ce0339b872a82a4bd6a0f258a08a18e2f63f1e5"
+      ],
+      "vendorOrOrigin": "Intel Corporation (PROSet Diagnostic <= 1.03.0.7)",
+      "cveOrAdvisory": "CVE-2015-2291",
+      "severity": "Critical",
+      "abuseExplanation": "Эталонный уязвимый драйвер для загрузчиков KDMapper и групп Scattered Spider: позволяет загружать неподписанный код прямо в ядро Windows.",
+      "safeAlternative": "Обновите сетевые драйверы Intel через вкладку «Устройства и WHQL» или «Каталог с серверов».",
+      "blockedByMicrosoftList": true
+    },
+    {
+      "id": "byovd-asus-asio-glckio",
+      "familyName": "ASUS Aura / AI Suite IO Drivers (AsIO / GLCKIO2 / Atszio)",
+      "fileNamesLower": ["asio.sys", "asio2.sys", "asio3.sys", "asio64.sys", "glckio2.sys", "atszio64.sys"],
+      "knownVulnerableSha256": [],
+      "vendorOrOrigin": "ASUSTeK Computer (старые версии Aura Sync / AI Suite)",
+      "cveOrAdvisory": "CVE-2020-15368 / CVE-2024-23931",
+      "severity": "Critical",
+      "abuseExplanation": "Открывают прямой доступ к физическим портам ввода-вывода и памяти ядра; используются программами-вымогателями Akira для убийства защитных служб.",
+      "safeAlternative": "Обновите ASUS Armoury Crate или удалите устаревшие компоненты Aura Lighting Service.",
+      "blockedByMicrosoftList": true
+    },
+    {
+      "id": "byovd-ene-rgb",
+      "familyName": "ENE Technology RGB Lighting Driver (ene.sys / EneIo64.sys / EneTechIo64.sys)",
+      "fileNamesLower": ["ene.sys", "eneio64.sys", "enetechio64.sys"],
+      "knownVulnerableSha256": [],
+      "vendorOrOrigin": "ENE Technology / G.SKILL Trident Z / MSI Mystic Light",
+      "cveOrAdvisory": "CVE-2020-12446",
+      "severity": "Attention",
+      "abuseExplanation": "Уязвимый драйвер контроллера RGB-подсветки ОЗУ, эксплуатируемый утилитами обхода DSE и блокирующий включение Целостности памяти (HVCI) в Windows 11.",
+      "safeAlternative": "Удалите старый SDK подсветки ENE или перейдите на OpenRGB с драйвером PawnIO.",
+      "blockedByMicrosoftList": true
+    },
+    {
+      "id": "byovd-asrock-asrdrv",
+      "familyName": "ASRock RGB / Polychrome / Tuning Driver (AsrDrv101–106)",
+      "fileNamesLower": ["asrdrv101.sys", "asrdrv102.sys", "asrdrv103.sys", "asrdrv104.sys", "asrdrv106.sys", "asribdrv.sys", "asrsmartconnectdrv.sys"],
+      "knownVulnerableSha256": [],
+      "vendorOrOrigin": "ASRock Inc. (Polychrome RGB / A-Tuning)",
+      "cveOrAdvisory": "CVE-2020-15368 / LOLDrivers",
+      "severity": "Critical",
+      "abuseExplanation": "Позволяет читать/писать произвольные регистры MSR и физическую память без проверки прав вызывающего процесса.",
+      "safeAlternative": "Обновите ASRock Polychrome Sync до версии 2024+ или управляйте подсветкой из BIOS.",
+      "blockedByMicrosoftList": true
+    },
+    {
+      "id": "byovd-zemana-zam64",
+      "familyName": "Zemana AntiMalware / Terminator Driver (zam64.sys / zamguard64.sys)",
+      "fileNamesLower": ["zam64.sys", "zam32.sys", "zamguard64.sys"],
+      "knownVulnerableSha256": [],
+      "vendorOrOrigin": "Zemana Ltd.",
+      "cveOrAdvisory": "CVE-2021-31728",
+      "severity": "Critical",
+      "abuseExplanation": "Один из самых опасных «убийц антивирусов» (Terminator EDR Killer): позволяет принудительно завершать защищённые процессы PPL (MsMpEng.exe).",
+      "safeAlternative": "Немедленно изолируйте драйвер в карантин и проверьте систему в разделе «Анти-Майнер».",
+      "blockedByMicrosoftList": true
+    },
+    {
+      "id": "byovd-capcom",
+      "familyName": "Capcom.sys Kernel Execution Driver",
+      "fileNamesLower": ["capcom.sys"],
+      "knownVulnerableSha256": [],
+      "vendorOrOrigin": "Capcom Co., Ltd. (Street Fighter V Beta 2016)",
+      "cveOrAdvisory": "CVE-2016-Capcom-SMEP",
+      "severity": "Critical",
+      "abuseExplanation": "Напрямую отключает аппаратную защиту процессора SMEP и выполняет переданный из пользовательского режима машинный код с правами кольца 0.",
+      "safeAlternative": "Немедленно изолируйте драйвер — легитимным программам он никогда не нужен.",
+      "blockedByMicrosoftList": true
+    },
+    {
+      "id": "byovd-winio-phymem-directio",
+      "familyName": "WinIo / PhyMem / DirectIO / InpOutx64 Raw Memory Drivers",
+      "fileNamesLower": ["winio64.sys", "winio32.sys", "winio64b.sys", "winiodrv.sys", "phymem64.sys", "phymemx64.sys", "phymem_ext64.sys", "directio64.sys", "directio32.sys", "directio.sys", "inpoutx64.sys", "msio64.sys"],
+      "knownVulnerableSha256": [],
+      "vendorOrOrigin": "Internals.com / Yariv Kaplan / Legacy Hardware SDKs",
+      "cveOrAdvisory": "CVE-2020-12138 / MS Vulnerable Driver Blocklist",
+      "severity": "Critical",
+      "abuseExplanation": "Библиотечные драйверы прямого доступа к физической памяти и портам I/O без проверки привилегий клиента.",
+      "safeAlternative": "Удалите устаревший драйвер; для современных диагностических задач используйте безопасные API или PawnIO.",
+      "blockedByMicrosoftList": true
+    },
+    {
+      "id": "byovd-rweverything",
+      "familyName": "RWEverything Kernel Driver (RwDrv.sys)",
+      "fileNamesLower": ["rwdrv.sys"],
+      "knownVulnerableSha256": [],
+      "vendorOrOrigin": "Read & Write Everything Utility",
+      "cveOrAdvisory": "CVE-2022-3699 (активно эксплуатируется вымогателями Akira / LockBit)",
+      "severity": "Critical",
+      "abuseExplanation": "Даёт неограниченный доступ к PCI, SMBus, MSR и всей физической памяти ОЗУ.",
+      "safeAlternative": "Не оставляйте RwDrv.sys установленным на рабочей системе.",
+      "blockedByMicrosoftList": true
+    },
+    {
+      "id": "byovd-procexp152",
+      "familyName": "Sysinternals Process Explorer <= 16.22 Driver (PROCEXP152.SYS)",
+      "fileNamesLower": ["procexp152.sys"],
+      "knownVulnerableSha256": [],
+      "vendorOrOrigin": "Microsoft Sysinternals (устаревший выпуск 15.2–16.22)",
+      "cveOrAdvisory": "MS Blocklist / Backstab EDR Bypass",
+      "severity": "Attention",
+      "abuseExplanation": "Старая версия драйвера Process Explorer используется атакующими (инструмент Backstab) для закрытия хэндлов антивирусных служб.",
+      "safeAlternative": "Скачайте актуальный Process Explorer v17+ с сайта Microsoft Sysinternals (использует защищённый PROCEXP152 нового поколения).",
+      "blockedByMicrosoftList": true
+    },
+    {
+      "id": "byovd-cpuz-legacy",
+      "familyName": "CPU-Z Legacy Kernel Driver (cpuz141_x64.sys и старше)",
+      "fileNamesLower": ["cpuz136_x64.sys", "cpuz138_x64.sys", "cpuz140_x64.sys", "cpuz141_x64.sys", "cpuz.sys"],
+      "knownVulnerableSha256": [],
+      "vendorOrOrigin": "CPUID (CPU-Z <= 1.79)",
+      "cveOrAdvisory": "CVE-2017-15302 / CVE-2017-15303",
+      "severity": "Attention",
+      "abuseExplanation": "Устаревшие выпуски драйвера CPU-Z позволяют читать и изменять управляющие регистры ядра.",
+      "safeAlternative": "Обновите CPU-Z до актуальной версии 2.x с официального сайта cpuid.com.",
+      "blockedByMicrosoftList": true
+    },
+    {
+      "id": "byovd-mhyprot2",
+      "familyName": "miHoYo Anti-Cheat Legacy Driver (mhyprot2.sys)",
+      "fileNamesLower": ["mhyprot2.sys", "mhyprot.sys"],
+      "knownVulnerableSha256": [],
+      "vendorOrOrigin": "miHoYo Co., Ltd. (Genshin Impact 2020)",
+      "cveOrAdvisory": "CVE-2020-36603 (активно использовался вымогателями RansomExx)",
+      "severity": "Critical",
+      "abuseExplanation": "Позволяет завершать любые системные и антивирусные процессы по их PID из непривилегированного кода.",
+      "safeAlternative": "Изолируйте устаревший файл mhyprot2.sys в карантин.",
+      "blockedByMicrosoftList": true
+    },
+    {
+      "id": "byovd-kprocesshacker2",
+      "familyName": "Process Hacker 2 Driver (kprocesshacker.sys)",
+      "fileNamesLower": ["kprocesshacker.sys", "kprocesshacker2.sys"],
+      "knownVulnerableSha256": [],
+      "vendorOrOrigin": "Process Hacker 2.x (устаревший драйвер)",
+      "cveOrAdvisory": "LOLDrivers / BYOVD Process Termination",
+      "severity": "Attention",
+      "abuseExplanation": "Злоумышленники подгружают старый kprocesshacker.sys для принудительного снятия защиты Microsoft Defender.",
+      "safeAlternative": "Используйте современный System Informer v3+ с защищённым подписанным драйвером.",
+      "blockedByMicrosoftList": true
+    },
+    {
+      "id": "byovd-cheatengine-dbk",
+      "familyName": "Cheat Engine Kernel Debugger Driver (dbk64.sys / dbk32.sys)",
+      "fileNamesLower": ["dbk64.sys", "dbk32.sys"],
+      "knownVulnerableSha256": [],
+      "vendorOrOrigin": "Cheat Engine (Dark Byte)",
+      "cveOrAdvisory": "MS Vulnerable Driver Blocklist",
+      "severity": "Attention",
+      "abuseExplanation": "Драйвер отладчика уровня ядра позволяет обходить защиту процессов и блокирует работу HVCI и античитов.",
+      "safeAlternative": "Отключите и удалите драйвер dbk64.sys, если отладка памяти не требуется.",
+      "blockedByMicrosoftList": true
+    },
+    {
+      "id": "byovd-speedfan-atillk-amigendrv",
+      "familyName": "Legacy Tuning & Flash Drivers (speedfan / atillk64 / amigendrv64 / phlashnt / hw64)",
+      "fileNamesLower": ["speedfan.sys", "atillk64.sys", "amigendrv64.sys", "phlashnt.sys", "ntiolib_x64.sys", "bs_def.sys", "bs_rcio64.sys", "bs_hwmio64_w10.sys", "lgcoretemp.sys", "nvoclock.sys"],
+      "knownVulnerableSha256": [],
+      "vendorOrOrigin": "SpeedFan / ATI / AMI / Phoenix / BIOSTAR / LG",
+      "cveOrAdvisory": "LOLDrivers / MS Vulnerable Driver Blocklist",
+      "severity": "Attention",
+      "abuseExplanation": "Устаревшие драйверы прошивки BIOS и мониторинга без разграничения прав доступа, мешающие включению изоляции ядра HVCI.",
+      "safeAlternative": "Отключите устаревший драйвер и используйте современные средства мониторинга на базе PawnIO.",
+      "blockedByMicrosoftList": true
+    }
+  ]
+}

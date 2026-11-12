@@ -88,6 +88,9 @@ public sealed class HardwareStudioViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(IsSpecsTab));
                 OnPropertyChanged(nameof(IsDriversTab));
+                OnPropertyChanged(nameof(IsCatalogTab));
+                OnPropertyChanged(nameof(IsStoreRescueTab));
+                OnPropertyChanged(nameof(IsVulnerableTab));
                 OnPropertyChanged(nameof(IsStressTab));
             }
         }
@@ -95,7 +98,10 @@ public sealed class HardwareStudioViewModel : ObservableObject
 
     public bool IsSpecsTab => SelectedSubTabIndex == 0;
     public bool IsDriversTab => SelectedSubTabIndex == 1;
-    public bool IsStressTab => SelectedSubTabIndex == 2;
+    public bool IsCatalogTab => SelectedSubTabIndex == 2;
+    public bool IsStoreRescueTab => SelectedSubTabIndex == 3;
+    public bool IsVulnerableTab => SelectedSubTabIndex == 4;
+    public bool IsStressTab => SelectedSubTabIndex == 5;
 
     public bool HasNoAdvisories => Advisories.Count == 0;
     public int HardwareScore { get => _hardwareScore; private set => SetProperty(ref _hardwareScore, value); }

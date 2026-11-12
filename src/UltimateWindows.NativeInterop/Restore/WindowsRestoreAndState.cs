@@ -317,6 +317,42 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
 
                 return;
             }
+
+            if (string.Equals(delta.TargetPath, "CiVulnerableDriverBlocklist", StringComparison.OrdinalIgnoreCase))
+            {
+                using var doc = JsonDocument.Parse(delta.PreviousStateJson);
+                using var ciKey = Registry.LocalMachine.CreateSubKey(@"SYSTEM\CurrentControlSet\Control\CI\Config", writable: true);
+                if (ciKey is not null)
+                {
+                    if (doc.RootElement.TryGetProperty("PreviousValue", out var pv) && pv.ValueKind == JsonValueKind.Number)
+                    {
+                        ciKey.SetValue("VulnerableDriverBlocklistEnable", pv.GetInt32(), RegistryValueKind.DWord);
+                    }
+                    else
+                    {
+                        ciKey.DeleteValue("VulnerableDriverBlocklistEnable", throwOnMissingValue: false);
+                    }
+                }
+
+                return;
+            }
+
+            if (delta.TargetPath.StartsWith("KernelDriverService:", StringComparison.OrdinalIgnoreCase))
+            {
+                using var doc = JsonDocument.Parse(delta.PreviousStateJson);
+                var svcName = doc.RootElement.TryGetProperty("ServiceName", out var sEl) ? sEl.GetString() : null;
+                var startType = doc.RootElement.TryGetProperty("StartType", out var tEl) && tEl.ValueKind == JsonValueKind.Number
+                    ? tEl.GetInt32()
+                    : 3;
+
+                if (!string.IsNullOrWhiteSpace(svcName))
+                {
+                    using var svcKey = Registry.LocalMachine.OpenSubKey($@"SYSTEM\CurrentControlSet\Services\{svcName}", writable: true);
+                    svcKey?.SetValue("Start", startType, RegistryValueKind.DWord);
+                }
+
+                return;
+            }
         }
 
         await base.ApplyRollbackDeltaAsync(delta, restoreBlobBytesAsync, ct).ConfigureAwait(false);

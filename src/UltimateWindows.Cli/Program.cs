@@ -5,6 +5,7 @@ using UltimateWindows.Modules.Cleaner.Browsers;
 using UltimateWindows.Modules.Cleaner.Models;
 using UltimateWindows.Modules.Cleaner.Rules;
 using UltimateWindows.Modules.Cleaner.Services;
+using UltimateWindows.Modules.Drivers.Catalog;
 using UltimateWindows.Modules.Drivers.Orchestration;
 using UltimateWindows.Modules.Drivers.Services;
 using UltimateWindows.Modules.Hardware.Services;
@@ -948,9 +949,10 @@ switch (command)
 
     case "drivers-audit":
     {
-        var online = args.Length >= 2 && string.Equals(args[1], "--online", StringComparison.OrdinalIgnoreCase);
+        var online = HasFlag(args, "--online");
+        var showAll = HasFlag(args, "--all");
         var report = await drivers.AuditDevicesAndDriversAsync(online);
-        Console.WriteLine($"=== UltimateWindows Phase 6 — Аудит устройств и WHQL-драйверов ({report.DriverHealthScore}/100) ===");
+        Console.WriteLine($"=== UltimateWindows Stage 5 — Аудит устройств и WHQL-драйверов ({report.DriverHealthScore}/100) ===");
         Console.WriteLine(report.SummaryHeadline);
         foreach (var f in report.Findings)
         {
@@ -958,7 +960,152 @@ switch (command)
             Console.WriteLine($"      {f.SimpleExplanation}");
             Console.WriteLine($"      {f.ExpertTechnicalDetails}");
         }
+
+        if (showAll)
+        {
+            Console.WriteLine($"\nВсе опрошенные устройства ({report.AllDevices.Count}):");
+            foreach (var d in report.AllDevices)
+            {
+                Console.WriteLine($"  [{d.DeviceClass,-12}] {d.FriendlyName,-42} | {d.EffectiveProvider,-22} | {d.DriverVersion,-16} | {d.DriverDate,-10} | {d.InfName,-10} | {d.PrimaryHardwareId}");
+            }
+        }
         break;
+    }
+
+    case "drivers-catalog-search":
+    {
+        if (args.Length < 2)
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli drivers-catalog-search \"<Hardware ID или запрос>\"");
+            return 1;
+        }
+
+        var query = string.Join(' ', args.Skip(1));
+        var entries = await drivers.SearchMicrosoftCatalogAsync(query);
+        Console.WriteLine($"=== Каталог Microsoft Update — найдено пакетов: {entries.Count} по запросу «{query}» ===");
+        foreach (var e in entries)
+        {
+            Console.WriteLine($"  [{e.LastUpdatedText}] {e.Title} | v{e.Version} | {e.FormattedSize} | {e.Products} | ID={e.UpdateId}");
+        }
+        break;
+    }
+
+    case "drivers-essential-list":
+    {
+        var onlyMatched = HasFlag(args, "--matched");
+        var items = await drivers.GetEvaluatedEssentialDriversAsync();
+        if (onlyMatched)
+        {
+            items = items.Where(x => x.MatchesCurrentPcHardware).ToList();
+        }
+
+        Console.WriteLine($"=== Каталог основных драйверов с серверов ({items.Count} пакетов) ===");
+        foreach (var item in items)
+        {
+            var p = item.Package;
+            Console.WriteLine($"  {p.Id,-34} | {p.CategoryLabel,-26} | {item.PcRelevanceBadge,-20} | {p.DeliveryBadge,-22} | {p.Title}");
+        }
+        break;
+    }
+
+    case "drivers-essential-download":
+    {
+        if (args.Length < 2)
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli drivers-essential-download <package-id> [--dir <папка>] [--install]");
+            return 1;
+        }
+
+        var pkg = EssentialDriverCatalog.FindById(args[1]);
+        if (pkg is null)
+        {
+            Console.WriteLine($"Пакет «{args[1]}» не найден. Выполните drivers-essential-list для просмотра ID.");
+            return 1;
+        }
+
+        var targetDir = GetOptionValue(args, "--dir") ?? OfficialDriverService.GetDefaultDownloadRootDirectory();
+        var installNow = HasFlag(args, "--install");
+        var progress = new Progress<string>(msg => Console.WriteLine($"  -> {msg}"));
+        var res = await drivers.DownloadOrInstallEssentialPackageAsync(pkg, targetDir, installNow, progress);
+        Console.WriteLine(res.UserFriendlyMessage);
+        return res.Succeeded ? 0 : 1;
+    }
+
+    case "driverstore-audit":
+    {
+        var summary = await drivers.AuditDriverStoreAsync();
+        Console.WriteLine("=== Ревизия хранилища DriverStore (FileRepository) ===");
+        Console.WriteLine(summary.Headline);
+        foreach (var e in summary.Entries)
+        {
+            Console.WriteLine($"  {e.PublishedInfName,-10} | {e.OriginalInfName,-24} | {e.ProviderName,-22} | v{e.DriverVersion,-16} | {e.FormattedSize,9} | {e.StateBadge}");
+        }
+        break;
+    }
+
+    case "driverstore-clean":
+    {
+        var summary = await drivers.AuditDriverStoreAsync();
+        var res = await drivers.CleanOldDriverStoreDuplicatesAsync(summary.Entries);
+        Console.WriteLine(res.UserFriendlyMessage);
+        return res.Succeeded ? 0 : 1;
+    }
+
+    case "drivers-backup-all":
+    {
+        var dir = args.Length >= 2 ? args[1] : Path.Combine(OfficialDriverService.GetDefaultDownloadRootDirectory(), $"FullBackup-{DateTime.Now:yyyyMMdd-HHmm}");
+        var res = await drivers.BackupAllThirdPartyDriversAsync(dir);
+        Console.WriteLine(res.UserFriendlyMessage);
+        return res.Succeeded ? 0 : 1;
+    }
+
+    case "drivers-restore-folder":
+    {
+        if (args.Length < 2)
+        {
+            Console.WriteLine("Использование: UltimateWindows.Cli drivers-restore-folder \"<папка с INF>\"");
+            return 1;
+        }
+
+        var res = await drivers.RestoreDriversFromFolderAsync(args[1]);
+        Console.WriteLine(res.UserFriendlyMessage);
+        return res.Succeeded ? 0 : 1;
+    }
+
+    case "drivers-rescue-pack":
+    {
+        var dir = GetOptionValue(args, "--dir") ?? Path.Combine(OfficialDriverService.GetDefaultDownloadRootDirectory(), "Offline-Network-Rescue");
+        var fromServers = HasFlag(args, "--universal-servers");
+        var progress = new Progress<string>(msg => Console.WriteLine($"  -> {msg}"));
+        var res = await drivers.BuildOfflineNetworkRescuePackAsync(dir, fromServers, progress);
+        Console.WriteLine(res.UserFriendlyMessage);
+        foreach (var line in res.Details)
+        {
+            Console.WriteLine($"  {line}");
+        }
+        return res.Succeeded ? 0 : 1;
+    }
+
+    case "drivers-byovd-audit":
+    {
+        var report = await drivers.AuditVulnerableKernelDriversAsync();
+        Console.WriteLine("=== Аудит уязвимых и заблокированных драйверов ядра (BYOVD / LOLDrivers) ===");
+        Console.WriteLine(report.SummaryHeadline);
+        foreach (var f in report.Findings)
+        {
+            Console.WriteLine($"  [{f.StateText}] {f.InstalledDriver.ServiceName} ({f.InstalledDriver.BinaryPath})");
+            Console.WriteLine($"    Семейство : {f.MatchedRule.FamilyName} ({f.MatchedRule.CveOrAdvisory})");
+            Console.WriteLine($"    Риск      : {f.MatchedRule.AbuseExplanation}");
+            Console.WriteLine($"    Замена    : {f.MatchedRule.SafeAlternative}");
+        }
+        break;
+    }
+
+    case "drivers-blocklist-enable":
+    {
+        var res = await drivers.EnableMicrosoftVulnerableDriverBlocklistAsync();
+        Console.WriteLine(res.UserFriendlyMessage);
+        return res.Succeeded ? 0 : 1;
     }
 
     case "driver-backup":
@@ -1071,7 +1218,7 @@ switch (command)
 
     default:
     {
-        Console.WriteLine("Доступные команды: status | smart-audit | hardware-audit | stress-test [сек] | drivers-audit [--online] | driver-backup <oemXX.inf> | clean-scan | clean-run | clean-apps-scan [--winapp2 <ini>] | clean-apps-run [--rule <id>] [--winapp2 <ini>] | browser-scan [--keep-cookies <домены>] | browser-clean [--history] [--downloads] [--cookies] [--sessions] [--keep-cookies <домены>] | disk-map [путь] | pe-doctor <exe> | deps-scan-installed | runtime-list | runtime-install <key> | repair-scan [раздел] [--issues] | repair-fix <id|--all-found> [--force] | error-lookup <код> | cbs-scan | bsod-scan | bsod-file <dmp> | repair-list | repair-run <id> | tweak-list [раздел] [--on|--off] | tweak-info <id> | tweak-enable <id> [--force] | tweak-disable <id> | preset-list | preset-apply <набор> [--dry-run] [--force] | tweak-export [yaml] | tweak-import <yaml> [--dry-run] [--force] | service-list [--third-party] [--running] | service-set <имя> <auto|delayed|manual|disabled> | task-list [--third-party] [--enabled] | task-enable <путь> | task-disable <путь> | startup-list | unlock-check <path> | security-scan [--fast] [--json] | persistence-audit [--anomalies] | defender-audit | defender-clean-exclusions | defender-scan [--path <путь>] | quarantine-list | quarantine-restore <id> | security-heal | history | cleanup-blobs | rollback <id> | check-path <path>");
+        Console.WriteLine("Доступные команды: status | smart-audit | hardware-audit | stress-test [сек] | drivers-audit [--online] [--all] | drivers-catalog-search <запрос> | drivers-essential-list [--matched] | drivers-essential-download <id> [--dir <папка>] [--install] | driverstore-audit | driverstore-clean | drivers-backup-all [папка] | drivers-restore-folder <папка> | drivers-rescue-pack [--dir <папка>] [--universal-servers] | drivers-byovd-audit | drivers-blocklist-enable | driver-backup <oemXX.inf> | clean-scan | clean-run | clean-apps-scan [--winapp2 <ini>] | clean-apps-run [--rule <id>] [--winapp2 <ini>] | browser-scan [--keep-cookies <домены>] | browser-clean [--history] [--downloads] [--cookies] [--sessions] [--keep-cookies <домены>] | disk-map [путь] | pe-doctor <exe> | deps-scan-installed | runtime-list | runtime-install <key> | repair-scan [раздел] [--issues] | repair-fix <id|--all-found> [--force] | error-lookup <код> | cbs-scan | bsod-scan | bsod-file <dmp> | repair-list | repair-run <id> | tweak-list [раздел] [--on|--off] | tweak-info <id> | tweak-enable <id> [--force] | tweak-disable <id> | preset-list | preset-apply <набор> [--dry-run] [--force] | tweak-export [yaml] | tweak-import <yaml> [--dry-run] [--force] | service-list [--third-party] [--running] | service-set <имя> <auto|delayed|manual|disabled> | task-list [--third-party] [--enabled] | task-enable <путь> | task-disable <путь> | startup-list | unlock-check <path> | security-scan [--fast] [--json] | persistence-audit [--anomalies] | defender-audit | defender-clean-exclusions | defender-scan [--path <путь>] | quarantine-list | quarantine-restore <id> | security-heal | history | cleanup-blobs | rollback <id> | check-path <path>");
         break;
     }
 }

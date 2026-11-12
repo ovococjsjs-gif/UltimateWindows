@@ -160,6 +160,35 @@ public sealed class MainWindowSmokeTests
             notes.Add($"защита-сводка: {securityVm.ScanHeadline}");
             notes.Add($"защита-kpi: {securityVm.KpiSummaryStrip}");
 
+            reached = "драйверы 2.0: все 6 вкладок, каталог 39 пакетов, DriverStore и BYOVD";
+            main.SelectedDomain = SystemDomain.HardwareAndDrivers;
+            var hwVm = main.HardwareStudio;
+            var drvVm = main.DriverStudio;
+            await drvVm.InitializeFastAsync();
+            Assert.True(drvVm.FilteredEssentialPackages.Count >= 35, "Каталог основных драйверов не загрузился.");
+            await drvVm.SearchLiveMicrosoftCatalogAsync();
+
+            window.Width = 1024;
+            window.Height = 768;
+            hwVm.SelectedSubTabIndex = 2;
+            await surface.SettleAsync();
+            surface.Save("drivers-tab-2-1024");
+
+            window.Width = 1360;
+            window.Height = 840;
+            for (var dtab = 0; dtab <= 5; dtab++)
+            {
+                hwVm.SelectedSubTabIndex = dtab;
+                await surface.SettleAsync();
+                surface.Save($"drivers-tab-{dtab}");
+            }
+
+            Assert.Empty(trace.Errors);
+            notes.Add($"драйверы-kpi: {drvVm.DriverKpiStrip}");
+            notes.Add($"драйверы-каталог: {drvVm.CatalogStatusText}");
+            notes.Add($"драйверы-store: {drvVm.DriverStoreHeadline}");
+            notes.Add($"драйверы-byovd: {drvVm.VulnerableHeadline}");
+
             reached = "конец";
         }
         finally

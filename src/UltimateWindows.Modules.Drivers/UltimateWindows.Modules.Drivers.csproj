@@ -2,8 +2,12 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>UltimateWindows.Modules.Drivers</RootNamespace>
-    <Description>Фаза 6 (v1.0): Официальный менеджер WHQL-драйверов (CfgMgr32 + 4-part Hardware ID + селективный бэкап oemXX.inf) и единый оркестратор «Комплексный Умный Аудит ПК в 1 клик».</Description>
+    <Description>Этап 5 (Драйверы 2.0): Дерево устройств CfgMgr32, живой поиск и скачивание из Microsoft Update Catalog, каталог основных драйверов с серверов на все случаи жизни, ревизия и очистка дублей DriverStore, офлайн-набор сетевых драйверов и аудит уязвимых драйверов ядра (BYOVD).</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Data\*.json" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\UltimateWindows.Core\UltimateWindows.Core.csproj" />
