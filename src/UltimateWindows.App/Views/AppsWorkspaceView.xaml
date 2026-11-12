@@ -130,39 +130,41 @@
       </Grid.RowDefinitions>
 
       <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="14,10" Margin="0,0,0,8">
-        <DockPanel>
-          <WrapPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-            <Button Style="{StaticResource CompactButtonStyle}"
-                    Padding="8,5" Margin="0,0,6,0"
-                    Command="{Binding SelectPresetHomeCommand}"
-                    Content="Набор: Чистая ОС" />
-            <Button Style="{StaticResource CompactButtonStyle}"
-                    Padding="8,5" Margin="0,0,6,0"
-                    Command="{Binding SelectPresetGamerCommand}"
-                    Content="Набор: Игровой ПК" />
-            <Button Style="{StaticResource CompactButtonStyle}"
-                    Padding="8,5" Margin="0,0,6,0"
-                    Command="{Binding SelectPresetDevCommand}"
-                    Content="Набор: Разработка" />
-            <Button Style="{StaticResource CompactButtonStyle}"
-                    Padding="8,5" Margin="0,0,8,0"
-                    Command="{Binding ClearCatalogSelectionCommand}"
-                    Content="Сброс" />
-            <Button Style="{StaticResource PrimaryButtonStyle}"
+        <StackPanel>
+          <TextBlock Text="Проверенный каталог программ для чистой установки Windows"
+                     FontSize="13.5" FontWeight="SemiBold" />
+          <TextBlock Text="{Binding CatalogHeadline}"
+                     FontSize="11.5"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     Margin="0,2,0,8" />
+
+          <DockPanel>
+            <Button DockPanel.Dock="Right"
+                    Style="{StaticResource PrimaryButtonStyle}"
                     Padding="12,6"
                     Command="{Binding InstallSelectedCatalogCommand}"
                     Content="Установить отмеченные" />
-          </WrapPanel>
 
-          <StackPanel VerticalAlignment="Center" Margin="0,0,10,0">
-            <TextBlock Text="Проверенный каталог программ для чистой установки Windows"
-                       FontSize="13.5" FontWeight="SemiBold" />
-            <TextBlock Text="{Binding CatalogHeadline}"
-                       FontSize="11.5"
-                       Foreground="{DynamicResource TextSecondaryBrush}"
-                       Margin="0,2,0,0" />
-          </StackPanel>
-        </DockPanel>
+            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+              <Button Style="{StaticResource CompactButtonStyle}"
+                      Padding="9,5" Margin="0,0,6,0"
+                      Command="{Binding SelectPresetHomeCommand}"
+                      Content="Набор: Чистая ОС" />
+              <Button Style="{StaticResource CompactButtonStyle}"
+                      Padding="9,5" Margin="0,0,6,0"
+                      Command="{Binding SelectPresetGamerCommand}"
+                      Content="Набор: Игровой ПК" />
+              <Button Style="{StaticResource CompactButtonStyle}"
+                      Padding="9,5" Margin="0,0,6,0"
+                      Command="{Binding SelectPresetDevCommand}"
+                      Content="Набор: Разработка" />
+              <Button Style="{StaticResource CompactButtonStyle}"
+                      Padding="9,5"
+                      Command="{Binding ClearCatalogSelectionCommand}"
+                      Content="Сброс выбора" />
+            </WrapPanel>
+          </DockPanel>
+        </StackPanel>
       </Border>
 
       <Grid Grid.Row="1" Margin="0,0,0,8">
@@ -200,8 +202,8 @@
             </DataGridTemplateColumn.CellTemplate>
           </DataGridTemplateColumn>
           <DataGridTextColumn Header="Программа" Binding="{Binding DisplayName}" IsReadOnly="True" Width="155" />
-          <DataGridTextColumn Header="Категория" Binding="{Binding CategoryBadge}" IsReadOnly="True" Width="140" />
-          <DataGridTextColumn Header="Состояние" Binding="{Binding StatusBadge}" IsReadOnly="True" Width="135" />
+          <DataGridTextColumn Header="Категория" Binding="{Binding CategoryBadge}" IsReadOnly="True" Width="156" />
+          <DataGridTextColumn Header="Состояние" Binding="{Binding StatusBadge}" IsReadOnly="True" Width="152" />
           <DataGridTextColumn Header="Описание (официальный источник без рекламы)" Binding="{Binding Summary}" IsReadOnly="True" Width="*" />
         </DataGrid.Columns>
       </DataGrid>

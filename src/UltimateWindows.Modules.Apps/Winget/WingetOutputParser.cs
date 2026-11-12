@@ -9,9 +9,6 @@ namespace UltimateWindows.Modules.Apps.Winget;
 /// </summary>
 public static partial class WingetOutputParser
 {
-    [GeneratedRegex(@"^[-\\|/█▒░\s]+$")]
-    private static partial Regex SpinnerOrProgressLineRegex();
-
     [GeneratedRegex(@"^\d+\s+(upgrades?\s+available|обновлен|пакет)", RegexOptions.IgnoreCase)]
     private static partial Regex TrailingSummaryLineRegex();
 
@@ -40,21 +37,38 @@ public static partial class WingetOutputParser
         for (var i = dividerIndex + 1; i < lines.Count; i++)
         {
             var line = lines[i];
-            if (string.IsNullOrWhiteSpace(line) || SpinnerOrProgressLineRegex().IsMatch(line))
+            if (string.IsNullOrWhiteSpace(line) || IsSpinnerOrProgressLine(line))
             {
                 continue;
             }
 
-            if (line.TrimStart().StartsWith("---", StringComparison.Ordinal))
+            if (IsHeaderDividerLine(line))
             {
-                // Вторая таблица после первой сводки у winget — это закреплённые (pinned) пакеты
+                // Вторая таблица после первой сводки у winget — это закреплённые (pinned) пакеты;
+                // обновляем смещения колонок по заголовку второй таблицы.
                 inPinnedSection = true;
+                if (i > 0)
+                {
+                    var secondCols = DetectColumnOffsets(lines[i - 1]);
+                    if (secondCols.Count >= 4)
+                    {
+                        columnStarts = secondCols;
+                    }
+                }
+
+                continue;
+            }
+
+            // Пропускаем строку заголовка второй таблицы (перед вторым разделителем «---»)
+            if (i + 1 < lines.Count && IsHeaderDividerLine(lines[i + 1]))
+            {
                 continue;
             }
 
             if (IsSummaryOrSectionBanner(line))
             {
                 if (line.Contains("pinned", StringComparison.OrdinalIgnoreCase) ||
+                    line.Contains("pins", StringComparison.OrdinalIgnoreCase) ||
                     line.Contains("закреп", StringComparison.OrdinalIgnoreCase))
                 {
                     inPinnedSection = true;
@@ -98,8 +112,8 @@ public static partial class WingetOutputParser
         {
             var line = lines[i];
             if (string.IsNullOrWhiteSpace(line) ||
-                SpinnerOrProgressLineRegex().IsMatch(line) ||
-                line.TrimStart().StartsWith("---", StringComparison.Ordinal) ||
+                IsSpinnerOrProgressLine(line) ||
+                IsHeaderDividerLine(line) ||
                 IsSummaryOrSectionBanner(line))
             {
                 continue;
@@ -116,7 +130,6 @@ public static partial class WingetOutputParser
                 }
             }
 
-            // Резервный разбор по группам из 2+ пробелов
             var parts = SplitByMultiSpace(line);
             if (parts.Count >= 2 && LooksLikePackageId(parts[1]))
             {
@@ -193,24 +206,56 @@ public static partial class WingetOutputParser
         var result = new List<string>();
         foreach (var rawLine in raw.Split('\n'))
         {
-            // winget рисует прогресс-бар через '\r' на одной строке перед выводом заголовка
+            // winget рисует прогресс-бар через '\r' на одной строке перед выводом заголовка:
+            // берём последний непустой сегмент, не являющийся спиннером.
             var segments = rawLine.TrimEnd('\r').Split('\r');
-            var clean = segments[^1];
-            if (!string.IsNullOrWhiteSpace(clean) && !SpinnerOrProgressLineRegex().IsMatch(clean))
+            string? chosen = null;
+            for (var s = segments.Length - 1; s >= 0; s--)
             {
-                result.Add(clean);
+                var candidate = segments[s];
+                if (!string.IsNullOrWhiteSpace(candidate) && !IsSpinnerOrProgressLine(candidate))
+                {
+                    chosen = candidate;
+                    break;
+                }
+            }
+
+            if (chosen is not null)
+            {
+                result.Add(chosen);
             }
         }
 
         return result;
     }
 
+    private static bool IsHeaderDividerLine(string line)
+    {
+        var trimmed = line.Trim();
+        return trimmed.Length >= 20 && trimmed.All(c => c == '-');
+    }
+
+    private static bool IsSpinnerOrProgressLine(string line)
+    {
+        var trimmed = line.Trim();
+        if (trimmed.Length == 0 || IsHeaderDividerLine(trimmed))
+        {
+            return false;
+        }
+
+        if (trimmed.Any(c => c is '█' or '▒' or '░'))
+        {
+            return true;
+        }
+
+        return trimmed.Length <= 6 && trimmed.All(c => c is '-' or '\\' or '|' or '/');
+    }
+
     private static int FindDividerLineIndex(IReadOnlyList<string> lines)
     {
         for (var i = 1; i < lines.Count; i++)
         {
-            var trimmed = lines[i].Trim();
-            if (trimmed.Length >= 20 && trimmed.All(c => c == '-'))
+            if (IsHeaderDividerLine(lines[i]))
             {
                 return i;
             }
@@ -230,7 +275,7 @@ public static partial class WingetOutputParser
             var ch = headerLine[i];
             if (!char.IsWhiteSpace(ch))
             {
-                if (!inWord && (offsets.Count == 0 || spaceStreak >= 1))
+                if (!inWord && (offsets.Count == 0 || spaceStreak >= 2))
                 {
                     offsets.Add(i);
                 }
