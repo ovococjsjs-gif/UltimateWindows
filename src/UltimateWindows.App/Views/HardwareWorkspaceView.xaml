@@ -7,35 +7,41 @@
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <!-- Верхние 6 вкладок раздела Железо и Драйверы 2.0 (адаптированы под 1024×768 и 1360×840) -->
+    <!-- Верхние 6 вкладок раздела Железо и Драйверы 2.0 (помещаются в одну строку на 1024×768 и 1360×840) -->
     <Border Grid.Row="0"
             Background="{DynamicResource SurfaceSidebarBrush}"
             BorderBrush="{DynamicResource CardBorderBrush}"
             BorderThickness="0,0,0,1"
-            Padding="10,0">
+            Padding="8,0">
       <WrapPanel Orientation="Horizontal">
         <RadioButton GroupName="HwSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
+                     Padding="11,7" FontSize="12"
                      IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=0}"
                      Content="Паспорт железа" />
         <RadioButton GroupName="HwSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
+                     Padding="11,7" FontSize="12"
                      IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=1}"
-                     Content="Устройства и WHQL" />
+                     Content="Устройства" />
         <RadioButton GroupName="HwSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
+                     Padding="11,7" FontSize="12"
                      IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=2}"
                      Content="Каталог с серверов" />
         <RadioButton GroupName="HwSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
+                     Padding="11,7" FontSize="12"
                      IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=3}"
                      Content="Хранилище и Офлайн" />
         <RadioButton GroupName="HwSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
+                     Padding="11,7" FontSize="12"
                      IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=4}"
-                     Content="Уязвимые (BYOVD)" />
+                     Content="Уязвимые ядра" />
         <RadioButton GroupName="HwSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
+                     Padding="11,7" FontSize="12"
                      IsChecked="{Binding HardwareStudio.SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=5}"
                      Content="Стресс-тест" />
       </WrapPanel>
@@ -189,8 +195,8 @@
           </Grid.ColumnDefinitions>
 
           <Border Grid.Column="0"
-                  Background="{DynamicResource SuccessSubtleBrush}"
-                  BorderBrush="{DynamicResource SuccessBrush}"
+                  Background="{DynamicResource SurfaceElevatedBrush}"
+                  BorderBrush="{DynamicResource SafeEmeraldBrush}"
                   BorderThickness="1"
                   CornerRadius="6"
                   Padding="10,6"
@@ -199,7 +205,7 @@
             <TextBlock Text="{Binding DriverStudio.DriverScoreBadge}"
                        FontSize="12.5"
                        FontWeight="Bold"
-                       Foreground="{DynamicResource SuccessBrush}" />
+                       Foreground="{DynamicResource SafeEmeraldBrush}" />
           </Border>
 
           <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0">
@@ -254,13 +260,13 @@
 
       <DataGrid Grid.Row="2" ItemsSource="{Binding DriverStudio.FilteredDevices}">
         <DataGrid.Columns>
-          <DataGridTextColumn Header="Устройство" Binding="{Binding FriendlyName}" Width="1.25*" />
-          <DataGridTextColumn Header="Класс" Binding="{Binding DeviceClass}" Width="88" />
+          <DataGridTextColumn Header="Устройство" Binding="{Binding FriendlyName}" Width="1.45*" />
+          <DataGridTextColumn Header="Класс" Binding="{Binding DeviceClass}" Width="82" />
           <DataGridTextColumn Header="Поставщик" Binding="{Binding ProviderText}" Width="125" />
           <DataGridTextColumn Header="Версия и дата" Binding="{Binding VersionAndDate}" Width="155" />
-          <DataGridTextColumn Header="Пакет / Подпись" Binding="{Binding InfAndStatus}" Width="135" />
-          <DataGridTextColumn Header="Hardware ID" Binding="{Binding PrimaryHardwareId}" Width="1*" />
-          <DataGridTemplateColumn Header="Действия" Width="175">
+          <DataGridTextColumn Header="Пакет / Подпись" Binding="{Binding InfAndStatus}" Width="132" />
+          <DataGridTextColumn Header="ID чипа" Binding="{Binding PrimaryHardwareId}" Width="0.95*" />
+          <DataGridTemplateColumn Header="Действия" Width="158">
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate>
                 <StackPanel Orientation="Horizontal">
@@ -353,12 +359,12 @@
       <!-- Таблица 39 основных драйверов на все случаи жизни -->
       <DataGrid Grid.Row="1" ItemsSource="{Binding DriverStudio.FilteredEssentialPackages}">
         <DataGrid.Columns>
-          <DataGridTextColumn Header="Раздел" Binding="{Binding CategoryLabel}" Width="145" />
-          <DataGridTextColumn Header="Драйвер / Семейство чипов" Binding="{Binding Title}" Width="1.15*" />
-          <DataGridTextColumn Header="Для ПК" Binding="{Binding PcRelevanceBadge}" Width="125" />
-          <DataGridTextColumn Header="Сервер и размер" Binding="{Binding DeliveryBadge}" Width="165" />
-          <DataGridTextColumn Header="Когда пригодится" Binding="{Binding ScenarioSummary}" Width="1.2*" />
-          <DataGridTemplateColumn Header="Действия" Width="178">
+          <DataGridTextColumn Header="Раздел" Binding="{Binding ShortCategoryLabel}" Width="98" />
+          <DataGridTextColumn Header="Драйвер / Семейство чипов" Binding="{Binding Title}" Width="1.35*" />
+          <DataGridTextColumn Header="Для ПК" Binding="{Binding PcRelevanceBadge}" Width="128" />
+          <DataGridTextColumn Header="Сервер и размер" Binding="{Binding DeliveryBadge}" Width="152" />
+          <DataGridTextColumn Header="Сценарий" Binding="{Binding ScenarioSummary}" Width="1.15*" />
+          <DataGridTemplateColumn Header="Действия" Width="198">
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate>
                 <StackPanel Orientation="Horizontal">
@@ -409,12 +415,12 @@
 
       <DataGrid Grid.Row="4" ItemsSource="{Binding DriverStudio.LiveCatalogResults}">
         <DataGrid.Columns>
-          <DataGridTextColumn Header="Пакет в Каталоге Microsoft" Binding="{Binding Title}" Width="1.2*" />
-          <DataGridTextColumn Header="Поддерживаемые Windows" Binding="{Binding Products}" Width="1.1*" />
-          <DataGridTextColumn Header="Версия" Binding="{Binding Version}" Width="115" />
-          <DataGridTextColumn Header="Дата" Binding="{Binding LastUpdatedText}" Width="95" />
-          <DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="85" />
-          <DataGridTemplateColumn Header="Загрузка" Width="155">
+          <DataGridTextColumn Header="Пакет в Каталоге Microsoft" Binding="{Binding Title}" Width="1.3*" />
+          <DataGridTextColumn Header="ОС Windows" Binding="{Binding Products}" Width="1*" />
+          <DataGridTextColumn Header="Версия" Binding="{Binding Version}" Width="120" />
+          <DataGridTextColumn Header="Дата" Binding="{Binding LastUpdatedText}" Width="92" />
+          <DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="82" />
+          <DataGridTemplateColumn Header="Загрузка" Width="165">
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate>
                 <StackPanel Orientation="Horizontal">
@@ -478,11 +484,11 @@
 
           <DataGrid ItemsSource="{Binding DriverStudio.DriverStoreEntries}">
             <DataGrid.Columns>
-              <DataGridTextColumn Header="INF" Binding="{Binding PublishedInfName}" Width="78" />
-              <DataGridTextColumn Header="Исходный пакет" Binding="{Binding OriginalInfName}" Width="120" />
-              <DataGridTextColumn Header="Поставщик" Binding="{Binding ProviderName}" Width="115" />
-              <DataGridTextColumn Header="Версия" Binding="{Binding DriverVersion}" Width="105" />
-              <DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="80" />
+              <DataGridTextColumn Header="INF" Binding="{Binding PublishedInfName}" Width="68" />
+              <DataGridTextColumn Header="Пакет" Binding="{Binding OriginalInfName}" Width="110" />
+              <DataGridTextColumn Header="Поставщик" Binding="{Binding ProviderName}" Width="98" />
+              <DataGridTextColumn Header="Версия" Binding="{Binding DriverVersion}" Width="98" />
+              <DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="72" />
               <DataGridTextColumn Header="Статус" Binding="{Binding StateBadge}" Width="*" />
             </DataGrid.Columns>
           </DataGrid>

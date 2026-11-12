@@ -101,6 +101,7 @@ public sealed class EssentialDriverItemViewModel : ObservableObject
     public EssentialDriverPackage Package => Item.Package;
 
     public string CategoryLabel => Package.CategoryLabel;
+    public string ShortCategoryLabel => Package.ShortCategoryLabel;
     public string Title => Package.Title;
     public string Vendor => Package.Vendor;
     public string ScenarioSummary => Item.MatchedDeviceSummary is not null

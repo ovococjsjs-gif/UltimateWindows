@@ -221,7 +221,22 @@ public sealed record EssentialDriverPackage(
 {
     public string DeliveryBadge => DeliveryKind == EssentialDriverDeliveryKind.DirectHttps
         ? "Прямой HTTPS вендора"
-        : "Сервер Microsoft WHQL (.cab)";
+        : "Сервер Microsoft (.cab)";
+
+    public string ShortCategoryLabel => Category switch
+    {
+        EssentialDriverCategory.EthernetLan => "Сеть LAN",
+        EssentialDriverCategory.WiFiWireless => "Wi-Fi 5/6/7",
+        EssentialDriverCategory.BluetoothAndTethering => "BT / Модемы",
+        EssentialDriverCategory.GpuAndAssistants => "Видео и DSA",
+        EssentialDriverCategory.ChipsetAndMotherboard => "Чипсет / I2C",
+        EssentialDriverCategory.StorageNvmeRaid => "NVMe / VMD",
+        EssentialDriverCategory.AudioSound => "Аудио",
+        EssentialDriverCategory.UsbSerialIoT => "USB-COM",
+        EssentialDriverCategory.VirtualizationVm => "VirtIO (ВМ)",
+        EssentialDriverCategory.InputAndSensors => "PawnIO / Ввод",
+        _ => CategoryLabel
+    };
 }
 
 public sealed record EssentialDriverEvaluatedItem(
@@ -253,12 +268,12 @@ public sealed record DriverStoreEntry(
     bool IsSupersededDuplicate,
     string? SupersededByVersion)
 {
-    public string FormattedSize => ByteFormatter.Format(SizeBytes);
+    public string FormattedSize => SizeBytes > 0 ? ByteFormatter.Format(SizeBytes) : "—";
 
     public string StateBadge =>
-        IsInUseByDevice ? "Активен (используется)" :
-        IsSupersededDuplicate ? $"Устаревший дубль (есть {SupersededByVersion})" :
-        "Резерв в DriverStore";
+        IsInUseByDevice ? "Активен" :
+        IsSupersededDuplicate ? $"Дубль (есть {SupersededByVersion})" :
+        "Резерв";
 }
 
 public sealed record DriverStoreAuditSummary(

@@ -3,8 +3,8 @@
 # Имена задаются в проверках вызовом surface.Save("имя"). В PNG их превращает scripts/read-ui-shots.py.
 # Знак «+» после имени — снимок со сглаженным текстом (в несколько раз крупнее обычного).
 # Пустой список — снимки не делаются и не передаются.
-drivers-tab-1
-drivers-tab-2
-drivers-tab-3
-drivers-tab-4
 drivers-tab-2-1024
+drivers-tab-4
+drivers-tab-2
+drivers-tab-1
+drivers-tab-3
