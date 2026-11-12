@@ -23,15 +23,16 @@
         <RadioButton GroupName="CleanerSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
                      IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=1}"
-                     Content="Быстрая очистка и браузеры" />
+                     Content="Кэш и браузеры" />
         <RadioButton GroupName="CleanerSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
                      IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=4}"
-                     Content="Программы (каталог + Winapp2)" />
+                     ToolTip="Встроенный каталог из 86 правил и импорт внешних баз Winapp2.ini"
+                     Content="Каталог программ" />
         <RadioButton GroupName="CleanerSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
                      IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=2}"
-                     Content="Реестр (13 категорий)" />
+                     Content="Реестр (13)" />
         <RadioButton GroupName="CleanerSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
                      IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=3}"
@@ -415,9 +416,9 @@
         <!-- Таблица категорий -->
         <DataGrid Grid.Row="1" ItemsSource="{Binding Categories}" IsReadOnly="True" RowHeaderWidth="0">
           <DataGrid.Columns>
-            <DataGridTextColumn Header="Категория" Binding="{Binding FriendlyTitle}" Width="230" />
-            <DataGridTextColumn Header="Файлов" Binding="{Binding ItemCount, StringFormat={}{0:N0}}" Width="80" />
-            <DataGridTextColumn Header="Объём" Binding="{Binding FormattedSize}" Width="105" />
+            <DataGridTextColumn Header="Категория" Binding="{Binding FriendlyTitle}" Width="195" />
+            <DataGridTextColumn Header="Файлов" Binding="{Binding ItemCount, StringFormat={}{0:N0}}" Width="72" />
+            <DataGridTextColumn Header="Объём" Binding="{Binding FormattedSize}" Width="88" />
             <DataGridTextColumn Header="Описание" Binding="{Binding FriendlyDescription}" Width="*" />
           </DataGrid.Columns>
         </DataGrid>
@@ -425,8 +426,8 @@
         <!-- Сводка браузеров по пунктам -->
         <DataGrid Grid.Row="3" ItemsSource="{Binding BrowserDetailItems}" IsReadOnly="True" RowHeaderWidth="0">
           <DataGrid.Columns>
-            <DataGridTextColumn Header="Профиль и пункт браузера" Binding="{Binding FriendlyTitle}" Width="255" />
-            <DataGridTextColumn Header="Найдено" Binding="{Binding FormattedAmount}" Width="165" />
+            <DataGridTextColumn Header="Профиль и пункт браузера" Binding="{Binding FriendlyTitle}" Width="210" />
+            <DataGridTextColumn Header="Найдено" Binding="{Binding FormattedAmount}" Width="130" />
             <DataGridTextColumn Header="Пояснение" Binding="{Binding FriendlyDescription}" Width="*" />
           </DataGrid.Columns>
         </DataGrid>
@@ -502,18 +503,18 @@
           </DockPanel>
         </Border>
 
-        <DataGrid Grid.Row="1" ItemsSource="{Binding RegistryOrphanItems}">
+        <DataGrid Grid.Row="1" ItemsSource="{Binding RegistryOrphanItems}" RowHeaderWidth="0">
           <DataGrid.Columns>
-            <DataGridTemplateColumn Header="✓" Width="42">
+            <DataGridTemplateColumn Header="✓" Width="36">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate>
                   <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" />
                 </DataTemplate>
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
-            <DataGridTextColumn Header="Проблема" Binding="{Binding CategoryTitle}" Width="175" />
-            <DataGridTextColumn Header="Отсутствующий файл / Данные" Binding="{Binding MissingPath}" Width="240" />
-            <DataGridTextColumn Header="Ключ реестра" Binding="{Binding RegistryLocation}" Width="*" />
+            <DataGridTextColumn Header="Проблема" Binding="{Binding CategoryTitle}" Width="135" />
+            <DataGridTextColumn Header="Отсутствующий путь" Binding="{Binding MissingPath}" Width="165" />
+            <DataGridTextColumn Header="Ключ реестра" Binding="{Binding RegistryLocation}" Width="*" MinWidth="115" />
           </DataGrid.Columns>
         </DataGrid>
       </Grid>
@@ -571,20 +572,19 @@
           </DockPanel>
         </Border>
 
-        <DataGrid Grid.Row="2" ItemsSource="{Binding DuplicateItems}">
+        <DataGrid Grid.Row="2" ItemsSource="{Binding DuplicateItems}" RowHeaderWidth="0">
           <DataGrid.Columns>
-            <DataGridTemplateColumn Header="✓" Width="40">
+            <DataGridTemplateColumn Header="✓" Width="34">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate>
                   <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" />
                 </DataTemplate>
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
-            <DataGridTextColumn Header="Статус" Binding="{Binding RoleBadge}" Width="140" />
-            <DataGridTextColumn Header="Имя файла" Binding="{Binding FileName}" Width="165" />
-            <DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="88" />
-            <DataGridTextColumn Header="SHA-256" Binding="{Binding GroupShortHash}" Width="105" />
-            <DataGridTextColumn Header="Папка" Binding="{Binding DirectoryPath}" Width="*" />
+            <DataGridTextColumn Header="Статус" Binding="{Binding RoleBadge}" Width="92" />
+            <DataGridTextColumn Header="Имя файла" Binding="{Binding FileName}" Width="125" />
+            <DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="78" />
+            <DataGridTextColumn Header="Папка" Binding="{Binding DirectoryPath}" Width="*" MinWidth="105" />
           </DataGrid.Columns>
         </DataGrid>
       </Grid>
@@ -654,31 +654,18 @@
 
       <!-- Панель управления каталогом и импортом Winapp2.ini -->
       <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="10,8" Margin="0,0,0,8">
-        <DockPanel>
-          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-            <Button Style="{StaticResource CompactButtonStyle}"
-                    Command="{Binding ImportWinapp2Command}"
-                    Content="Winapp2.ini..."
-                    Margin="0,0,6,0" />
-            <Button Style="{StaticResource CompactButtonStyle}"
-                    Visibility="{Binding HasExternalWinapp2, Converter={StaticResource BoolToVis}}"
-                    Command="{Binding ClearWinapp2Command}"
-                    Content="Сброс Winapp2"
-                    Margin="0,0,8,0" />
-            <Button Style="{StaticResource SecondaryButtonStyle}"
-                    Command="{Binding ScanAppRulesCommand}"
-                    Content="Найти хвосты"
-                    Margin="0,0,6,0" />
-            <Button Style="{StaticResource PrimaryButtonStyle}"
-                    Command="{Binding ExecuteAppRulesCommand}"
-                    Content="Очистить отмеченные" />
-          </StackPanel>
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" MinWidth="105" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
 
-          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <TextBox Width="175"
-                     Text="{Binding AppRuleSearchText, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="Фильтр по названию программы, правила или раздела"
-                     Margin="0,0,8,0" />
+          <TextBox Grid.Column="0"
+                   Text="{Binding AppRuleSearchText, UpdateSourceTrigger=PropertyChanged}"
+                   ToolTip="Фильтр по названию программы, правила или раздела"
+                   Margin="0,0,8,0" />
+
+          <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
             <CheckBox IsChecked="{Binding ShowOnlyNonEmptyRules}"
                       Content="Непустые"
                       ToolTip="Показывать только правила с найденными файлами"
@@ -691,9 +678,27 @@
                     Margin="0,0,5,0" />
             <Button Style="{StaticResource CompactButtonStyle}"
                     Command="{Binding ClearSelectionAppRulesCommand}"
-                    Content="Снять" />
+                    Content="Снять"
+                    Margin="0,0,8,0" />
+            <Button Style="{StaticResource CompactButtonStyle}"
+                    Command="{Binding ImportWinapp2Command}"
+                    Content="Winapp2..."
+                    ToolTip="Подключить внешний файл Winapp2.ini"
+                    Margin="0,0,5,0" />
+            <Button Style="{StaticResource CompactButtonStyle}"
+                    Visibility="{Binding HasExternalWinapp2, Converter={StaticResource BoolToVis}}"
+                    Command="{Binding ClearWinapp2Command}"
+                    Content="Сброс"
+                    Margin="0,0,6,0" />
+            <Button Style="{StaticResource SecondaryButtonStyle}"
+                    Command="{Binding ScanAppRulesCommand}"
+                    Content="Найти хвосты"
+                    Margin="0,0,6,0" />
+            <Button Style="{StaticResource PrimaryButtonStyle}"
+                    Command="{Binding ExecuteAppRulesCommand}"
+                    Content="Очистить отмеченные" />
           </StackPanel>
-        </DockPanel>
+        </Grid>
       </Border>
 
       <!-- Строка статуса и источника правил -->
