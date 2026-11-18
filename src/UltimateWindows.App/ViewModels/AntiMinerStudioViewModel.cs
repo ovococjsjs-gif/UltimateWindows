@@ -60,6 +60,7 @@ public sealed class QuarantineEntryViewModel : ObservableObject
     public string PrimaryPath => Entry.PrimaryPath;
     public string Details => string.IsNullOrWhiteSpace(Entry.StepSummary) ? Entry.FriendlySummary : Entry.StepSummary;
     public string StatusBadge => Entry.StatusText;
+    public string RestoreHint => Entry.RollbackUnavailableReason ?? "Восстановить только доступные изменения";
     public bool CanRestore => !Entry.IsReverted && Entry.RollbackUnavailableReason is null;
     public ICommand RestoreCommand { get; }
 }

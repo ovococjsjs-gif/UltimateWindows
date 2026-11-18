@@ -1,6 +1,5 @@
 using UltimateWindows.Core.Contracts;
 using UltimateWindows.Core.Enums;
-using UltimateWindows.Core.Models;
 using UltimateWindows.Modules.Security.Analyzers;
 using UltimateWindows.Modules.Security.Models;
 using UltimateWindows.Modules.Security.Scanners;
@@ -160,8 +159,7 @@ public sealed partial class AntiMinerSecurityService
                 StateDeltaCount: h.Deltas.Count,
                 IsReverted: h.IsReverted,
                 RollbackUnavailableReason: h.RollbackUnavailableReason,
-                StepSummary: h.StepSummary, Planned: h.Deltas.Count(d => d.Step is not null),
-                Applied: h.Deltas.Count(d => d.Step?.State == StepState.Applied)))
+                StepSummary: h.StepSummary, StepOutcomeText: h.StepOutcomeText))
             .ToList();
     }
 

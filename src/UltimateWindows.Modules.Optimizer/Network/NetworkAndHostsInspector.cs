@@ -102,11 +102,11 @@ public static class NetworkAndHostsInspector
         }
 
         var entries = new List<HostsRedirectEntry>();
-        var lines = hostsText.Split(['\r', '\n']);
-
-        for (int i = 0; i < lines.Length; i++)
+        using var reader = new StringReader(hostsText);
+        int lineNumber = 0;
+        while (reader.ReadLine() is { } raw)
         {
-            var raw = lines[i];
+            lineNumber++;
             var hashIdx = raw.IndexOf('#');
             var clean = (hashIdx >= 0 ? raw[..hashIdx] : raw).Trim();
             if (string.IsNullOrWhiteSpace(clean))
@@ -132,7 +132,7 @@ public static class NetworkAndHostsInspector
                 var isSuspicious = (ip is "0.0.0.0" or "127.0.0.1") && IsProtectedSecurityDomain(domain);
 
                 entries.Add(new HostsRedirectEntry(
-                    LineNumber: i + 1,
+                    LineNumber: lineNumber,
                     RedirectIp: ip,
                     DomainHost: domain,
                     IsSuspiciousSecurityBlock: isSuspicious));
@@ -140,6 +140,34 @@ public static class NetworkAndHostsInspector
         }
 
         return entries;
+    }
+
+    // Для предупреждения допустима эвристика, для автоматической правки — нет.
+    // Строку со сторонним псевдонимом (включая localhost) оставляем для ручной проверки.
+    private static readonly string[] ReviewedSuffixes = ["windowsupdate.com", "update.microsoft.com", "smartscreen.microsoft.com",
+        "kaspersky.com", "drweb.com", "drweb.ru", "malwarebytes.com", "eset.com", "virustotal.com"];
+
+    public static string RemoveReviewedSecurityBlocks(string text)
+    {
+        var blocked = ParseHostsContent(text).Where(r => r.IsSuspiciousSecurityBlock).Select(r => r.LineNumber).ToHashSet();
+        if (blocked.Count == 0) throw new InvalidOperationException("Блокирующие строки в hosts больше не найдены.");
+        var cleaned = new StringBuilder(text.Length);
+        int number = 0;
+        for (int start = 0; start < text.Length;)
+        {
+            int pos = text.IndexOfAny(['\r', '\n'], start);
+            int end = pos < 0 ? text.Length : pos + (text[pos] == '\r' && pos + 1 < text.Length && text[pos + 1] == '\n' ? 2 : 1);
+            if (!blocked.Contains(++number)) cleaned.Append(text, start, end - start);
+            else
+            {
+                var names = text[start..(pos < 0 ? end : pos)].Split('#', 2)[0].Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries).Skip(1);
+                if (!names.All(n => ReviewedSuffixes.Any(s => n.TrimEnd('.').Equals(s, StringComparison.OrdinalIgnoreCase) ||
+                        n.TrimEnd('.').EndsWith("." + s, StringComparison.OrdinalIgnoreCase))))
+                    throw new InvalidOperationException($"Строка hosts {number} содержит непроверенное имя. Требуется ручная проверка.");
+            }
+            start = end;
+        }
+        return cleaned.ToString();
     }
 
     public static string AppendRuleToHostsText(string existingContent, string ipAddress, string domainHost)

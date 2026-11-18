@@ -293,6 +293,17 @@ public sealed class OptimizerTweaksAndNetworkTests : IDisposable
     }
 
     [Fact]
+    public void ReviewedHostsCleanupUsesPhysicalLinesAndLeavesUnrelatedMappingsIntact()
+    {
+        const string original = "# sample\r\n127.0.0.1 localhost\r\n127.0.0.1 data.internal\n0.0.0.0 update.microsoft.com\r# tail";
+        var entry = Assert.Single(NetworkAndHostsInspector.ParseHostsContent(original), r => r.IsSuspiciousSecurityBlock);
+        Assert.Equal(4, entry.LineNumber);
+        Assert.Equal("# sample\r\n127.0.0.1 localhost\r\n127.0.0.1 data.internal\n# tail", NetworkAndHostsInspector.RemoveReviewedSecurityBlocks(original));
+        Assert.Throws<InvalidOperationException>(() => NetworkAndHostsInspector.RemoveReviewedSecurityBlocks("127.0.0.1 update.microsoft.com localhost"));
+        Assert.Throws<InvalidOperationException>(() => NetworkAndHostsInspector.RemoveReviewedSecurityBlocks("0.0.0.0 reset.dev.internal"));
+    }
+
+    [Fact]
     public async Task OptimizerV2CatalogAndHostsEditor_CoversAllCategories_BlocksSecurityHijacks_AndRecordsHostsRollback()
     {
         var rules = DeclarativeTweakCatalog.GetAllRules();

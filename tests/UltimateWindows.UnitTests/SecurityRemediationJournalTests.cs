@@ -27,7 +27,7 @@ public sealed class SecurityRemediationJournalTests : IDisposable
 
     private SecurityThreatFinding Finding() => new("fixture", ThreatDetectionVector.SuspiciousRegistryAutorun, RiskLevel.Attention, 50,
         12345, Source, new(ThreatDetectionVector.SuspiciousRegistryAutorun, "fixture", "Setting", "test", Source, false, "before",
-            RemediationKind: PersistenceRemediationKind.DeleteRegistryValue), "Проверка журнала", "Тест", "", true);
+            RemediationKind: PersistenceRemediationKind.DeleteRegistryValue), "Проверка журнала", "Тест", "", true, ReviewedProcessImage: Source);
 
     [Fact]
     public async Task QuotaFailureBeforeFirstMutationLeavesProcessSettingAndFileAlone()
@@ -36,7 +36,9 @@ public sealed class SecurityRemediationJournalTests : IDisposable
         var result = await _svc.QuarantineThreatAsync(Finding());
         Assert.False(result.Succeeded); Assert.Equal(0, result.FixedItemsCount); Assert.Null(result.RollbackSessionId);
         Assert.Equal(0, _bridge.Stops); Assert.Equal("before", _bridge.Setting); Assert.Equal("before", File.ReadAllText(Source));
-        Assert.True(Assert.Single(await _vault.GetHistoryAsync()).IsJournalOnly);
+        var record = Assert.Single(await _vault.GetHistoryAsync());
+        Assert.Equal(record.SessionId, result.JournalSessionId); Assert.True(record.IsJournalOnly);
+        Assert.Equal("Не начато", record.StepOutcomeText);
     }
 
     [Fact]
@@ -103,6 +105,7 @@ public sealed class SecurityRemediationJournalTests : IDisposable
         var r = await _svc.QuarantineThreatAsync(Finding());
         Assert.False(r.Succeeded); Assert.Equal(afterPlatformSuccess ? 2 : 1, r.FixedItemsCount); Assert.Null(r.RollbackSessionId);
         var saved = Assert.Single(await new ZeroBloatVaultService(Root).GetHistoryAsync());
+        Assert.Equal(afterPlatformSuccess, saved.IsPinned);
         Assert.Equal(afterPlatformSuccess ? StepState.Started : StepState.Planned, saved.Deltas[1].Step!.State);
         Assert.Equal(afterPlatformSuccess ? null : "before", _bridge.Setting); Assert.Empty(saved.RestorableDeltas);
         Assert.Equal(1, _bridge.Stops); Assert.True(File.Exists(Source));
@@ -126,6 +129,42 @@ public sealed class SecurityRemediationJournalTests : IDisposable
         }
         finally { finish.TrySetResult(true); }
         Assert.True((await running).Succeeded);
+    }
+
+    [Fact]
+    public async Task ProcessOnlyOperationIsJournalledButHasNoAutomaticInverse()
+    {
+        var r = await _svc.QuarantineThreatAsync(Finding() with { PersistenceRecord = null, CanQuarantineFileSafely = false });
+        Assert.True(r.Succeeded, r.UserFriendlyMessage); Assert.Equal(1, r.FixedItemsCount); Assert.Null(r.RollbackSessionId);
+        var row = Assert.Single(await _svc.GetQuarantineHistoryAsync());
+        Assert.Equal(row.SessionId, r.JournalSessionId); Assert.Equal("Только журнал", row.RollbackUnavailableReason);
+        Assert.Contains("без отката", row.StepSummary); Assert.Empty(row.QuarantinedPaths); Assert.Equal(1, _bridge.Stops);
+    }
+
+    [Fact]
+    public async Task PurgedConfirmedFileDoesNotPreventRecoveryOfRemainingSetting()
+    {
+        var r = await _svc.QuarantineThreatAsync(Finding());
+        Assert.True(r.Succeeded, r.UserFriendlyMessage); Assert.False(File.Exists(Source));
+        Assert.Equal(1, await _vault.PurgeAllUnpinnedBlobsAsync());
+        var row = Assert.Single(await _svc.GetQuarantineHistoryAsync());
+        Assert.Contains("копия удалена", row.StepSummary); Assert.Null(row.RollbackUnavailableReason);
+        var undo = await _svc.RestoreFromQuarantineAsync(row.SessionId);
+        Assert.True(undo.Succeeded); Assert.Equal(1, undo.FixedItemsCount);
+        Assert.False(File.Exists(Source)); Assert.Equal("before", _bridge.Setting); Assert.Equal(1, _bridge.Stops);
+    }
+
+    [Fact]
+    public async Task FailureToCreateJournalNeverCallsPlatformOrReportsUnsavedId()
+    {
+        using var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(Root, "vault.db"), Pooling = false }.ToString());
+        db.Open(); using var cmd = db.CreateCommand();
+        cmd.CommandText = "CREATE TRIGGER fixture_fail BEFORE INSERT ON step_receipts BEGIN SELECT RAISE(ABORT,'unavailable'); END";
+        cmd.ExecuteNonQuery();
+        var r = await _svc.QuarantineThreatAsync(Finding());
+        Assert.False(r.Succeeded); Assert.Null(r.JournalSessionId); Assert.Null(r.RollbackSessionId);
+        Assert.Equal(0, _bridge.Stops); Assert.Equal("before", _bridge.Setting); Assert.Equal("before", File.ReadAllText(Source));
+        Assert.Empty(await _vault.GetHistoryAsync());
     }
 
     private sealed class FixtureBridge : DefaultSecurityPlatformBridge

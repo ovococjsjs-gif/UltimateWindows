@@ -9,18 +9,21 @@
     </Grid.ColumnDefinitions>
 
     <!-- Левая таблица всех точек отката (Zero-Bloat Time Machine) -->
-    <DataGrid Grid.Column="0" ItemsSource="{Binding Transactions}">
+    <DataGrid Grid.Column="0" IsReadOnly="True" ItemsSource="{Binding Transactions}" RowDetailsVisibilityMode="VisibleWhenSelected">
+      <DataGrid.RowDetailsTemplate>
+        <DataTemplate><TextBlock Text="{Binding Details}" TextWrapping="Wrap" Margin="10,5" /></DataTemplate>
+      </DataGrid.RowDetailsTemplate>
       <DataGrid.Columns>
         <DataGridTextColumn Header="Время" Binding="{Binding CreatedDisplay}" Width="135" />
         <DataGridTextColumn Header="Изменение" Binding="{Binding FriendlyTitle}" Width="*" />
         <DataGridTextColumn Header="При записи ≈" Binding="{Binding StoredSizeText}" Width="90" />
-        <DataGridTextColumn Header="Статус" Binding="{Binding StatusBadge}" Width="95" />
+        <DataGridTextColumn Header="Статус" Binding="{Binding StatusBadge}" Width="115" />
         <DataGridTemplateColumn Header="Управление" Width="175">
           <DataGridTemplateColumn.CellTemplate>
             <DataTemplate>
               <StackPanel Orientation="Horizontal">
                 <Button Style="{StaticResource PrimaryButtonStyle}" Padding="8,2" FontSize="11"
-                        IsEnabled="{Binding CanRollback}"
+                        IsEnabled="{Binding CanRollback}" ToolTip="{Binding RollbackHint}" ToolTipService.ShowOnDisabled="True"
                         Command="{Binding RollbackCommand}" Content="Откатить" Margin="0,0,5,0" />
                 <Button Style="{StaticResource CompactButtonStyle}" Padding="8,2" FontSize="11"
                         Command="{Binding TogglePinCommand}" Content="{Binding PinButtonText}" />

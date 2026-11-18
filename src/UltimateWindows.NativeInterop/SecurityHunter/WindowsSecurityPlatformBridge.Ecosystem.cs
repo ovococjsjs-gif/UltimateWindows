@@ -700,7 +700,7 @@ public sealed partial class WindowsSecurityPlatformBridge
             {
                 try
                 {
-                    var text = File.ReadAllText(hostsPath);
+                    var (text, hash) = ReviewedHostsRepair.Inspect(hostsPath);
                     var suspicious = NetworkAndHostsInspector.ParseHostsContent(text)
                         .Where(h => h.IsSuspiciousSecurityBlock)
                         .ToList();
@@ -716,7 +716,7 @@ public sealed partial class WindowsSecurityPlatformBridge
                             ValueName: "hosts",
                             CurrentMaliciousValue: sampleDomains,
                             SimpleTitle: $"В файле hosts заблокированы сайты антивирусов и обновлений ({suspicious.Count} шт.)",
-                            SimpleExplanation: $"Обнаружена блокировка доступа к защитным серверам ({sampleDomains})."));
+                            SimpleExplanation: $"Обнаружена блокировка доступа к защитным серверам ({sampleDomains}).", ReviewedFileHash: hash));
                     }
                 }
                 catch { }

@@ -1027,6 +1027,7 @@ switch (command)
         var report = await security.RunFullSecurityScanAsync(enableDropOnInspectProbe: false);
         var res = await security.RemoveDangerousDefenderExclusionsAsync(report.SafeDefenderExclusions);
         Console.WriteLine(res.UserFriendlyMessage);
+        if (res.JournalSessionId is { } journalId) Console.WriteLine($"Запись: {journalId}");
         return res.Succeeded ? 0 : 1;
     }
 
@@ -1071,6 +1072,7 @@ switch (command)
         var report = await security.RunFullSecurityScanAsync(enableDropOnInspectProbe: false);
         var res = await security.HealAllSabotageLocksAsync(report.SabotageLocks);
         Console.WriteLine(res.UserFriendlyMessage);
+        if (res.JournalSessionId is { } journalId) Console.WriteLine($"Запись: {journalId}");
         return res.Succeeded ? 0 : 1;
     }
 
@@ -1293,9 +1295,10 @@ switch (command)
 
         foreach (var item in history)
         {
-            var state = $"[{item.RollbackUnavailableReason ?? "В журнале"}]";
+            var state = $"[{item.StepOutcomeText ?? item.RollbackUnavailableReason ?? "В журнале"}]";
             var pin = item.IsPinned ? " 📌" : "";
             Console.WriteLine($"{item.CreatedDisplayLocal} {state}{pin} {item.SessionId} | {item.FriendlyTitle} (при записи ≈ {item.FormattedStoredSize})");
+            if (item.StepOutcomeText is not null) Console.WriteLine(item.StepSummary);
         }
         break;
     }
@@ -1326,7 +1329,7 @@ switch (command)
             return 1;
         }
 
-        Console.WriteLine($"Изменения записи {sessionId} отменены.");
+        Console.WriteLine($"Доступные изменения записи {sessionId} отменены.");
         break;
     }
 

@@ -1,4 +1,7 @@
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
+using System.Xml.Linq;
 using UltimateWindows.Modules.Optimizer.Models;
 
 namespace UltimateWindows.NativeInterop.Optimizer;
@@ -59,6 +62,29 @@ public static class WindowsTaskScheduler
 
         return found;
     }
+
+    internal sealed record ReviewedTask(bool Enabled, string ActionSummary, string DefinitionHash);
+
+    // Сравниваем определение целиком, кроме единственного поля, изменяемого этим действием.
+    // Задание, заново зарегистрированное с другими целями под старым именем, не изменяем при откате.
+    internal static ReviewedTask? ReadForReview(string path) => WithService(service =>
+    {
+        var obj = TryGetTask(service, path);
+        if (obj is null) return null;
+        try
+        {
+            dynamic task = obj;
+            if (!string.Equals((string)task.Path, path, StringComparison.OrdinalIgnoreCase)) return null;
+            string xml = task.Xml;
+            if (xml.Length > 512 * 1024) return null;
+            var definition = XElement.Parse(xml);
+            var ns = definition.Name.Namespace;
+            definition.Element(ns + "Settings")?.Element(ns + "Enabled")?.Remove();
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(definition.ToString(SaveOptions.DisableFormatting)));
+            return new ReviewedTask((bool)task.Enabled, Describe(obj).ActionSummary, Convert.ToHexString(hash));
+        }
+        finally { Release(obj); }
+    });
 
     public static PlatformActionResult SetEnabled(string taskPath, bool enabled)
     {

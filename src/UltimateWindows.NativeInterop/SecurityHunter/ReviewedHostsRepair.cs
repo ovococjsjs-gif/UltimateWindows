@@ -13,26 +13,27 @@ internal static class ReviewedHostsRepair
     private static string PathName => Path.Combine(Environment.SystemDirectory, "drivers", "etc", "hosts");
     private static readonly UTF8Encoding Utf8 = new(false, true);
 
-    internal static PreparedSecurityChange Prepare(string reviewedPath)
+    private static byte[] ReadOriginal(string reviewedPath)
     {
         if (!string.Equals(Path.GetFullPath(reviewedPath), PathName, StringComparison.OrdinalIgnoreCase)) throw new IOException("Неизвестный путь hosts.");
-        byte[] original;
-        using (var f = Open(FileAccess.Read)) original = Read(f);
-        var bom = original.AsSpan().StartsWith(Encoding.UTF8.Preamble) ? Encoding.UTF8.Preamble.Length : 0;
-        string text = Utf8.GetString(original, bom, original.Length - bom);
-        // Работать с физическими строками: Split по двум символам считает CRLF двумя переносами.
-        var cleaned = new StringBuilder();
-        bool removed = false;
-        for (int start = 0; start < text.Length;)
-        {
-            int pos = text.IndexOfAny(['\r', '\n'], start);
-            int end = pos < 0 ? text.Length : pos + (text[pos] == '\r' && pos + 1 < text.Length && text[pos + 1] == '\n' ? 2 : 1);
-            if (NetworkAndHostsInspector.ParseHostsContent(text[start..end]).Any(r => r.IsSuspiciousSecurityBlock)) removed = true;
-            else cleaned.Append(text, start, end - start);
-            start = end;
-        }
-        if (!removed) throw new InvalidOperationException("Блокирующие строки в hosts больше не найдены.");
-        byte[] next = [.. original.AsSpan(0, bom), .. Utf8.GetBytes(cleaned.ToString())];
+        using var f = Open(FileAccess.Read);
+        return Read(f);
+    }
+
+    private static int Bom(byte[] data) => data.AsSpan().StartsWith(Encoding.UTF8.Preamble) ? Encoding.UTF8.Preamble.Length : 0;
+    internal static (string Text, string Hash) Inspect(string path)
+    {
+        var data = ReadOriginal(path); var bom = Bom(data);
+        return (Utf8.GetString(data, bom, data.Length - bom), Hash(data));
+    }
+
+    internal static PreparedSecurityChange Prepare(string reviewedPath, string? reviewedHash)
+    {
+        var original = ReadOriginal(reviewedPath);
+        if (Hash(original) != reviewedHash) throw new IOException("Содержимое hosts изменилось со времени проверки.");
+        var bom = Bom(original);
+        var cleaned = NetworkAndHostsInspector.RemoveReviewedSecurityBlocks(Utf8.GetString(original, bom, original.Length - bom));
+        byte[] next = [.. original.AsSpan(0, bom), .. Utf8.GetBytes(cleaned)];
         return new("Очистка hosts", StateTargetKind.SystemSetting, "HostsSabotageCleanup",
             JsonSerializer.Serialize(new { Original = Convert.ToBase64String(original), AfterHash = Hash(next) }),
             ct => Task.Run(() => ReplaceIfMatches(Hash(original), next), ct));

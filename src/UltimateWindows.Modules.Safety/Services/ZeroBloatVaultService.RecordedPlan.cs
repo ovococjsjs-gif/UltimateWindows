@@ -74,7 +74,7 @@ public sealed partial class ZeroBloatVaultService
             catch (Exception ex)
             {
                 _retainForReview = true;
-                return new(applied, false, $"Не удалось записать итог шага: {ex.Message}");
+                return new(applied, false, $"Итог шага не записан. Снимок закреплён для проверки; не повторяйте действие без проверки объекта. {ex.Message}");
             }
         }
 

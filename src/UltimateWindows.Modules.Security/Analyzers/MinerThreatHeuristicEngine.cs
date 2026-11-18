@@ -109,6 +109,7 @@ public sealed class MinerThreatHeuristicEngine
                     SimpleExplanation: $"Программа выдаёт себя за системную службу Windows «{exeName}», но запущена из посторонней папки «{normPath}».",
                     ExpertTechnicalEvidence: $"PID={proc.ProcessId} | Path='{normPath}' (вне '{sys32Prefix}') | Signed={proc.IsAuthenticodeSigned} | CPU={proc.BaselineCpuPercent:F1}% | GPU={proc.BaselineGpuPercent:F1}%",
                     CanQuarantineFileSafely: isSafeToQuarantineFile,
+                    ReviewedProcessImage: isSafeToQuarantineFile ? normPath : null,
                     CategoryLabel: "Маскировка процесса"));
             }
 
@@ -138,6 +139,7 @@ public sealed class MinerThreatHeuristicEngine
                     SimpleExplanation: $"В параметрах запуска процесса обнаружен прямой признак майнинга («{matchedMarker}»).",
                     ExpertTechnicalEvidence: $"PID={proc.ProcessId} | CLI='{proc.CommandLine}' | Matched='{matchedMarker}'",
                     CanQuarantineFileSafely: isSafeToQuarantineFile,
+                    ReviewedProcessImage: isSafeToQuarantineFile ? normPath : null,
                     CategoryLabel: "Аргументы запуска"));
             }
 
@@ -167,6 +169,7 @@ public sealed class MinerThreatHeuristicEngine
                             : $"В покое программа нагружала процессор на {proc.BaselineCpuPercent:F0}%, но сбросила нагрузку до {proc.DuringInspectCpuPercent:F0}% при открытии мониторинга.",
                         ExpertTechnicalEvidence: $"PID={proc.ProcessId} | QuietCPU={proc.BaselineCpuPercent:F1}% -> InspectCPU={proc.DuringInspectCpuPercent:F1}% | Exited={proc.ExitedDuringInspect} | Signed={proc.IsAuthenticodeSigned}",
                         CanQuarantineFileSafely: isSafeToQuarantineFile,
+                        ReviewedProcessImage: isSafeToQuarantineFile ? normPath : null,
                         CategoryLabel: "Стелс CPU (Drop-on-Inspect)"));
                 }
             }
@@ -196,6 +199,7 @@ public sealed class MinerThreatHeuristicEngine
                         SimpleExplanation: $"В тихом режиме процесс загружал видеокарту (3D/Compute) на {proc.BaselineGpuPercent:F0}%, но при появлении системного монитора сбросил нагрузку GPU до {proc.DuringInspectGpuPercent:F0}%.",
                         ExpertTechnicalEvidence: $"PID={proc.ProcessId} | QuietGPU={proc.BaselineGpuPercent:F1}% -> InspectGPU={proc.DuringInspectGpuPercent:F1}% | Signed={proc.IsAuthenticodeSigned} | Path='{normPath}'",
                         CanQuarantineFileSafely: isSafeToQuarantineFile,
+                        ReviewedProcessImage: isSafeToQuarantineFile ? normPath : null,
                         CategoryLabel: "Стелс GPU (Drop-on-Inspect)",
                         RecommendedActionLabel: isSafeToQuarantineFile ? "Обезвредить" : "Остановить"));
                 }
@@ -248,7 +252,7 @@ public sealed class MinerThreatHeuristicEngine
                         ExpertTechnicalEvidence: $"HollowTarget='{exeName}' PID={proc.ProcessId} | PrivateRWX/RX={proc.PrivateExecutableRegionCount} | CPU={proc.BaselineCpuPercent:F1}% | GPU={proc.BaselineGpuPercent:F1}% | {parentEvidence}",
                         CanQuarantineFileSafely: canQuarantineLoader,
                         CategoryLabel: "Инжекция в память",
-                        RecommendedActionLabel: canQuarantineLoader ? "Обезвредить" : "Остановить"));
+                        RecommendedActionLabel: canQuarantineLoader ? "В карантин" : "Проверить"));
                 }
             }
 
@@ -274,6 +278,7 @@ public sealed class MinerThreatHeuristicEngine
                         SimpleExplanation: $"Процесс держит активное соединение с внешним узлом {poolHit.RemoteAddress}:{poolHit.RemotePort} по типичному порту протокола майнинга Stratum.",
                         ExpertTechnicalEvidence: $"PID={proc.ProcessId} | Local={poolHit.LocalAddress}:{poolHit.LocalPort} -> Remote={poolHit.RemoteAddress}:{poolHit.RemotePort} (IPv6={poolHit.IsIpv6})",
                         CanQuarantineFileSafely: isSafeToQuarantineFile,
+                        ReviewedProcessImage: isSafeToQuarantineFile ? normPath : null,
                         CategoryLabel: "Сетевой пул Stratum"));
                 }
             }

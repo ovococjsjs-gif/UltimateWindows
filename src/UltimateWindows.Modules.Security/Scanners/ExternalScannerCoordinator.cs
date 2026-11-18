@@ -249,12 +249,13 @@ public sealed class ExternalScannerCoordinator
                 PersistenceRecord: null,
                 SimpleTitle: $"PE-sieve обнаружил внедрённый код в памяти процесса «{procName}»",
                 SimpleExplanation: isUnderWin
-                    ? $"В легитимный системный процесс «{procName}» (PID {pid}) внедрён чужеродный модуль памяти (Process Hollowing / PE Implant). Сам системный файл удалять не нужно — достаточно завершить заражённый экземпляр и убрать загрузчик."
+                    ? $"В легитимный системный процесс «{procName}» (PID {pid}) внедрён чужеродный модуль памяти (Process Hollowing / PE Implant). Системный файл и процесс автоматически не изменяются. Требуется ручная проверка."
                     : $"В памяти процесса «{procName}» (PID {pid}) найдены подменённые или распакованные исполняемые секции.",
                 ExpertTechnicalEvidence: $"PE-sieve JSON PID={pid}: hollowed/replaced={hollowed}, implanted_pe={implantedPe}, implanted_shc={implantedShc}, hdr_modified={hdrModified}, iat_hooked={iatHooked}, patched={patched} | Image='{imagePath}'",
                 CanQuarantineFileSafely: !isUnderWin && !string.IsNullOrWhiteSpace(imagePath),
                 CategoryLabel: "Память (PE-sieve)",
-                RecommendedActionLabel: isUnderWin ? "Завершить процесс" : "В карантин");
+                RecommendedActionLabel: isUnderWin ? "Проверить" : "В карантин",
+                ReviewedProcessImage: isUnderWin ? null : imagePath);
         }
         catch
         {
@@ -310,7 +311,7 @@ public sealed class ExternalScannerCoordinator
                 ExpertTechnicalEvidence: $"YARA match: rule='{ruleName}', target='{target}'",
                 CanQuarantineFileSafely: filePath is not null && !isUnderWin,
                 CategoryLabel: "Сигнатура YARA",
-                RecommendedActionLabel: filePath is not null && !isUnderWin ? "В карантин" : "Завершить"));
+                RecommendedActionLabel: filePath is not null && !isUnderWin ? "В карантин" : "Проверить"));
         }
 
         return findings;

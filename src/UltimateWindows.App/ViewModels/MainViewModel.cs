@@ -51,7 +51,9 @@ public sealed class TransactionItemViewModel : ObservableObject
     public string StoredSizeText => Record.FormattedStoredSize;
     public bool IsPinned => Record.IsPinned;
     public bool CanRollback => Record.RollbackUnavailableReason is null;
-    public string StatusBadge => Record.RollbackUnavailableReason ?? (Record.IsPinned ? "Закреплено" : "В журнале");
+    public string Details => Record.StepOutcomeText is null ? Record.FriendlySummary : Record.StepSummary;
+    public string RollbackHint => Record.RollbackUnavailableReason ?? "Отменить только доступные изменения";
+    public string StatusBadge => Record.StepOutcomeText ?? Record.RollbackUnavailableReason ?? (Record.IsPinned ? "Закреплено" : "В журнале");
     public string PinButtonText => Record.IsPinned ? "Открепить" : "Закрепить";
 
     public ICommand RollbackCommand { get; }
@@ -445,10 +447,12 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task TogglePinAsync(Guid sessionId, bool pin)
     {
-        await _vaultService.SetPinnedAsync(sessionId, pin);
-        StatusNotification = pin
-            ? "Точка отката закреплена."
-            : "Закрепление снято.";
+        try
+        {
+            await _vaultService.SetPinnedAsync(sessionId, pin);
+            StatusNotification = pin ? "Точка отката закреплена." : "Закрепление снято.";
+        }
+        catch (IOException ex) { StatusNotification = ex.Message; }
         await RefreshVaultStateAsync();
     }
 

@@ -162,10 +162,8 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
             !string.IsNullOrWhiteSpace(delta.PreviousStateJson))
         {
             var snapshot = JsonSerializer.Deserialize<RegistryValueSnapshot>(delta.PreviousStateJson);
-            if (snapshot is not null)
-            {
-                RestoreRegistrySnapshot(snapshot);
-            }
+            if (snapshot is null) throw new InvalidDataException("В записи нет снимка реестра.");
+            RestoreRegistrySnapshot(snapshot);
 
             return;
         }
@@ -232,39 +230,6 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
                 if (!string.IsNullOrWhiteSpace(p) && c is not null)
                 {
                     await File.WriteAllTextAsync(p, c, ct).ConfigureAwait(false);
-                }
-
-                return;
-            }
-
-            if (delta.TargetPath.StartsWith("DefenderExclusion:", StringComparison.OrdinalIgnoreCase))
-            {
-                using var doc = JsonDocument.Parse(delta.PreviousStateJson);
-                var kind = doc.RootElement.TryGetProperty("Kind", out var kEl) ? kEl.GetString() : "Path";
-                var val = doc.RootElement.TryGetProperty("Value", out var vEl) ? vEl.GetString() : null;
-                var isPolicy = doc.RootElement.TryGetProperty("IsPolicyEnforced", out var polEl) && polEl.ValueKind == JsonValueKind.True;
-                var regPath = doc.RootElement.TryGetProperty("RegistryPath", out var rpEl) ? rpEl.GetString() : null;
-                if (!string.IsNullOrWhiteSpace(val))
-                {
-                    if (isPolicy && !string.IsNullOrWhiteSpace(regPath))
-                    {
-                        var sub = regPath.StartsWith(@"HKLM\", StringComparison.OrdinalIgnoreCase) ? regPath[5..] : regPath;
-                        using var key = Registry.LocalMachine.CreateSubKey(sub, writable: true);
-                        key?.SetValue(val, 0, RegistryValueKind.DWord);
-                    }
-                    else
-                    {
-                        var paramName = kind switch
-                        {
-                            "Process" => "ExclusionProcess",
-                            "Extension" => "ExclusionExtension",
-                            "IpAddress" => "ExclusionIpAddress",
-                            _ => "ExclusionPath"
-                        };
-                        var escaped = val.Replace("'", "''", StringComparison.Ordinal);
-                        _ = UltimateWindows.NativeInterop.SecurityHunter.WindowsSecurityPlatformBridge
-                            .RunShortPowerShell($"Add-MpPreference -{paramName} '{escaped}' -ErrorAction SilentlyContinue", timeoutMs: 6000);
-                    }
                 }
 
                 return;
@@ -469,9 +434,12 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
         if (string.IsNullOrWhiteSpace(name) ||
             !Enum.TryParse<ServiceStartupMode>(startupText, ignoreCase: true, out var startup))
         {
+            if (delta.Step is not null) throw new InvalidDataException("В записи нет исходной конфигурации службы.");
             return;
         }
 
+        if (delta.Step is not null && (!doc.RootElement.TryGetProperty("Registration", out var reg) ||
+            reg.Deserialize<ServiceRegistration>() != ServiceRegistration.Read(name))) throw new IOException("Регистрация службы изменилась.");
         var current = WindowsServiceControl.Query(name);
         if (delta.Step is not null && (current is null || (current.Startup != ServiceStartupMode.Disabled && current.Startup != startup)))
             throw new IOException("Служба отсутствует или тип запуска изменился после операции.");
@@ -499,19 +467,30 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
             !doc.RootElement.TryGetProperty("Enabled", out var enabledElement) ||
             (enabledElement.ValueKind != JsonValueKind.True && enabledElement.ValueKind != JsonValueKind.False))
         {
+            if (delta.Step is not null) throw new InvalidDataException("В записи нет исходного состояния задачи.");
             return;
         }
 
         var enabled = enabledElement.GetBoolean();
+        if (delta.Step is not null)
+        {
+            var before = WindowsTaskScheduler.ReadForReview(path);
+            if (before is null || !doc.RootElement.TryGetProperty("DefinitionHash", out var hash) || before.DefinitionHash != hash.GetString())
+                throw new IOException("Проверенное задание отсутствует или его определение изменилось.");
+            if (before.Enabled == enabled) return;
+            var set = WindowsTaskScheduler.SetEnabled(path, enabled);
+            if (!set.Succeeded || WindowsTaskScheduler.ReadForReview(path) != (before with { Enabled = enabled }))
+                throw new IOException($"Не удалось подтвердить откат задания: {set.Error}");
+            return;
+        }
         var current = WindowsTaskScheduler.Query([path]);
-        if (delta.Step is not null && !current.ContainsKey(path)) throw new IOException("Проверенное задание не найдено.");
         if (!current.TryGetValue(path, out var snapshot) || snapshot.Enabled == enabled)
         {
             return;
         }
 
         var result = WindowsTaskScheduler.SetEnabled(path, enabled);
-        if (!result.Succeeded || (delta.Step is not null && (!WindowsTaskScheduler.Query([path]).TryGetValue(path, out var check) || check.Enabled != enabled)))
+        if (!result.Succeeded)
         {
             throw new InvalidOperationException(
                 $"Не удалось вернуть задание «{path}» в состояние «{TweakScheduledTaskAction.FormatEnabled(enabled)}»: {result.Error}.");
@@ -540,11 +519,10 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
             return;
         }
 
-        using var writableKey = baseKey.CreateSubKey(snapshot.SubKey, writable: true);
+        var guarded = snapshot.OnlyRestoreIfAbsent || snapshot.ExpectedKind.HasValue;
+        using var writableKey = guarded ? baseKey.OpenSubKey(snapshot.SubKey, writable: true) : baseKey.CreateSubKey(snapshot.SubKey, writable: true);
         if (writableKey is null || snapshot.SerializedData is null)
-        {
-            return;
-        }
+            throw new IOException("Ключ отсутствует или снимок не содержит исходных данных. Ничего не восстановлено.");
 
         object valueToWrite = snapshot.ValueKind switch
         {
@@ -555,7 +533,7 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
             _ => snapshot.SerializedData
         };
 
-        if (snapshot.OnlyRestoreIfAbsent || snapshot.ExpectedKind.HasValue)
+        if (guarded)
         {
             var exists = writableKey.GetValueNames().Contains(snapshot.ValueName, StringComparer.OrdinalIgnoreCase);
             if (exists)
@@ -569,7 +547,7 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
             else if (!snapshot.OnlyRestoreIfAbsent) throw new IOException("Значение удалено после исправления; повторное создание отменено.");
         }
         writableKey.SetValue(snapshot.ValueName, valueToWrite, snapshot.ValueKind);
-        if ((snapshot.OnlyRestoreIfAbsent || snapshot.ExpectedKind.HasValue) &&
+        if (guarded &&
             (writableKey.GetValueKind(snapshot.ValueName) != snapshot.ValueKind || !System.Collections.StructuralComparisons.StructuralEqualityComparer.Equals(
                 writableKey.GetValue(snapshot.ValueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames), valueToWrite)))
             throw new IOException("Не удалось подтвердить восстановленное значение реестра.");

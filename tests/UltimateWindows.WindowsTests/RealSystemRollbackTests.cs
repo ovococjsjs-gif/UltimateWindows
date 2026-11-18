@@ -5,6 +5,9 @@ using UltimateWindows.Modules.Optimizer.Services;
 using UltimateWindows.Modules.Safety.Services;
 using UltimateWindows.NativeInterop.Optimizer;
 using UltimateWindows.NativeInterop.Restore;
+using UltimateWindows.Modules.Security.Models;
+using UltimateWindows.Modules.Security.Services;
+using UltimateWindows.NativeInterop.SecurityHunter;
 using Xunit;
 
 namespace UltimateWindows.WindowsTests;
@@ -147,6 +150,19 @@ public sealed class RealSystemRollbackTests : IDisposable
             await _vault.RollbackTransactionAsync(disabled.RollbackSessionId.Value);
             Assert.Equal(ServiceStartupMode.Manual, _bridge.QueryServiceConfig(ProbeService)?.Startup);
             notes.Add("откат: тип запуска вернулся к «Вручную»");
+
+            // Тот же одноразовый объект, но через журнал шагов «Защиты». Службу не запускаем.
+            var image = Path.Combine(Environment.SystemDirectory, "cmd.exe") + " /c exit 0";
+            var finding = new PersistenceAnomalyRecord(ThreatDetectionVector.SuspiciousServiceOrDriver,
+                $@"HKLM\SYSTEM\CurrentControlSet\Services\{ProbeService}", ProbeService, image, null, false, image,
+                RemediationKind: PersistenceRemediationKind.DisableWindowsService, RemediationTarget: ProbeService);
+            var security = new AntiMinerSecurityService(_vault, new WindowsSecurityPlatformBridge());
+            var changed = await security.RemovePersistenceAnomalyAsync(finding);
+            Assert.True(changed.Succeeded, changed.UserFriendlyMessage);
+            Assert.Equal(ServiceStartupMode.Disabled, _bridge.QueryServiceConfig(ProbeService)?.Startup);
+            var undo = await security.RestoreFromQuarantineAsync(Assert.IsType<Guid>(changed.RollbackSessionId));
+            Assert.True(undo.Succeeded, undo.UserFriendlyMessage);
+            Assert.Equal(ServiceStartupMode.Manual, _bridge.QueryServiceConfig(ProbeService)?.Startup);
         }
         finally
         {
@@ -183,6 +199,16 @@ public sealed class RealSystemRollbackTests : IDisposable
             await _vault.RollbackTransactionAsync(disabled.RollbackSessionId.Value);
             Assert.True(IsTaskEnabled());
             notes.Add("откат: задание снова включено");
+
+            var action = tasks.Single(t => t.TaskPath == ProbeTaskPath).ActionSummary;
+            var finding = new PersistenceAnomalyRecord(ThreatDetectionVector.SuspiciousScheduledTask, ProbeTaskPath,
+                ProbeTaskName, action, null, false, action, RemediationKind: PersistenceRemediationKind.DisableScheduledTask,
+                RemediationTarget: ProbeTaskPath);
+            var security = new AntiMinerSecurityService(_vault, new WindowsSecurityPlatformBridge());
+            var changed = await security.RemovePersistenceAnomalyAsync(finding);
+            Assert.True(changed.Succeeded, changed.UserFriendlyMessage); Assert.False(IsTaskEnabled());
+            var undo = await security.RestoreFromQuarantineAsync(Assert.IsType<Guid>(changed.RollbackSessionId));
+            Assert.True(undo.Succeeded, undo.UserFriendlyMessage); Assert.True(IsTaskEnabled());
         }
         finally
         {

@@ -167,7 +167,7 @@ public sealed class AntiMinerAndSecurityTests : IDisposable
             "Скрытый майнер fake_miner_worker.exe",
             "Тестовая изоляция",
             "CPU drop 80% -> 0%",
-            CanQuarantineFileSafely: true);
+            CanQuarantineFileSafely: true, ReviewedProcessImage: rogueFile);
 
         var okRes = await service.QuarantineThreatAsync(rogueFinding);
         Assert.True(okRes.Succeeded);

@@ -471,12 +471,12 @@
         </DockPanel>
       </Border>
 
-      <DataGrid Grid.Row="1" ItemsSource="{Binding QuarantineHistory}" RowDetailsVisibilityMode="VisibleWhenSelected">
+      <DataGrid x:Name="QuarantineGrid" Grid.Row="1" IsReadOnly="True" ItemsSource="{Binding QuarantineHistory}" RowDetailsVisibilityMode="VisibleWhenSelected">
         <DataGrid.RowDetailsTemplate><DataTemplate><TextBlock Text="{Binding Details}" TextWrapping="Wrap" Margin="10,5" /></DataTemplate></DataGrid.RowDetailsTemplate>
         <DataGrid.Columns>
           <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampLocalText}" Width="145" />
           <DataGridTextColumn Header="Операция" Binding="{Binding FriendlyTitle}" Width="240" />
-          <DataGridTextColumn Header="Изолированный объект" Binding="{Binding PrimaryPath}" Width="*" />
+          <DataGridTextColumn Header="Файл при операции" Binding="{Binding PrimaryPath}" Width="*" />
           <DataGridTextColumn Header="Статус" Binding="{Binding StatusBadge}" Width="145" />
           <DataGridTemplateColumn Header="Откат" Width="125">
             <DataGridTemplateColumn.CellTemplate>
@@ -484,7 +484,7 @@
                 <Button Style="{StaticResource PrimaryButtonStyle}"
                         Padding="8,3"
                         FontSize="11"
-                        Visibility="{Binding CanRestore, Converter={StaticResource BoolToVis}}"
+                        IsEnabled="{Binding CanRestore}" ToolTip="{Binding RestoreHint}" ToolTipService.ShowOnDisabled="True"
                         Command="{Binding RestoreCommand}"
                         Content="Восстановить" />
               </DataTemplate>

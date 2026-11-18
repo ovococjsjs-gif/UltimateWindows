@@ -8,7 +8,7 @@ public sealed record StepReceipt(string Label, StepState State, string Detail = 
     public string StatusText => State switch
     {
         StepState.Planned => "не начато",
-        StepState.Started => "начато, итог неизвестен",
+        StepState.Started => "начато, итог не записан — проверьте объект",
         StepState.Applied => "выполнено",
         _ => "не подтверждено" + (Detail.Length > 0 ? $" ({Detail})" : "")
     };

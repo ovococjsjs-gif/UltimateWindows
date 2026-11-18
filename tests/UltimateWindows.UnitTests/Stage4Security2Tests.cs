@@ -273,7 +273,7 @@ public sealed class Stage4Security2Tests : IDisposable
         Assert.Equal(6044, hit.SuspectProcessId);
         // conhost.exe лежит в C:\Windows\System32 — карантин системного файла должен быть запрещён, но процесс можно завершить!
         Assert.False(hit.CanQuarantineFileSafely);
-        Assert.True(hit.CanRemediateAny);
+        Assert.False(hit.CanRemediateAny);
 
         // Одиночный inline-патч оверлея без имплантов игнорируется
         const string overlayJson = """
@@ -322,7 +322,7 @@ public sealed class Stage4Security2Tests : IDisposable
             SimpleTitle: "Перехват COM + майнер",
             SimpleExplanation: "Комплексная угроза",
             ExpertTechnicalEvidence: "Test",
-            CanQuarantineFileSafely: true);
+            CanQuarantineFileSafely: true, ReviewedProcessImage: minerPath);
 
         var res = await service.QuarantineThreatAsync(finding);
         Assert.True(res.Succeeded);

@@ -1283,42 +1283,4 @@ public sealed partial class WindowsSecurityPlatformBridge
             return "";
         }
     }
-
-    internal static bool RunShortPowerShell(string command, int timeoutMs)
-    {
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = "powershell.exe",
-                CreateNoWindow = true,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
-            psi.ArgumentList.Add("-NoProfile");
-            psi.ArgumentList.Add("-NonInteractive");
-            psi.ArgumentList.Add("-ExecutionPolicy");
-            psi.ArgumentList.Add("Bypass");
-            psi.ArgumentList.Add("-Command");
-            psi.ArgumentList.Add(command);
-
-            using var proc = Process.Start(psi);
-            if (proc is null) return false;
-            if (!proc.WaitForExit(timeoutMs))
-            {
-                try { proc.Kill(); } catch { }
-                return false;
-            }
-
-            return proc.ExitCode == 0;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static string EscapeWmiSingleQuotes(string value) =>
-        (value ?? "").Replace("'", "''", StringComparison.Ordinal);
 }

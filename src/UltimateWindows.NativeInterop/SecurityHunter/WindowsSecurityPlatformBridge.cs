@@ -152,6 +152,7 @@ public sealed partial class WindowsSecurityPlatformBridge : DefaultSecurityPlatf
         try
         {
             using var proc = Process.GetProcessById(processId);
+            _ = proc.SafeHandle; // удерживать тот же экземпляр процесса до проверки и завершения
             var cleanName = proc.ProcessName;
             if (cleanName.Equals("csrss", StringComparison.OrdinalIgnoreCase) ||
                 cleanName.Equals("lsass", StringComparison.OrdinalIgnoreCase) ||

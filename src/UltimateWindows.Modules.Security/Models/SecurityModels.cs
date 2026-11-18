@@ -201,8 +201,10 @@ public sealed record PersistenceAnomalyRecord(
         _ => "Прочие точки закрепления"
     };
 
-    public string StatusBadge => IsAnomaly ? "Подозрительно" : (IsSigned ? "Подписан" : "Штатно");
-    public bool CanRemediate => IsAnomaly && RemediationKind != PersistenceRemediationKind.None;
+    public string StatusBadge => IsAnomaly ? CanRemediate ? "Подозрительно" : "Вручную" : IsSigned ? "Подписан" : "Штатно";
+    public bool CanRemediate => IsAnomaly && RemediationKind is PersistenceRemediationKind.DeleteRegistryValue or
+        PersistenceRemediationKind.RestoreRegistryDefault or PersistenceRemediationKind.DisableScheduledTask or
+        PersistenceRemediationKind.DisableWindowsService or PersistenceRemediationKind.QuarantineStartupFile;
 }
 
 /// <summary>
@@ -292,7 +294,8 @@ public sealed record OsSabotageFinding(
     string ValueName,
     string CurrentMaliciousValue,
     string SimpleTitle,
-    string SimpleExplanation);
+    string SimpleExplanation,
+    string? ReviewedFileHash = null);
 
 /// <summary>
 /// Итоговая карточка найденной угрозы с понятным объяснением, оценкой достоверности и действием обезвреживания.
@@ -312,7 +315,8 @@ public sealed record SecurityThreatFinding(
     string CategoryLabel = "",
     string RecommendedActionLabel = "Обезвредить",
     DefenderExclusionFinding? LinkedExclusion = null,
-    FirewallRuleAnomaly? LinkedFirewallRule = null)
+    FirewallRuleAnomaly? LinkedFirewallRule = null,
+    string? ReviewedProcessImage = null)
 {
     public string ConfidenceBadge => $"{ConfidenceScorePercent}% ({Severity switch
     {
@@ -337,12 +341,11 @@ public sealed record SecurityThreatFinding(
             _ => "Автозакрепление"
         };
 
-    public bool CanRemediateAny =>
-        CanQuarantineFileSafely ||
-        (PersistenceRecord?.CanRemediate ?? false) ||
-        LinkedExclusion is not null ||
-        LinkedFirewallRule is not null ||
-        SuspectProcessId is > 4;
+    // SuspectFilePath может указывать на загрузчик, а не на образ процесса с указанным PID.
+    public bool CanStopReviewedProcess => SuspectProcessId is > 4 && !string.IsNullOrWhiteSpace(ReviewedProcessImage);
+    public bool CanRemediateAny => PersistenceRecord is not { CanRemediate: false } && LinkedExclusion is not { IsPolicyEnforced: true } &&
+        (CanQuarantineFileSafely || PersistenceRecord?.CanRemediate == true || LinkedExclusion?.IsDangerousMinerExclusion == true ||
+         LinkedFirewallRule is not null || CanStopReviewedProcess);
 }
 
 /// <summary>
@@ -358,12 +361,11 @@ public sealed record QuarantinedThreatEntry(
     bool IsReverted,
     string? RollbackUnavailableReason = null,
     string StepSummary = "",
-    int Planned = 0, int Applied = 0)
+    string? StepOutcomeText = null)
 {
     public string TimestampLocalText => QuarantinedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss");
     public string PrimaryPath => QuarantinedPaths.Count > 0 ? QuarantinedPaths[0] : "Без изолированного файла";
-    public string StatusText => IsReverted ? "Откат выполнен" : Planned == 0 ? RollbackUnavailableReason ?? "В журнале" :
-        Applied == 0 ? "Нет подтверждения" : Applied < Planned ? $"Частично · {Applied}/{Planned}" : $"Выполнено · {Applied}/{Planned}";
+    public string StatusText => StepOutcomeText ?? RollbackUnavailableReason ?? "В журнале";
 }
 
 /// <summary>

@@ -14,10 +14,11 @@ public sealed partial class AntiMinerSecurityService
             var changes = new List<PreparedSecurityChange>();
             var path = string.IsNullOrWhiteSpace(finding.SuspectFilePath) ? null : Path.GetFullPath(finding.SuspectFilePath);
             var protectedPath = path is not null && IsWindowsPath(path);
-            if (finding.SuspectProcessId is int pid and > 4 && !protectedPath)
+            var image = finding.ReviewedProcessImage;
+            if (finding.CanStopReviewedProcess && finding.SuspectProcessId is int pid && image is not null && !IsWindowsPath(Path.GetFullPath(image)))
                 changes.Add(new($"Остановка PID {pid}", StateTargetKind.JournalEntry, $"PID {pid}", null,
-                    token => _bridge.TerminateSuspectProcessAsync(pid, path, token)));
-            if (finding.PersistenceRecord is { CanRemediate: true } p) changes.Add(PreparePersistence(p));
+                    token => _bridge.TerminateSuspectProcessAsync(pid, image, token)));
+            if (finding.PersistenceRecord is { } p) changes.Add(PreparePersistence(p));
             if (finding.LinkedExclusion is { } ex) changes.Add(PrepareExclusion(ex));
             if (finding.LinkedFirewallRule is { } fw) changes.Add(_bridge.PrepareFirewallRule(fw));
             if (finding.CanQuarantineFileSafely && path is not null && !protectedPath &&
@@ -44,7 +45,7 @@ public sealed partial class AntiMinerSecurityService
 
     private PreparedSecurityChange PreparePersistence(PersistenceAnomalyRecord p)
     {
-        if (!p.CanRemediate) throw new InvalidOperationException("Штатная запись не подлежит удалению.");
+        if (!p.CanRemediate) throw new InvalidOperationException("Для этой записи нет проверенного автоматического исправления. Требуется ручная проверка.");
         return p.RemediationKind == PersistenceRemediationKind.QuarantineStartupFile ? PrepareFile(p.RemediationTarget) : _bridge.PreparePersistence(p);
     }
 
@@ -65,6 +66,7 @@ public sealed partial class AntiMinerSecurityService
     private async Task<SecurityRemediationResult> RunReviewedAsync(string title, Func<IReadOnlyList<PreparedSecurityChange>> prepare, CancellationToken ct)
     {
         Guid? journalId = null;
+        Guid? preparingId = null;
         var steps = new List<SecurityStepResult>();
         string? problem = null;
         try
@@ -80,6 +82,7 @@ public sealed partial class AntiMinerSecurityService
                 if (c.Kind == StateTargetKind.QuarantinedFile) await tx.BackupFileAsync(c.Target, ct).ConfigureAwait(false);
                 else tx.RecordStateDelta(c.Kind, c.Target, c.BeforeJson, c.AfterJson);
             }
+            preparingId = tx.SessionId;
             var plan = await tx.PrepareRecordedPlanAsync(changes.Select(c => c.Label).ToArray(), ct).ConfigureAwait(false);
             journalId = plan.Snapshot.SessionId;
             for (int i = 0; i < changes.Count; i++)
@@ -94,13 +97,25 @@ public sealed partial class AntiMinerSecurityService
         catch (OperationCanceledException) { problem = "Операция отменена."; }
         catch (Exception ex) { problem = ex.Message; }
 
+        if (journalId is null && preparingId is { } candidate)
+        {
+            // Снимки могли попасть в журнал, но не пройти проверку квоты. Не выдавать ID несуществующей записи.
+            try { journalId = (await _vaultService.GetTransactionAsync(candidate, CancellationToken.None).ConfigureAwait(false))?.SessionId; }
+            catch (Exception ex) { problem += $" Не удалось прочесть журнал: {ex.Message}"; }
+        }
+
         var done = steps.Where(s => s.State == StepState.Applied).ToList();
         var undo = steps.Count(s => s.CanRollback);
         var cancelled = ct.IsCancellationRequested && problem is not null;
         var status = cancelled ? "Остановлено" : problem is null ? "Выполнено" : done.Count > 0 ? "Выполнено частично" : "Операция не завершена";
         var summary = steps.Count > 0 ? $"{status}: {done.Count} из {steps.Count}." : "Изменения не начинались.";
         if (done.Count > 0) summary += " " + string.Join("; ", done.Take(4).Select(s => s.Label + (!s.ReceiptSaved ? " (итог не записан)" : s.CanRollback ? "" : " (без отката)"))) + ".";
-        if (problem is not null) summary += " " + problem;
+        if (problem is not null)
+        {
+            summary += " " + problem;
+            var notStarted = steps.Where(s => s.State == StepState.Planned).ToList();
+            if (notStarted.Count > 0) summary += $" Не начато ({notStarted.Count}): {notStarted[0].Label}{(notStarted.Count > 1 ? " и др." : "")}.";
+        }
         summary += undo > 0 ? $" Для отката сохранено шагов: {undo}." : " Нет подтверждённых шагов для автоматического отката.";
         return new(problem is null, undo > 0 ? journalId : null, done.Count, summary)
         { Steps = steps, JournalSessionId = journalId, WasCancelled = cancelled };
