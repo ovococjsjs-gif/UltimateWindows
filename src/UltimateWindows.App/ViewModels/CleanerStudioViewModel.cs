@@ -158,7 +158,10 @@ public sealed class CleanerStudioViewModel : ObservableObject
     private readonly VaultSafeCleanerService _cleanerService;
     private readonly Func<string, Task> _onActionCompletedAsync;
 
-    private sealed record Preview(CleanupScanReport Files, BrowserDataItemSummary[] BrowserItems);
+    private sealed record Preview(CleanupScanReport Files, BrowserDataScanReport? Browser)
+    {
+        public IReadOnlyList<BrowserDataItemSummary> BrowserItems => Browser?.Items ?? [];
+    }
     private Preview? _preview;
     private int _selectionVersion;
     private CancellationTokenSource? _previewCts;
@@ -173,7 +176,6 @@ public sealed class CleanerStudioViewModel : ObservableObject
     private bool _cleanBrowserCaches = true;
     private bool _cleanSystemTempAndShaders = true;
     private bool _cleanRegistryOrphans = false;
-    private bool _emptyRecycleBin;
     private bool _includeDeveloperCaches;
 
     // Пункты браузеров (Этап 2: по умолчанию включён только кэш)
@@ -294,6 +296,7 @@ public sealed class CleanerStudioViewModel : ObservableObject
 
         // Стандартная очистка
         ScanPreviewCommand = new AsyncRelayCommand(_ => RunScanPreviewAsync(), _ => !IsCleaning && !IsScanning);
+        OpenRecycleBinCommand = new RelayCommand(_ => Process.Start(new ProcessStartInfo("explorer.exe", "shell:RecycleBinFolder") { UseShellExecute = false }));
         CancelPreviewCommand = new RelayCommand(_ => _previewCts?.Cancel());
         ExecuteSafeCleanCommand = new AsyncRelayCommand(_ => ExecuteSafeCleanAsync(), _ => CanExecuteClean);
 
@@ -431,7 +434,6 @@ public sealed class CleanerStudioViewModel : ObservableObject
     public bool CleanBrowserCaches { get => _cleanBrowserCaches; set => SetSelection(ref _cleanBrowserCaches, value); }
     public bool CleanSystemTempAndShaders { get => _cleanSystemTempAndShaders; set => SetSelection(ref _cleanSystemTempAndShaders, value); }
     public bool CleanRegistryOrphans { get => _cleanRegistryOrphans; set => SetSelection(ref _cleanRegistryOrphans, value); }
-    public bool EmptyRecycleBin { get => _emptyRecycleBin; set => SetSelection(ref _emptyRecycleBin, value); }
     public bool IncludeDeveloperCaches { get => _includeDeveloperCaches; set => SetSelection(ref _includeDeveloperCaches, value); }
     public bool CleanBrowserHistory { get => _cleanBrowserHistory; set => SetSelection(ref _cleanBrowserHistory, value); }
     public bool CleanBrowserDownloads { get => _cleanBrowserDownloads; set => SetSelection(ref _cleanBrowserDownloads, value); }
@@ -549,6 +551,7 @@ public sealed class CleanerStudioViewModel : ObservableObject
     private void ResetPreview()
     {
         _preview = null;
+        SkippedFiles.Clear();
         Categories.Clear();
         BrowserDetailItems.Clear();
         CandidateFilesPreview.Clear();
@@ -613,6 +616,8 @@ public sealed class CleanerStudioViewModel : ObservableObject
     public ICommand SelectDiskPresetCommand { get; }
 
     public AsyncRelayCommand ScanPreviewCommand { get; }
+    public ICommand OpenRecycleBinCommand { get; }
+    public ObservableCollection<CleanupSkip> SkippedFiles { get; } = [];
     public ICommand CancelPreviewCommand { get; }
     public AsyncRelayCommand ExecuteSafeCleanCommand { get; }
 
@@ -787,22 +792,21 @@ public sealed class CleanerStudioViewModel : ObservableObject
             var report = await _cleanerService.ScanAsync(options, cts.Token);
             BrowserDataScanReport? browser = null;
             if (options.CleanBrowserHistory || options.CleanBrowserDownloads || options.CleanBrowserCookies || options.CleanBrowserSessions)
-                browser = await _cleanerService.ScanBrowserDataDetailsAsync(options.KeepCookieDomains, cts.Token);
+                browser = await _cleanerService.ScanBrowserDataDetailsAsync(options.KeepCookieDomains, cts.Token, new()
+                {
+                    CleanHistory = options.CleanBrowserHistory, CleanDownloads = options.CleanBrowserDownloads,
+                    CleanCookies = options.CleanBrowserCookies, CleanSessions = options.CleanBrowserSessions
+                });
             cts.Token.ThrowIfCancellationRequested();
             if (version != _selectionVersion) return;
-            var items = browser?.Items.Where(i => i.Kind switch
-            {
-                BrowserDataKind.History => options.CleanBrowserHistory, BrowserDataKind.Downloads => options.CleanBrowserDownloads,
-                BrowserDataKind.Sessions => options.CleanBrowserSessions, BrowserDataKind.Cookies => options.CleanBrowserCookies,
-                _ => false
-            }).ToArray() ?? [];
+            var items = browser?.Items ?? [];
             foreach (var cat in report.Categories) Categories.Add(cat);
             foreach (var item in items) BrowserDetailItems.Add(item);
             foreach (var file in report.CandidateFiles.OrderByDescending(x => x.SizeBytes).Take(200)) CandidateFilesPreview.Add(file);
             BrowserWarningBanner = string.Join("\n", report.RunningBrowserWarnings.Concat(browser?.Warnings ?? []).Distinct());
-            _preview = new Preview(report, items);
+            _preview = new Preview(report, browser);
             ScanSummaryHeadline = $"План на {report.ScannedAtUtc.ToLocalTime():HH:mm:ss} · файлов: {report.TotalFilesCount:N0} · {report.FormattedTotalReclaimable}. " +
-                (items.Length > 0 ? $"Пунктов данных браузеров: {items.Length}. " : "") + "Ничего не удалено.";
+                (items.Count > 0 ? $"Пунктов данных браузеров: {items.Count}. " : "") + "Ничего не удалено.";
         }
         catch (OperationCanceledException) { ScanSummaryHeadline = "Анализ остановлен. Ничего не удалено."; }
         catch (Exception ex) { ResetPreview(); ScanSummaryHeadline = $"Не удалось рассчитать план: {ex.Message}"; }
@@ -815,8 +819,7 @@ public sealed class CleanerStudioViewModel : ObservableObject
         var details = string.Join("\n", plan.Files.Categories.Select(c => $"{c.FriendlyTitle}: {c.FormattedSize}"));
         var browser = string.Join("\n", plan.BrowserItems.Where(i => !i.BlockedByRunningBrowser).Select(i => i.FriendlyTitle));
         if (!UserPrompts.Confirm(new("Применить план очистки?",
-            $"{details}\n{browser}\n\nФайлы кэша и выбранные данные браузера не попадают в Машину времени." +
-            (plan.Files.Options.EmptyRecycleBin ? " Корзина будет очищена без возможности отката." : ""), true))) return;
+            $"{details}\n{browser}\n\nВременные файлы и выбранные данные браузеров удаляются без резервной копии и без корзины.", true))) return;
         if (_preview != plan) return;
         IsCleaning = true;
         ResetPreview(); // одноразовый план, в том числе при частичной ошибке
@@ -824,9 +827,14 @@ public sealed class CleanerStudioViewModel : ObservableObject
         try
         {
             var result = await Task.Run(() => _cleanerService.ExecuteCleanupAsync(plan.Files));
+            foreach (var skip in result.SkippedExamples) SkippedFiles.Add(skip);
             LastCleanupOutcome = result.UserSummaryMessage;
-            var browserResult = await _cleanerService.CleanPreviewedBrowserDataAsync(plan.BrowserItems, plan.Files.Options.KeepCookieDomains);
-            if (browserResult.Length > 0) LastCleanupOutcome += "\n" + browserResult;
+            if (plan.Browser?.Items.Count > 0)
+            {
+                var outcome = await _cleanerService.CleanBrowserDataDetailsAsync(plan.Browser);
+                LastCleanupOutcome += "\n" + outcome.UserSummaryMessage;
+                foreach (var warning in outcome.Warnings.Take(100)) SkippedFiles.Add(new("Браузер", warning));
+            }
             ScanSummaryHeadline = "План завершён. Для следующей очистки нужен новый анализ.";
             ReloadVolumes();
             await _onActionCompletedAsync(LastCleanupOutcome);
@@ -1124,7 +1132,6 @@ public sealed class CleanerStudioViewModel : ObservableObject
         CleanBrowserCaches = CleanBrowserCaches,
         CleanSystemTempAndShaders = CleanSystemTempAndShaders,
         CleanRegistryOrphans = CleanRegistryOrphans,
-        EmptyRecycleBin = EmptyRecycleBin,
         IncludeDeveloperCaches = IncludeDeveloperCaches,
         CleanBrowserHistory = CleanBrowserHistory,
         CleanBrowserDownloads = CleanBrowserDownloads,

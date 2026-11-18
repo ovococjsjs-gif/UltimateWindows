@@ -341,8 +341,8 @@
             <TextBlock Text="Windows" Style="{StaticResource CardTitleTextStyle}" />
             <CheckBox IsChecked="{Binding CleanSystemTempAndShaders}" Content="Временные файлы и шейдеры" Margin="0,0,0,7" />
             <CheckBox IsChecked="{Binding IncludeDeveloperCaches}" Content="Кэш npm, pip и NuGet" Margin="0,0,0,7" />
-            <CheckBox IsChecked="{Binding EmptyRecycleBin}" Content="Очистить корзину" />
-            <TextBlock Text="Без возможности восстановления" Margin="25,2,0,12" Style="{StaticResource HintTextStyle}" />
+            <Button Command="{Binding OpenRecycleBinCommand}" Content="Посмотреть корзину ↗" HorizontalAlignment="Left" Style="{StaticResource CompactButtonStyle}" />
+            <TextBlock Text="Открывается отдельно. План не удаляет содержимое корзины." Margin="0,2,0,12" Style="{StaticResource HintTextStyle}" />
             <TextBlock Text="Браузеры" Style="{StaticResource CardTitleTextStyle}" />
             <CheckBox IsChecked="{Binding CleanBrowserCaches}" Content="Кэш страниц и скриптов" Margin="0,0,0,7" />
             <CheckBox IsChecked="{Binding CleanBrowserHistory}" Content="История посещений" Margin="0,0,0,7" />
@@ -377,6 +377,9 @@
           </DataGrid.Columns></DataGrid></TabItem>
           <TabItem Header="Файлы" ToolTip="До 200 самых крупных файлов из плана"><DataGrid ItemsSource="{Binding CandidateFilesPreview}" IsReadOnly="True" RowHeaderWidth="0"><DataGrid.Columns>
             <DataGridTextColumn Header="Примеры путей (до 200)" Binding="{Binding FullPath}" Width="*" /><DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="85" />
+          </DataGrid.Columns></DataGrid></TabItem>
+          <TabItem Header="Пропуски" ToolTip="До 100 примеров из последней очистки"><DataGrid ItemsSource="{Binding SkippedFiles}" IsReadOnly="True" RowHeaderWidth="0"><DataGrid.Columns>
+            <DataGridTextColumn Header="Путь" Binding="{Binding Path}" Width="*" /><DataGridTextColumn Header="Причина" Binding="{Binding Reason}" Width="150" />
           </DataGrid.Columns></DataGrid></TabItem>
           <TabItem Header="Браузеры"><DataGrid ItemsSource="{Binding BrowserDetailItems}" IsReadOnly="True" RowHeaderWidth="0"><DataGrid.Columns>
             <DataGridTextColumn Header="Профиль и категория" Binding="{Binding FriendlyTitle}" Width="*" /><DataGridTextColumn Header="Найдено" Binding="{Binding FormattedAmount}" Width="110" />

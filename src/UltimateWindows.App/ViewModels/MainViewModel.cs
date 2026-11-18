@@ -108,7 +108,7 @@ public sealed class MainViewModel : ObservableObject
     {
         _vaultService = vaultService;
         IsAdmin = ElevationChecker.IsRunningAsAdministrator();
-        OsDisplayHeader = BuildOsDisplayHeader(IsAdmin);
+        OsDisplayHeader = BuildOsDisplayHeader();
 
         MaxBudgetMb = (int)(_vaultService.CurrentPolicy.MaxVaultBytes / VaultQuotaPolicy.Megabyte);
         RetentionDays = _vaultService.CurrentPolicy.FileBlobRetentionDays;
@@ -141,29 +141,29 @@ public sealed class MainViewModel : ObservableObject
         });
 
         var hardwareService = new HardwareStudioService(_vaultService, new WindowsHardwarePlatformProvider());
-        HardwareStudio = new HardwareStudioViewModel(hardwareService, OnSubModuleActionAsync);
+        _hardwareStudio = new(() => new HardwareStudioViewModel(hardwareService, OnSubModuleActionAsync));
 
         var cleanerService = new VaultSafeCleanerService(_vaultService, new WindowsCleanerPlatformBridge());
-        CleanerStudio = new CleanerStudioViewModel(cleanerService, async msg =>
+        _cleanerStudio = new(() => new CleanerStudioViewModel(cleanerService, async msg =>
         {
             RefreshSystemDriveTelemetry();
             await OnSubModuleActionAsync(msg);
-        });
+        }));
 
         var repairService = new SystemRepairService(_vaultService, new WindowsRepairPlatformBridge());
-        RepairStudio = new RepairStudioViewModel(repairService, OnSubModuleActionAsync);
+        _repairStudio = new(() => new RepairStudioViewModel(repairService, OnSubModuleActionAsync));
 
         var optimizerService = new SmartOptimizerService(_vaultService, new WindowsOptimizerPlatformBridge());
-        OptimizerStudio = new OptimizerStudioViewModel(optimizerService, OnSubModuleActionAsync);
+        _optimizerStudio = new(() => new OptimizerStudioViewModel(optimizerService, OnSubModuleActionAsync));
 
         var securityService = new AntiMinerSecurityService(_vaultService, new WindowsSecurityPlatformBridge());
-        AntiMinerStudio = new AntiMinerStudioViewModel(securityService, OnSubModuleActionAsync);
+        _antiMinerStudio = new(() => new AntiMinerStudioViewModel(securityService, OnSubModuleActionAsync));
 
         var driverService = new OfficialDriverService(_vaultService, new WindowsDriverPlatformBridge());
-        DriverStudio = new DriverStudioViewModel(
+        _driverStudio = new(() => new DriverStudioViewModel(
             driverService,
             OnSubModuleActionAsync,
-            switchToCatalogTab: () => HardwareStudio.SelectedSubTabIndex = 4);
+            switchToCatalogTab: () => HardwareStudio.SelectedSubTabIndex = 4));
 
         _smartAuditOrchestrator = new SmartSystemAuditOrchestrator(
             hardwareService, driverService, cleanerService, repairService, optimizerService, securityService);
@@ -177,13 +177,12 @@ public sealed class MainViewModel : ObservableObject
             repairService,
             securityService,
             _smartAuditOrchestrator);
-        AppsStudio = new AppsStudioViewModel(appsService, OnSubModuleActionAsync);
+        _appsStudio = new(() => new AppsStudioViewModel(appsService, OnSubModuleActionAsync));
 
         // Ошибка, которую команда не обработала сама, показывается в строке состояния, а не закрывает программу
         AsyncRelayCommand.UnhandledError = ex => StatusNotification = $"Не удалось выполнить действие: {ex.Message}";
 
         RefreshSystemDriveTelemetry();
-
     }
 
     private async Task OnSubModuleActionAsync(string msg)
@@ -245,13 +244,20 @@ public sealed class MainViewModel : ObservableObject
     public string OsDisplayHeader { get; }
     public string PrivilegeBadgeText => IsAdmin ? "Администратор (полный доступ)" : "Ограниченный режим (без прав администратора)";
 
-    public HardwareStudioViewModel HardwareStudio { get; }
-    public CleanerStudioViewModel CleanerStudio { get; }
-    public RepairStudioViewModel RepairStudio { get; }
-    public OptimizerStudioViewModel OptimizerStudio { get; }
-    public AntiMinerStudioViewModel AntiMinerStudio { get; }
-    public DriverStudioViewModel DriverStudio { get; }
-    public AppsStudioViewModel AppsStudio { get; }
+    private readonly Lazy<HardwareStudioViewModel> _hardwareStudio;
+    public HardwareStudioViewModel HardwareStudio => _hardwareStudio.Value;
+    private readonly Lazy<CleanerStudioViewModel> _cleanerStudio;
+    public CleanerStudioViewModel CleanerStudio => _cleanerStudio.Value;
+    private readonly Lazy<RepairStudioViewModel> _repairStudio;
+    public RepairStudioViewModel RepairStudio => _repairStudio.Value;
+    private readonly Lazy<OptimizerStudioViewModel> _optimizerStudio;
+    public OptimizerStudioViewModel OptimizerStudio => _optimizerStudio.Value;
+    private readonly Lazy<AntiMinerStudioViewModel> _antiMinerStudio;
+    public AntiMinerStudioViewModel AntiMinerStudio => _antiMinerStudio.Value;
+    private readonly Lazy<DriverStudioViewModel> _driverStudio;
+    public DriverStudioViewModel DriverStudio => _driverStudio.Value;
+    private readonly Lazy<AppsStudioViewModel> _appsStudio;
+    public AppsStudioViewModel AppsStudio => _appsStudio.Value;
 
     public ObservableCollection<SmartAuditActionItemViewModel> SmartAuditActions { get; }
     public ObservableCollection<TransactionItemViewModel> Transactions { get; }
@@ -433,7 +439,7 @@ public sealed class MainViewModel : ObservableObject
             StatusNotification = $"Отменить изменения удалось не полностью: {ex.Message}";
         }
 
-        await OptimizerStudio.RefreshAfterRollbackAsync();
+        if (_optimizerStudio.IsValueCreated) await OptimizerStudio.RefreshAfterRollbackAsync();
         await RefreshVaultStateAsync();
     }
 
@@ -482,10 +488,9 @@ public sealed class MainViewModel : ObservableObject
         };
     }
 
-    private static string BuildOsDisplayHeader(bool isAdmin)
+    private static string BuildOsDisplayHeader()
     {
         var arch = RuntimeInformation.OSArchitecture.ToString().ToUpperInvariant();
-        var role = isAdmin ? "Admin" : "User";
 
         if (OperatingSystem.IsWindows())
         {
@@ -501,7 +506,7 @@ public sealed class MainViewModel : ObservableObject
                 }
 
                 var verPart = !string.IsNullOrWhiteSpace(dispVer) ? $" ({dispVer})" : "";
-                return $"{prod}{verPart} • 64-bit ({arch}) • {role}";
+                return $"{prod}{verPart} · сборка {buildStr} · {arch}";
             }
             catch
             {
@@ -509,6 +514,6 @@ public sealed class MainViewModel : ObservableObject
             }
         }
 
-        return $"{RuntimeInformation.OSDescription} ({arch}) • {role}";
+        return $"{RuntimeInformation.OSDescription} · {arch}";
     }
 }

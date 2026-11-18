@@ -324,7 +324,6 @@ public sealed class AppsAndAutomationService
             {
                 CleanSystemTempAndShaders = true,
                 CleanBrowserCaches = true,
-                EmptyRecycleBin = false,
                 CleanRegistryOrphans = false,
                 PreservePasswordsAndAutofill = true,
                 PreserveBrowserSessions = true

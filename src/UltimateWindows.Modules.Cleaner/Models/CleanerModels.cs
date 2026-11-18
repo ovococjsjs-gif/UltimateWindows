@@ -41,7 +41,6 @@ public sealed record CleanupOptions
     public bool CleanBrowserCaches { get; init; } = true;
     public bool CleanSystemTempAndShaders { get; init; } = true;
     public bool CleanRegistryOrphans { get; init; } = true;
-    public bool EmptyRecycleBin { get; init; } = false;
     public bool IncludeDeveloperCaches { get; init; } = false;
     public int MinimumTempFileAgeHours { get; init; } = 24;
     public IReadOnlySet<RegistryOrphanKind>? EnabledRegistryCategories { get; init; }
@@ -140,6 +139,8 @@ public sealed record CleanupScanReport(
     public string FormattedTotalReclaimable => ByteFormatter.Format(TotalReclaimableBytes);
 }
 
+public sealed record CleanupSkip(string Path, string Reason);
+
 public sealed record CleanupExecutionResult(
     long FreedBytes,
     int DeletedFilesCount,
@@ -148,6 +149,7 @@ public sealed record CleanupExecutionResult(
     Guid? RollbackSessionId,
     string UserSummaryMessage)
 {
+    public IReadOnlyList<CleanupSkip> SkippedExamples { get; init; } = [];
     public int SkippedChangedFilesCount { get; init; }
     public string FormattedFreed => ByteFormatter.Format(FreedBytes);
 }

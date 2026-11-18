@@ -1,9 +1,8 @@
 using System.ComponentModel;
-using System.Runtime.InteropServices;
-using System.Security.Cryptography;
+using UltimateWindows.Modules.Cleaner.Models;
+using UltimateWindows.NativeInterop.Files;
 using System.Text.Json;
 using Microsoft.Win32;
-using Microsoft.Win32.SafeHandles;
 using UltimateWindows.Core.Contracts;
 using UltimateWindows.Core.Enums;
 using UltimateWindows.Core.Models;
@@ -112,7 +111,11 @@ public sealed partial class WindowsAppsPlatformBridge
                 ct.ThrowIfCancellationRequested();
                 try
                 {
-                    DeleteMatchingFile(file);
+                    if (CheckedFileDeletion.Remove(file.Path, file.Length, null, file.Hash) != FileRemovalOutcome.Removed)
+                    {
+                        Skip(file.Path, "Файл исчез или изменился после создания снимка");
+                        continue;
+                    }
                     removedFiles++;
                     removedBytes += file.Length;
                 }
@@ -150,21 +153,6 @@ public sealed partial class WindowsAppsPlatformBridge
         return false;
     }
 
-    // FileShare.Read excludes writers and renames. Verify and request deletion on the *same* handle.
-    private static void DeleteMatchingFile(FileBackup file)
-    {
-        if (HasReparseAncestor(file.Path)) throw new IOException("Путь стал ссылкой после анализа.");
-        using var handle = CreateFileW(file.Path, 0x80000000u | 0x00010000u /* GENERIC_READ | DELETE */,
-            FileShare.Read, IntPtr.Zero, FileMode.Open, 0x00200000 /* OPEN_REPARSE_POINT */, IntPtr.Zero);
-        if (handle.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error());
-        using var input = new FileStream(handle, FileAccess.Read);
-        if (input.Length != file.Length || !Convert.ToHexString(SHA256.HashData(input)).Equals(file.Hash, StringComparison.OrdinalIgnoreCase))
-            throw new IOException("Файл изменился после создания снимка.");
-        byte delete = 1;
-        if (!SetFileInformationByHandle(handle, 4 /* FileDispositionInfo */, ref delete, 1))
-            throw new Win32Exception(Marshal.GetLastWin32Error());
-    }
-
     private static (RegistryKey Hive, string SubKey) SplitRegistryPath(string path)
     {
         var split = path.IndexOf('\\');
@@ -191,11 +179,4 @@ public sealed partial class WindowsAppsPlatformBridge
         finally { try { File.Delete(temp); } catch (IOException) { } }
     }
 
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
-    private static extern SafeFileHandle CreateFileW(string path, uint access, FileShare share, IntPtr security,
-        FileMode creation, uint flags, IntPtr template);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetFileInformationByHandle(SafeFileHandle file, int infoClass, ref byte info, uint size);
 }

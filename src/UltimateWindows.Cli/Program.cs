@@ -289,7 +289,16 @@ switch (command)
     {
         var keepRaw = GetOptionValue(args, "--keep-cookies");
         var keepDomains = BrowserDataCleaner.ParseKeepCookieDomains(keepRaw);
-        var details = await cleaner.ScanBrowserDataDetailsAsync(keepDomains);
+        var sel = new BrowserCleanupSelection
+        {
+            CleanCache = false,
+            CleanHistory = HasFlag(args, "--history"),
+            CleanDownloads = HasFlag(args, "--downloads"),
+            CleanCookies = HasFlag(args, "--cookies"),
+            CleanSessions = HasFlag(args, "--sessions"),
+            KeepCookieDomains = keepDomains
+        };
+        var details = await cleaner.ScanBrowserDataDetailsAsync(keepDomains, selection: command == "browser-clean" ? sel : null);
         Console.WriteLine("=== Очистка 2.0 — Браузеры по пунктам (пароли и закладки под защитой) ===");
         foreach (var warn in details.Warnings)
         {
@@ -302,16 +311,8 @@ switch (command)
 
         if (command == "browser-clean")
         {
-            var sel = new BrowserCleanupSelection
-            {
-                CleanCache = false,
-                CleanHistory = HasFlag(args, "--history"),
-                CleanDownloads = HasFlag(args, "--downloads"),
-                CleanCookies = HasFlag(args, "--cookies"),
-                CleanSessions = HasFlag(args, "--sessions"),
-                KeepCookieDomains = keepDomains
-            };
-            var res = await cleaner.CleanBrowserDataDetailsAsync(sel);
+            var res = await cleaner.CleanBrowserDataDetailsAsync(details);
+            foreach (var warning in res.Warnings) Console.WriteLine($"  [!] {warning}");
             Console.WriteLine(res.UserSummaryMessage);
         }
 

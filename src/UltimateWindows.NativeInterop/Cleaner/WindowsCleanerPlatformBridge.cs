@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Win32;
+using System.ComponentModel;
+using UltimateWindows.NativeInterop.Files;
 using UltimateWindows.Modules.Cleaner.Models;
 using UltimateWindows.Modules.Cleaner.Services;
 using UltimateWindows.Modules.Cleaner.Utilities;
@@ -15,6 +17,13 @@ namespace UltimateWindows.NativeInterop.Cleaner;
 /// </summary>
 public sealed class WindowsCleanerPlatformBridge : DefaultCleanerPlatformBridge
 {
+    public override FileRemovalOutcome TryRemovePreviewedFile(FileRevision file)
+    {
+        try { return CheckedFileDeletion.Remove(file.FullPath, file.Length, file.WriteTimeUtc, file.Sha256); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Win32Exception)
+        { return FileRemovalOutcome.Unavailable; }
+    }
+
     public override bool RegistryKeyExists(string keyPath)
     {
         if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(keyPath))

@@ -208,14 +208,7 @@ public sealed class CleanerStage2Tests : IDisposable
         Assert.Equal(2, scanDetails.TotalDownloadItems); // 1 в Chrome + 1 в Firefox
 
         // 2. Выборочная очистка истории, загрузок, сеансов и cookie (с сохранением github.com и google.com)
-        var cleanRes = await cleaner.CleanBrowserDataDetailsAsync(new BrowserCleanupSelection
-        {
-            CleanHistory = true,
-            CleanDownloads = true,
-            CleanCookies = true,
-            CleanSessions = true,
-            KeepCookieDomains = ["github.com", "google.com"]
-        });
+        var cleanRes = await cleaner.CleanBrowserDataDetailsAsync(scanDetails);
 
         Assert.True(cleanRes.DeletedHistoryRows >= 2);
         Assert.Equal(2, cleanRes.DeletedDownloadRows);
@@ -243,6 +236,41 @@ public sealed class CleanerStage2Tests : IDisposable
             cmd.CommandText = "SELECT url FROM moz_places;";
             Assert.Equal("https://keep-bookmarked.example/", (string)cmd.ExecuteScalar()!);
         }
+    }
+
+    [Fact]
+    public async Task BrowserPlan_SkipsEditedDatabase_NewProfile_AndNewSessionFile()
+    {
+        var local = Path.Combine(_sandbox, "Local");
+        var profile = Path.Combine(local, "Google", "Chrome", "User Data", "Default");
+        Directory.CreateDirectory(Path.Combine(profile, "Sessions"));
+        var dbPath = Path.Combine(profile, "History");
+        CreateChromiumHistoryDb(dbPath);
+        var oldTab = WriteBytes(Path.Combine(profile, "Sessions", "Tabs_1"), "one"u8.ToArray());
+        var bridge = new StubBridge();
+        var cleaner = new VaultSafeCleanerService(new ZeroBloatVaultService(Path.Combine(_sandbox, "vault")), bridge,
+            new BrowserCacheScanner(bridge, local, Path.Combine(_sandbox, "Roaming")));
+        var plan = await cleaner.ScanBrowserDataDetailsAsync(selection: new() { CleanHistory = true, CleanSessions = true });
+        Assert.Equal(2, plan.Items.Count);
+        var newTab = WriteBytes(Path.Combine(profile, "Sessions", "Tabs_2"), "two"u8.ToArray());
+        var newProfile = Directory.CreateDirectory(Path.Combine(profile, "..", "Profile 2")).FullName;
+        CreateChromiumHistoryDb(Path.Combine(newProfile, "History"));
+        using (var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = dbPath, Pooling = false }.ToString()))
+        {
+            db.Open();
+            using var cmd = db.CreateCommand();
+            cmd.CommandText = "UPDATE urls SET title = 'Different' WHERE id=1;";
+            cmd.ExecuteNonQuery();
+        }
+        var dbAfterEdit = Sha256OfFile(dbPath);
+        var newDbHash = Sha256OfFile(Path.Combine(newProfile, "History"));
+        var result = await cleaner.CleanBrowserDataDetailsAsync(plan);
+        Assert.Equal(0, result.DeletedHistoryRows);
+        Assert.Contains(result.Warnings, w => w.Contains("History"));
+        Assert.Equal(dbAfterEdit, Sha256OfFile(dbPath));
+        Assert.Equal(newDbHash, Sha256OfFile(Path.Combine(newProfile, "History")));
+        Assert.False(File.Exists(oldTab));
+        Assert.True(File.Exists(newTab));
     }
 
     [Fact]

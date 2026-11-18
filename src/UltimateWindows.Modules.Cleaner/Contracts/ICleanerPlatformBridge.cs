@@ -13,6 +13,8 @@ public interface ICleanerPlatformBridge
 
     bool IsFileLockedByAnotherProcess(string filePath);
 
+    FileRemovalOutcome TryRemovePreviewedFile(FileRevision file);
+
     Task<IReadOnlyList<RegistryOrphanCandidate>> ScanVerifiedRegistryOrphansAsync(CancellationToken ct = default);
 
     Task<int> DeleteVerifiedRegistryOrphansAsync(

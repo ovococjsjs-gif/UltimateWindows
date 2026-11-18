@@ -1,6 +1,8 @@
 using System.IO;
 using UltimateWindows.App;
 using UltimateWindows.App.ViewModels;
+using UltimateWindows.App.Views;
+using System.Windows.Controls;
 using UltimateWindows.Core.Enums;
 using Xunit;
 
@@ -33,13 +35,24 @@ public sealed class MainWindowSmokeTests
             await surface.SettleAsync();
 
             Assert.Equal("Нет результата", main.AuditStamp);
-            Assert.Empty(main.OptimizerStudio.Tweaks.AllTweaks);
+            var workspace = Assert.IsType<ContentControl>(window.FindName("Workspace"));
+            Assert.IsType<OverviewWorkspaceView>(workspace.Content);
             surface.Save("workbench-home");
             window.Width = 860; window.Height = 540;
             await surface.SettleAsync();
             Assert.True(window.CompactNavigation);
             surface.Save("workbench-small");
             window.Width = 1360; window.Height = 840;
+            using (var finder = UiSurface.Show(new ToolFinderWindow(), 590, 446))
+            {
+                var picker = (ToolFinderWindow)System.Windows.Window.GetWindow(finder.Root)!;
+                ((ToolFinderViewModel)picker.DataContext).Query = "cookie";
+                await finder.SettleAsync();
+                Assert.NotNull(picker.Selection);
+                main.OpenTool(picker.Selection);
+                Assert.IsType<DiskAndCleanerWorkspaceView>(workspace.Content);
+                Assert.Equal(1, main.CleanerStudio.SelectedSubTabIndex);
+            }
             main.SelectedDomain = SystemDomain.Optimizer;
             reached = "чтение настроек Windows";
             var studio = main.OptimizerStudio;
