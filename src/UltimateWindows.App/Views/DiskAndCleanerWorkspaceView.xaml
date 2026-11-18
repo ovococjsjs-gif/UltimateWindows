@@ -15,7 +15,7 @@
             BorderBrush="{DynamicResource CardBorderBrush}"
             BorderThickness="0,0,0,1"
             Padding="14,0">
-      <StackPanel Orientation="Horizontal">
+      <WrapPanel>
         <RadioButton GroupName="CleanerSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
                      IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=0}"
@@ -37,7 +37,7 @@
                      Style="{StaticResource SubTabRadioStyle}"
                      IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=3}"
                      Content="Дубли и резервы C:\" />
-      </StackPanel>
+      </WrapPanel>
     </Border>
 
     <!-- ========================================================================= -->
@@ -331,115 +331,64 @@
     <!-- ========================================================================= -->
     <!-- ВКЛАДКА 1: СТАНДАРТНАЯ ОЧИСТКА CCLEANER-КЛАССА С ЗАЩИТОЙ ПАРОЛЕЙ          -->
     <!-- ========================================================================= -->
-    <Grid Grid.Row="1"
-          Margin="12,10"
-          Visibility="{Binding IsStandardCleanerTab, Converter={StaticResource BoolToVis}}">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="300" />
-        <ColumnDefinition Width="12" />
-        <ColumnDefinition Width="*" />
-      </Grid.ColumnDefinitions>
-
-      <!-- Левая колонка правил, брони паролей и браузеров по пунктам -->
-      <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}">
-        <DockPanel>
-          <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
-            <Button Style="{StaticResource SecondaryButtonStyle}"
-                    Command="{Binding ScanPreviewCommand}"
-                    Content="Анализ кэша и браузеров"
-                    Margin="0,0,0,8" />
-            <Button Style="{StaticResource PrimaryButtonStyle}"
-                    Command="{Binding ExecuteSafeCleanCommand}"
-                    Content="Очистить выбранное" />
-          </StackPanel>
-
-          <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <StackPanel>
-              <TextBlock Text="Защита личных данных" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,8" />
-
-              <DockPanel Margin="0,0,0,10">
-                <CheckBox DockPanel.Dock="Left" Style="{StaticResource PillToggleSwitchStyle}"
-                          IsChecked="{Binding PreservePasswordsAndAutofill}" Margin="0,0,10,0" />
-                <TextBlock Text="Пароли, ключи, автозаполнение и закладки под замком" FontSize="11.5" TextWrapping="Wrap" VerticalAlignment="Center" />
-              </DockPanel>
-
-              <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,0,0,10" />
-              <TextBlock Text="Браузеры по пунктам" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,8" />
-
-              <CheckBox IsChecked="{Binding CleanBrowserCaches}" Content="Кэш изображений и скриптов" Margin="0,0,0,7" />
-              <CheckBox IsChecked="{Binding CleanBrowserHistory}" Content="История посещений" Margin="0,0,0,7" />
-              <CheckBox IsChecked="{Binding CleanBrowserDownloads}" Content="Список загрузок (файлы остаются)" Margin="0,0,0,7" />
-              <CheckBox IsChecked="{Binding CleanBrowserSessions}" Content="Открытые вкладки прошлого сеанса" Margin="0,0,0,7" />
-              <CheckBox IsChecked="{Binding CleanBrowserCookies}" Content="Cookie (кроме списка «сохранить»)" Margin="0,0,0,6" />
-
-              <TextBlock Text="Сайты, где сохранить вход (cookie):" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,4" />
-              <TextBox Text="{Binding KeepCookieDomainsText, UpdateSourceTrigger=PropertyChanged}"
-                       FontSize="11"
-                       TextWrapping="Wrap"
-                       AcceptsReturn="True"
-                       MinHeight="46"
-                       MaxHeight="68"
-                       Margin="0,0,0,10" />
-
-              <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,0,0,10" />
-              <TextBlock Text="Система и кэш" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,8" />
-
-              <CheckBox IsChecked="{Binding CleanSystemTempAndShaders}" Content="Temp Windows и кэш шейдеров GPU" Margin="0,0,0,7" />
-              <CheckBox IsChecked="{Binding IncludeDeveloperCaches}" Content="Кэш разработки (npm, pip, NuGet)" Margin="0,0,0,7" />
-              <CheckBox IsChecked="{Binding EmptyRecycleBin}" Content="Корзина Windows" />
-            </StackPanel>
-          </ScrollViewer>
-        </DockPanel>
-      </Border>
-
-      <!-- Правая часть: сводка + категории + детали браузеров + таблица файлов -->
-      <Grid Grid.Column="2">
-        <Grid.RowDefinitions>
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="145" />
-          <RowDefinition Height="6" />
-          <RowDefinition Height="135" />
-          <RowDefinition Height="6" />
-          <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="14,10" Margin="0,0,0,8">
+    <Grid Grid.Row="1" Margin="14,10" Visibility="{Binding IsStandardCleanerTab, Converter={StaticResource BoolToVis}}">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="0.85*" MaxWidth="310" MinWidth="215" /><ColumnDefinition Width="10" /><ColumnDefinition Width="2*" /></Grid.ColumnDefinitions>
+      <Border Style="{StaticResource CardBorderStyle}"><DockPanel>
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8"><TextBlock Text="01   /   СОСТАВ" Style="{StaticResource EyebrowText}" /><TextBlock Text="Что очищаем" FontSize="17" FontWeight="SemiBold" /></StackPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel>
-            <TextBlock Text="{Binding ScanSummaryHeadline}" FontSize="13" FontWeight="Medium" TextWrapping="Wrap" />
-            <TextBlock Text="{Binding VaultShieldBadgeText}" FontSize="11.5" Foreground="{DynamicResource SafeEmeraldBrush}" Margin="0,4,0,0" TextWrapping="Wrap" />
-            <TextBlock Text="{Binding BrowserWarningBanner}"
-                       Visibility="{Binding HasBrowserWarnings, Converter={StaticResource BoolToVis}}"
-                       FontSize="11.5" Foreground="{DynamicResource CautionAmberBrush}" Margin="0,4,0,0" TextWrapping="Wrap" />
+            <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers><DataTrigger Binding="{Binding IsCleaning}" Value="True"><Setter Property="IsEnabled" Value="False" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+            <TextBlock Text="Windows" Style="{StaticResource CardTitleTextStyle}" />
+            <CheckBox IsChecked="{Binding CleanSystemTempAndShaders}" Content="Временные файлы и шейдеры" Margin="0,0,0,7" />
+            <CheckBox IsChecked="{Binding IncludeDeveloperCaches}" Content="Кэш npm, pip и NuGet" Margin="0,0,0,7" />
+            <CheckBox IsChecked="{Binding EmptyRecycleBin}" Content="Очистить корзину" />
+            <TextBlock Text="Без возможности восстановления" Margin="25,2,0,12" Style="{StaticResource HintTextStyle}" />
+            <TextBlock Text="Браузеры" Style="{StaticResource CardTitleTextStyle}" />
+            <CheckBox IsChecked="{Binding CleanBrowserCaches}" Content="Кэш страниц и скриптов" Margin="0,0,0,7" />
+            <CheckBox IsChecked="{Binding CleanBrowserHistory}" Content="История посещений" Margin="0,0,0,7" />
+            <CheckBox IsChecked="{Binding CleanBrowserDownloads}" Content="Журнал загрузок, не файлы" Margin="0,0,0,7" />
+            <CheckBox IsChecked="{Binding CleanBrowserSessions}" Content="Вкладки прошлого сеанса" Margin="0,0,0,7" />
+            <CheckBox IsChecked="{Binding CleanBrowserCookies}" Content="Cookie и вход на сайты" Margin="0,0,0,7" />
+            <StackPanel Visibility="{Binding CleanBrowserCookies, Converter={StaticResource BoolToVis}}">
+              <TextBlock Text="Сохранить вход на этих сайтах:" Style="{StaticResource HintTextStyle}" Margin="0,0,0,4" />
+              <TextBox Text="{Binding KeepCookieDomainsText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Исключения cookie" TextWrapping="Wrap" MaxHeight="66" AcceptsReturn="True" />
+            </StackPanel>
+            <TextBlock Text="Пароли, автозаполнение и закладки не входят в план." Style="{StaticResource HintTextStyle}" Margin="0,12,0,0" />
           </StackPanel>
-        </Border>
-
-        <!-- Таблица категорий -->
-        <DataGrid Grid.Row="1" ItemsSource="{Binding Categories}" IsReadOnly="True" RowHeaderWidth="0">
-          <DataGrid.Columns>
-            <DataGridTextColumn Header="Категория" Binding="{Binding FriendlyTitle}" Width="195" />
-            <DataGridTextColumn Header="Файлов" Binding="{Binding ItemCount, StringFormat={}{0:N0}}" Width="72" />
-            <DataGridTextColumn Header="Объём" Binding="{Binding FormattedSize}" Width="88" />
-            <DataGridTextColumn Header="Описание" Binding="{Binding FriendlyDescription}" Width="*" />
-          </DataGrid.Columns>
-        </DataGrid>
-
-        <!-- Сводка браузеров по пунктам -->
-        <DataGrid Grid.Row="3" ItemsSource="{Binding BrowserDetailItems}" IsReadOnly="True" RowHeaderWidth="0">
-          <DataGrid.Columns>
-            <DataGridTextColumn Header="Профиль и пункт браузера" Binding="{Binding FriendlyTitle}" Width="210" />
-            <DataGridTextColumn Header="Найдено" Binding="{Binding FormattedAmount}" Width="130" />
-            <DataGridTextColumn Header="Пояснение" Binding="{Binding FriendlyDescription}" Width="*" />
-          </DataGrid.Columns>
-        </DataGrid>
-
-        <!-- Предпросмотр конкретных файлов кэша -->
-        <DataGrid Grid.Row="5" ItemsSource="{Binding CandidateFilesPreview}" IsReadOnly="True" RowHeaderWidth="0">
-          <DataGrid.Columns>
-            <DataGridTextColumn Header="Источник" Binding="{Binding SourceLabel}" Width="165" />
-            <DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="95" />
-            <DataGridTextColumn Header="Путь к файлу кэша" Binding="{Binding FullPath}" Width="*" />
-          </DataGrid.Columns>
-        </DataGrid>
+        </ScrollViewer>
+      </DockPanel></Border>
+      <Grid Grid.Column="2"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,8"><StackPanel>
+          <TextBlock Text="02   /   ПРЕДПРОСМОТР" Style="{StaticResource EyebrowText}" />
+          <TextBlock Text="{Binding ScanSummaryHeadline}" TextWrapping="Wrap" FontSize="14" FontWeight="SemiBold" Margin="0,5,0,0" AutomationProperties.LiveSetting="Polite" />
+          <TextBlock Text="{Binding BrowserWarningBanner}" TextWrapping="Wrap" Foreground="{DynamicResource AmberTextBrush}" Visibility="{Binding HasBrowserWarnings, Converter={StaticResource BoolToVis}}" />
+          <ProgressBar Style="{StaticResource LoadingBarStyle}" Margin="0,6,0,0" Visibility="{Binding IsScanning, Converter={StaticResource BoolToVis}}" />
+        </StackPanel></Border>
+        <TabControl Grid.Row="1" Background="{DynamicResource SurfaceCardBrush}" BorderBrush="{DynamicResource SurfaceBorderBrush}" Padding="3">
+          <TabControl.Resources><Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabItem">
+              <Border x:Name="Bk" Padding="9,6" CornerRadius="4,4,0,0" Background="{DynamicResource SurfaceElevatedBrush}"><ContentPresenter ContentSource="Header" /></Border>
+              <ControlTemplate.Triggers><Trigger Property="IsSelected" Value="True"><Setter TargetName="Bk" Property="Background" Value="{DynamicResource AccentSubtleBrush}" /><Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" /></Trigger></ControlTemplate.Triggers>
+            </ControlTemplate></Setter.Value></Setter>
+          </Style></TabControl.Resources>
+          <TabItem Header="Категории"><DataGrid ItemsSource="{Binding Categories}" IsReadOnly="True" RowHeaderWidth="0"><DataGrid.Columns>
+            <DataGridTextColumn Header="Категория" Binding="{Binding FriendlyTitle}" Width="*" /><DataGridTextColumn Header="Объекты" Binding="{Binding ItemCount}" Width="70" /><DataGridTextColumn Header="Объём" Binding="{Binding FormattedSize}" Width="90" />
+          </DataGrid.Columns></DataGrid></TabItem>
+          <TabItem Header="Файлы" ToolTip="До 200 самых крупных файлов из плана"><DataGrid ItemsSource="{Binding CandidateFilesPreview}" IsReadOnly="True" RowHeaderWidth="0"><DataGrid.Columns>
+            <DataGridTextColumn Header="Примеры путей (до 200)" Binding="{Binding FullPath}" Width="*" /><DataGridTextColumn Header="Размер" Binding="{Binding FormattedSize}" Width="85" />
+          </DataGrid.Columns></DataGrid></TabItem>
+          <TabItem Header="Браузеры"><DataGrid ItemsSource="{Binding BrowserDetailItems}" IsReadOnly="True" RowHeaderWidth="0"><DataGrid.Columns>
+            <DataGridTextColumn Header="Профиль и категория" Binding="{Binding FriendlyTitle}" Width="*" /><DataGridTextColumn Header="Найдено" Binding="{Binding FormattedAmount}" Width="110" />
+          </DataGrid.Columns></DataGrid></TabItem>
+        </TabControl>
+        <StackPanel Grid.Row="2" Margin="0,8,0,0">
+          <ScrollViewer MaxHeight="68" VerticalScrollBarVisibility="Auto" Visibility="{Binding HasCleanupOutcome, Converter={StaticResource BoolToVis}}"><TextBlock Text="{Binding LastCleanupOutcome}" TextWrapping="Wrap" Margin="0,0,0,6" /></ScrollViewer>
+          <WrapPanel><Button Command="{Binding ScanPreviewCommand}" Content="Рассчитать план" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0" />
+            <Button Command="{Binding CancelPreviewCommand}" Content="Остановить" Style="{StaticResource CompactButtonStyle}" Visibility="{Binding IsScanning, Converter={StaticResource BoolToVis}}" />
+            <Button Command="{Binding ExecuteSafeCleanCommand}" Content="{Binding ApplyPlanLabel}" Style="{StaticResource PrimaryButtonStyle}" Visibility="{Binding IsScanning, Converter={StaticResource InverseBoolToVis}}" />
+          </WrapPanel>
+        </StackPanel>
       </Grid>
     </Grid>
 

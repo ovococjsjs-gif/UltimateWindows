@@ -39,6 +39,28 @@ public sealed class VaultSafeCleanerTests : IDisposable
     }
 
     [Fact]
+    public async Task StandardPlan_SkipsChangedAndNewFiles_ButRemovesUnchangedCandidate()
+    {
+        var paths = CreateEmptySystemPaths();
+        var first = WriteFakeFile(Path.Combine(paths.UserTempDirectory, "one.tmp"), "old");
+        var second = WriteFakeFile(Path.Combine(paths.UserTempDirectory, "two.tmp"), "old");
+        File.SetLastWriteTimeUtc(first, DateTime.UtcNow.AddDays(-3));
+        File.SetLastWriteTimeUtc(second, DateTime.UtcNow.AddDays(-3));
+        var service = new VaultSafeCleanerService(new ZeroBloatVaultService(Path.Combine(_sandboxDir, "vault")),
+            new FakeCleanerBridge(), systemJunkScanner: new SystemJunkScanner(paths));
+        var plan = await service.ScanAsync(new CleanupOptions { CleanBrowserCaches = false, CleanRegistryOrphans = false });
+        Assert.Equal(2, plan.TotalFilesCount);
+        File.WriteAllText(second, "new"); // same length, different modification time
+        var third = WriteFakeFile(Path.Combine(paths.UserTempDirectory, "new.tmp"), "fresh");
+        var result = await service.ExecuteCleanupAsync(plan);
+        Assert.Equal(1, result.SkippedChangedFilesCount);
+        Assert.Equal(1, result.DeletedFilesCount);
+        Assert.False(File.Exists(first));
+        Assert.Equal("new", File.ReadAllText(second));
+        Assert.True(File.Exists(third));
+    }
+
+    [Fact]
     public async Task MultiBrowserCleanup_DeletesCaches_WhileStrictlyPreservingPasswordsAndAutofill()
     {
         var localApp = Path.Combine(_sandboxDir, "LocalAppData");
@@ -96,7 +118,7 @@ public sealed class VaultSafeCleanerTests : IDisposable
         Assert.Equal(4, scan.TotalFilesCount);
         Assert.Equal(4096 + 2048 + 1024 + 3072, scan.TotalReclaimableBytes);
 
-        var result = await service.ExecuteCleanupAsync(scan, options);
+        var result = await service.ExecuteCleanupAsync(scan);
         Assert.Equal(4, result.DeletedFilesCount);
 
         // Кэш удален
@@ -171,7 +193,7 @@ public sealed class VaultSafeCleanerTests : IDisposable
         Assert.DoesNotContain(scan.CandidateFiles, c => c.FullPath == freshInstallerFile);
         Assert.Equal(3, scan.TotalFilesCount);
 
-        var exec = await service.ExecuteCleanupAsync(scan, options);
+        var exec = await service.ExecuteCleanupAsync(scan);
         Assert.Equal(2, exec.DeletedFilesCount);
         Assert.Equal(1, exec.SkippedLockedFilesCount);
 
@@ -245,7 +267,7 @@ public sealed class VaultSafeCleanerTests : IDisposable
         var scan = await service.ScanAsync(options);
         Assert.Equal(1, scan.TotalRegistryOrphansCount);
 
-        var exec = await service.ExecuteCleanupAsync(scan, options);
+        var exec = await service.ExecuteCleanupAsync(scan);
         Assert.Equal(1, exec.CleanedRegistryOrphansCount);
         Assert.NotNull(exec.RollbackSessionId);
 

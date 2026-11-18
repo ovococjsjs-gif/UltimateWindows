@@ -181,7 +181,7 @@ public sealed class BrowserCacheScanner
                                 Category: CleanerCategoryKind.BrowserCache,
                                 SourceLabel: $"{profile.BrowserName} ({profile.ProfileName})",
                                 FullPath: info.FullName,
-                                SizeBytes: info.Length));
+                                SizeBytes: info.Length, LastWriteTimeUtc: info.LastWriteTimeUtc));
                         }
                     }
                     catch

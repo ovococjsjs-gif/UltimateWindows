@@ -12,6 +12,34 @@
   <Geometry x:Key="IconVault">M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3ZM12,8V13L16.28,15.54L17,14.33L13.5,12.25V8H12Z</Geometry>
   <Geometry x:Key="IconFolder">M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z</Geometry>
 
+  <Style x:Key="WorkbenchFocus" TargetType="Control">
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Control">
+      <Border BorderThickness="2" BorderBrush="{DynamicResource AccentBrush}" CornerRadius="5" Margin="1" IsHitTestVisible="False" />
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="{x:Static SystemParameters.FocusVisualStyleKey}" TargetType="Control" BasedOn="{StaticResource WorkbenchFocus}" />
+  <Style x:Key="EyebrowText" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="11" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+  </Style>
+  <Style x:Key="WorkbenchNavItem" TargetType="ListBoxItem">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /><Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="AutomationProperties.Name" Value="{Binding Title}" /><Setter Property="FocusVisualStyle" Value="{StaticResource WorkbenchFocus}" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
+      <Border x:Name="Frame" Background="Transparent" Margin="0,2" CornerRadius="6" Padding="10,9" BorderThickness="2,0,0,0" BorderBrush="Transparent"><ContentPresenter /></Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource SurfaceHoverBrush}" /></Trigger>
+        <Trigger Property="IsSelected" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource AccentSubtleBrush}" /><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource AccentBrush}" /></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="WorkbenchTile" TargetType="Button">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /><Setter Property="Margin" Value="0,0,6,0" /><Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+      <Border x:Name="Tile" Padding="14" CornerRadius="9" Background="{DynamicResource SurfaceCardBrush}" BorderBrush="{DynamicResource SurfaceBorderBrush}" BorderThickness="1"><ContentPresenter /></Border>
+      <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Tile" Property="Background" Value="{DynamicResource SurfaceHoverBrush}" /><Setter TargetName="Tile" Property="BorderBrush" Value="{DynamicResource AccentBrush}" /></Trigger></ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+
   <!-- ==================== 1. ТОНКИЕ СОВРЕМЕННЫЕ СКРОЛЛБАРЫ ==================== -->
   <Style x:Key="ModernScrollThumb" TargetType="Thumb">
     <Setter Property="OverridesDefaultStyle" Value="True" />
@@ -336,7 +364,7 @@
               <Setter Property="Foreground" Value="#FFFFFF" />
               <Setter Property="FontWeight" Value="SemiBold" />
               <Setter TargetName="TabBd" Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
-              <Setter TargetName="TabBd" Property="CornerRadius" Value="6,6,0,0" />
+              <Setter TargetName="TabBd" Property="CornerRadius" Value="5,5,0,0" />
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -695,7 +723,7 @@
     <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="FocusVisualStyle" Value="{StaticResource WorkbenchFocus}" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="ListBoxItem">
@@ -729,7 +757,7 @@
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="Margin" Value="0,0,5,0" />
     <Setter Property="VerticalAlignment" Value="Center" />
-    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="FocusVisualStyle" Value="{StaticResource WorkbenchFocus}" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="RadioButton">
@@ -764,7 +792,7 @@
     <Setter Property="FontSize" Value="11.5" />
     <Setter Property="FontWeight" Value="Medium" />
     <Setter Property="Cursor" Value="Hand" />
-    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="FocusVisualStyle" Value="{StaticResource WorkbenchFocus}" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
@@ -791,7 +819,7 @@
     <Setter Property="Margin" Value="0,0,8,6" />
     <Setter Property="MinWidth" Value="150" />
     <Setter Property="HorizontalContentAlignment" Value="Left" />
-    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="FocusVisualStyle" Value="{StaticResource WorkbenchFocus}" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">

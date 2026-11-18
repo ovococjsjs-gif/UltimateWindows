@@ -80,10 +80,12 @@ public sealed class MainViewModel : ObservableObject
 
     private SystemDomain _selectedDomain = SystemDomain.HealthOverview;
     private bool _isExpertMode;
-    private bool _isRunningSmartAudit;
-    private int _compositeHealthScore = 96;
-    private string _smartAuditTitle = "Комплексный аудит всех подсистем ПК в 1 клик";
-    private string _smartAuditSubheadline = "Проверяет диск C:\\, кэш без удаления паролей, твики, скрытые майнеры, синие экраны BSOD и драйверы WHQL.";
+    private CancellationTokenSource? _auditCts;
+    private readonly HashSet<SystemDomain> _initialized = [];
+    private string _auditStamp = "Нет результата";
+    private string _auditDetails = "";
+    private string _smartAuditTitle = "Проверка ещё не запускалась";
+    private string _smartAuditSubheadline = "Соберите локальную сводку о диске, устройствах, сбоях и защите. Проверка не применяет исправления.";
     private string _statusNotification = "Готово к работе";
     private string _vaultUsageText = "0 КБ";
     private double _vaultUsagePercent;
@@ -93,7 +95,7 @@ public sealed class MainViewModel : ObservableObject
     private string _testPathInput = @"C:\Users\User\AppData\Local\Google\Chrome\User Data\Default\Login Data";
     private string _testPathVerdict = "СТРОГО ЗАЩИЩЕНО: база сохраненных паролей браузера никогда не удаляется.";
 
-    private string _systemDriveUsageHeadline = "Проверка диска C:\\...";
+    private string _systemDriveUsageHeadline = "Данные о системном томе недоступны";
     private double _systemDriveUsedPercent;
     private bool _isSystemDriveCriticallyFull;
 
@@ -123,6 +125,8 @@ public sealed class MainViewModel : ObservableObject
         });
 
         RunOneClickSmartAuditCommand = new AsyncRelayCommand(_ => RunOneClickSmartAuditAsync());
+        CancelAuditCommand = new RelayCommand(_ => _auditCts?.Cancel());
+        OpenToolCommand = new RelayCommand(p => { if (p is ToolDestination tool) OpenTool(tool); });
         RestartAsAdminCommand = new RelayCommand(_ => RestartWithAdministratorRights(), _ => !IsAdmin);
         SaveQuotaPolicyCommand = new AsyncRelayCommand(_ => SaveQuotaPolicyAsync());
         PurgeBlobsCommand = new AsyncRelayCommand(_ => PurgeUnpinnedBlobsAsync());
@@ -175,25 +179,11 @@ public sealed class MainViewModel : ObservableObject
             _smartAuditOrchestrator);
         AppsStudio = new AppsStudioViewModel(appsService, OnSubModuleActionAsync);
 
-        // Команды переходов создаются после разделов, к которым они обращаются
-        JumpToDiskAnalyzerCommand = new AsyncRelayCommand(_ =>
-        {
-            SelectedDomain = SystemDomain.SmartCleaner;
-            CleanerStudio.SelectedSubTabIndex = 0;
-            return CleanerStudio.AnalyzeDiskSpaceAsync();
-        });
-
-        JumpToSpaceSaverCommand = new RelayCommand(_ =>
-        {
-            SelectedDomain = SystemDomain.SmartCleaner;
-            CleanerStudio.SelectedSubTabIndex = 3;
-        });
-
         // Ошибка, которую команда не обработала сама, показывается в строке состояния, а не закрывает программу
         AsyncRelayCommand.UnhandledError = ex => StatusNotification = $"Не удалось выполнить действие: {ex.Message}";
 
         RefreshSystemDriveTelemetry();
-        _ = InitializeAsync();
+
     }
 
     private async Task OnSubModuleActionAsync(string msg)
@@ -202,22 +192,47 @@ public sealed class MainViewModel : ObservableObject
         await RefreshVaultStateAsync();
     }
 
-    private async Task InitializeAsync()
+    private async Task InitializeSectionAsync(SystemDomain domain)
     {
+        if (!_initialized.Add(domain)) return;
         try
         {
-            var vaultTask = RefreshVaultStateAsync();
-            var hwTask = HardwareStudio.RefreshAuditAsync();
-            var drvTask = DriverStudio.InitializeFastAsync();
-            var reservesTask = CleanerStudio.RefreshSystemReservesAsync();
-            var optTask = OptimizerStudio.RefreshAllAsync();
-            var appsTask = AppsStudio.InitializeFastAsync();
-            await Task.WhenAll(vaultTask, hwTask, drvTask, reservesTask, optTask, appsTask);
+            switch (domain)
+            {
+                case SystemDomain.Optimizer: await OptimizerStudio.RefreshAllAsync(); break;
+                case SystemDomain.SmartCleaner: CleanerStudio.ReloadVolumes(); await CleanerStudio.RefreshSystemReservesAsync(); break;
+                case SystemDomain.HardwareAndDrivers: await Task.WhenAll(HardwareStudio.RefreshAuditAsync(), DriverStudio.InitializeFastAsync()); break;
+                case SystemDomain.AppsAndAutomation: await AppsStudio.InitializeFastAsync(); break;
+                case SystemDomain.TimeMachineVault: await RefreshVaultStateAsync(); break;
+            }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore background warmup failures
+            _initialized.Remove(domain);
+            StatusNotification = $"Не удалось загрузить раздел «{WorkbenchDirectory.Sections.First(s => s.Domain == domain).Title}»: {ex.Message}";
         }
+    }
+
+    public void OpenTool(ToolDestination tool)
+    {
+        SelectedDomain = tool.Domain;
+        switch (tool.Domain)
+        {
+            case SystemDomain.SmartCleaner: CleanerStudio.SelectedSubTabIndex = tool.Tab; break;
+            case SystemDomain.Optimizer: OptimizerStudio.SelectedSubTabIndex = tool.Tab; break;
+            case SystemDomain.DllAndRepair: RepairStudio.SelectedSubTabIndex = tool.Tab; break;
+            case SystemDomain.AntiMiner: AntiMinerStudio.SelectedSubTabIndex = tool.Tab; break;
+            case SystemDomain.HardwareAndDrivers: HardwareStudio.SelectedSubTabIndex = tool.Tab; break;
+            case SystemDomain.AppsAndAutomation: AppsStudio.SelectedSubTabIndex = tool.Tab; break;
+        }
+    }
+
+    public IReadOnlyList<WorkbenchSection> Sections => WorkbenchDirectory.Sections;
+    public IReadOnlyList<ToolDestination> QuickTasks { get; } = WorkbenchDirectory.Tools.Take(3).ToArray();
+    public WorkbenchSection SelectedSection
+    {
+        get => Sections.First(s => s.Domain == SelectedDomain);
+        set { if (value is not null) SelectedDomain = value.Domain; }
     }
 
     public bool IsAdmin { get; }
@@ -245,7 +260,9 @@ public sealed class MainViewModel : ObservableObject
     public double SystemDriveUsedPercent { get => _systemDriveUsedPercent; private set => SetProperty(ref _systemDriveUsedPercent, value); }
     public bool IsSystemDriveCriticallyFull { get => _isSystemDriveCriticallyFull; private set => SetProperty(ref _isSystemDriveCriticallyFull, value); }
 
-    public int CompositeHealthScore { get => _compositeHealthScore; private set => SetProperty(ref _compositeHealthScore, value); }
+    public bool IsRunningSmartAudit => _auditCts is not null;
+    public string AuditStamp { get => _auditStamp; private set => SetProperty(ref _auditStamp, value); }
+    public string AuditDetails { get => _auditDetails; private set => SetProperty(ref _auditDetails, value); }
     public string SmartAuditTitle { get => _smartAuditTitle; private set => SetProperty(ref _smartAuditTitle, value); }
     public string SmartAuditSubheadline { get => _smartAuditSubheadline; private set => SetProperty(ref _smartAuditSubheadline, value); }
     public bool HasSmartAuditActions => SmartAuditActions.Count > 0;
@@ -257,55 +274,13 @@ public sealed class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedDomain, value))
             {
-                OnPropertyChanged(nameof(IsOverviewVisible));
-                OnPropertyChanged(nameof(IsCleanerVisible));
-                OnPropertyChanged(nameof(IsOptimizerVisible));
-                OnPropertyChanged(nameof(IsAntiMinerVisible));
-                OnPropertyChanged(nameof(IsRepairVisible));
-                OnPropertyChanged(nameof(IsHardwareVisible));
-                OnPropertyChanged(nameof(IsAppsVisible));
-                OnPropertyChanged(nameof(IsTimeMachineVisible));
-
-                OnPropertyChanged(nameof(IsOverviewNav));
-                OnPropertyChanged(nameof(IsCleanerNav));
-                OnPropertyChanged(nameof(IsOptimizerNav));
-                OnPropertyChanged(nameof(IsAntiMinerNav));
-                OnPropertyChanged(nameof(IsRepairNav));
-                OnPropertyChanged(nameof(IsHardwareNav));
-                OnPropertyChanged(nameof(IsAppsNav));
-                OnPropertyChanged(nameof(IsVaultNav));
+                OnPropertyChanged(nameof(SelectedSection));
+                _ = InitializeSectionAsync(value);
             }
         }
     }
 
-    public bool IsOverviewVisible => SelectedDomain == SystemDomain.HealthOverview;
-    public bool IsCleanerVisible => SelectedDomain == SystemDomain.SmartCleaner;
-    public bool IsOptimizerVisible => SelectedDomain == SystemDomain.Optimizer;
-    public bool IsAntiMinerVisible => SelectedDomain == SystemDomain.AntiMiner;
-    public bool IsRepairVisible => SelectedDomain == SystemDomain.DllAndRepair;
-    public bool IsHardwareVisible => SelectedDomain == SystemDomain.HardwareAndDrivers;
-    public bool IsAppsVisible => SelectedDomain == SystemDomain.AppsAndAutomation;
-    public bool IsTimeMachineVisible => SelectedDomain == SystemDomain.TimeMachineVault;
-
-    public bool IsOverviewNav { get => IsOverviewVisible; set { if (value) SelectedDomain = SystemDomain.HealthOverview; } }
-    public bool IsCleanerNav { get => IsCleanerVisible; set { if (value) SelectedDomain = SystemDomain.SmartCleaner; } }
-    public bool IsOptimizerNav { get => IsOptimizerVisible; set { if (value) SelectedDomain = SystemDomain.Optimizer; } }
-    public bool IsAntiMinerNav { get => IsAntiMinerVisible; set { if (value) SelectedDomain = SystemDomain.AntiMiner; } }
-    public bool IsRepairNav { get => IsRepairVisible; set { if (value) SelectedDomain = SystemDomain.DllAndRepair; } }
-    public bool IsHardwareNav { get => IsHardwareVisible; set { if (value) SelectedDomain = SystemDomain.HardwareAndDrivers; } }
-    public bool IsAppsNav { get => IsAppsVisible; set { if (value) SelectedDomain = SystemDomain.AppsAndAutomation; } }
-    public bool IsVaultNav { get => IsTimeMachineVisible; set { if (value) SelectedDomain = SystemDomain.TimeMachineVault; } }
-
-    public bool IsExpertMode
-    {
-        get => _isExpertMode;
-        set
-        {
-            if (SetProperty(ref _isExpertMode, value)) OnPropertyChanged(nameof(ExperienceModeLabel));
-        }
-    }
-
-    public string ExperienceModeLabel => IsExpertMode ? "Эксперт (ключи и логи)" : "Эксперт";
+    public bool IsExpertMode { get => _isExpertMode; set => SetProperty(ref _isExpertMode, value); }
 
     public string StatusNotification { get => _statusNotification; set => SetProperty(ref _statusNotification, value); }
     public string VaultUsageText { get => _vaultUsageText; private set => SetProperty(ref _vaultUsageText, value); }
@@ -318,8 +293,8 @@ public sealed class MainViewModel : ObservableObject
     public string TestPathVerdict { get => _testPathVerdict; private set => SetProperty(ref _testPathVerdict, value); }
 
     public ICommand NavigateCommand { get; }
-    public ICommand JumpToDiskAnalyzerCommand { get; }
-    public ICommand JumpToSpaceSaverCommand { get; }
+    public ICommand OpenToolCommand { get; }
+    public ICommand CancelAuditCommand { get; }
     public ICommand RunOneClickSmartAuditCommand { get; }
     public ICommand RestartAsAdminCommand { get; }
     public ICommand SaveQuotaPolicyCommand { get; }
@@ -345,7 +320,9 @@ public sealed class MainViewModel : ObservableObject
         }
         catch
         {
-            SystemDriveUsageHeadline = "Системный диск C:";
+            SystemDriveUsageHeadline = "Данные о системном томе недоступны";
+            IsSystemDriveCriticallyFull = false;
+            SystemDriveUsedPercent = 0;
         }
     }
 
@@ -369,24 +346,24 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task RunOneClickSmartAuditAsync()
     {
-        if (_isRunningSmartAudit) return;
-
-        _isRunningSmartAudit = true;
-        SmartAuditTitle = "Выполняется глубокий аудит 6 подсистем ПК...";
-        SmartAuditSubheadline = "Анти-майнер, паспорт железа, драйверы WHQL, дампы BSOD, безопасный кэш и автозагрузка.";
-
+        if (_auditCts is not null) return;
+        using var cts = new CancellationTokenSource();
+        _auditCts = cts;
+        OnPropertyChanged(nameof(IsRunningSmartAudit));
+        SmartAuditActions.Clear();
+        OnPropertyChanged(nameof(HasSmartAuditActions));
+        SmartAuditTitle = "Идёт проверка компьютера";
+        SmartAuditSubheadline = "Собираем показатели шести разделов. Можно продолжать работу или остановить проверку.";
+        AuditStamp = "В процессе";
+        AuditDetails = "";
         try
         {
-            var summary = await _smartAuditOrchestrator.RunOneClickAuditAsync(
-                includeStealthMinerDecoyProbe: false,
-                queryOnlineDriverCatalog: false);
-
-            CompositeHealthScore = summary.CompositeHealthScore;
-            SmartAuditTitle = summary.ExecutiveHeadline;
-            SmartAuditSubheadline =
-                $"Защита: {summary.SecurityScore}/100  •  Железо: {summary.HardwareScore}/100  •  Драйверы: {summary.DriversScore}/100  •  Стабильность: {summary.StabilityRepairScore}/100  •  Мусор кэша: {summary.FormattedReclaimableSpace}";
-
-            SmartAuditActions.Clear();
+            var summary = await Task.Run(() => _smartAuditOrchestrator.RunOneClickAuditAsync(false, false, cts.Token));
+            cts.Token.ThrowIfCancellationRequested();
+            AuditStamp = $"Проверено {summary.CompletedAtUtc.ToLocalTime():dd.MM · HH:mm}";
+            SmartAuditTitle = "Результаты проверки готовы";
+            SmartAuditSubheadline = $"Рекомендаций в сводке: {summary.TopActionItems.Count}. Оценка объёма очистки: {summary.FormattedReclaimableSpace}. Изменения не вносились.";
+            AuditDetails = $"Расчётный индекс: {summary.CompositeHealthScore}/100 · защита {summary.SecurityScore} · оборудование {summary.HardwareScore} · драйверы {summary.DriversScore} · стабильность {summary.StabilityRepairScore}.";
             foreach (var act in summary.TopActionItems)
             {
                 var capturedDomain = act.TargetDomain;
@@ -398,14 +375,22 @@ public sealed class MainViewModel : ObservableObject
             OnPropertyChanged(nameof(HasSmartAuditActions));
             StatusNotification = summary.ExecutiveHeadline;
         }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            AuditStamp = "Остановлено";
+            SmartAuditTitle = "Проверка остановлена";
+            SmartAuditSubheadline = "Полный результат не получен. Можно запустить проверку снова.";
+        }
         catch (Exception ex)
         {
-            SmartAuditTitle = "Ошибка при выполнении аудита";
+            AuditStamp = "Нет результата";
+            SmartAuditTitle = "Не удалось завершить проверку";
             SmartAuditSubheadline = ex.Message;
         }
         finally
         {
-            _isRunningSmartAudit = false;
+            _auditCts = null;
+            OnPropertyChanged(nameof(IsRunningSmartAudit));
         }
     }
 

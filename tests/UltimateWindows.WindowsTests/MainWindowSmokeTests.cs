@@ -32,6 +32,15 @@ public sealed class MainWindowSmokeTests
             var main = Assert.IsType<MainViewModel>(window.DataContext);
             await surface.SettleAsync();
 
+            Assert.Equal("Нет результата", main.AuditStamp);
+            Assert.Empty(main.OptimizerStudio.Tweaks.AllTweaks);
+            surface.Save("workbench-home");
+            window.Width = 860; window.Height = 540;
+            await surface.SettleAsync();
+            Assert.True(window.CompactNavigation);
+            surface.Save("workbench-small");
+            window.Width = 1360; window.Height = 840;
+            main.SelectedDomain = SystemDomain.Optimizer;
             reached = "чтение настроек Windows";
             var studio = main.OptimizerStudio;
             var tweaks = studio.Tweaks;

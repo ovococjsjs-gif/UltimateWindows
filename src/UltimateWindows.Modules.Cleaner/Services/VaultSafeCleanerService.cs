@@ -232,6 +232,27 @@ public sealed class VaultSafeCleanerService
         }, ct);
     }
 
+    // Применить только показанные пункты конкретных профилей. Профили, появившиеся после анализа,
+    // не открываем. Clean повторно проверяет, не был ли браузер запущен.
+    public Task<string> CleanPreviewedBrowserDataAsync(IReadOnlyList<BrowserDataItemSummary> items,
+        IReadOnlyList<string> keepDomains, CancellationToken ct = default) => Task.Run(() =>
+    {
+        var summaries = new List<string>();
+        foreach (var group in items.Where(i => !i.BlockedByRunningBrowser && i.ItemCount > 0).GroupBy(i => i.Profile))
+        {
+            var kinds = group.Select(i => i.Kind).ToHashSet();
+            var result = _browserDataCleaner.Clean([group.Key], new BrowserCleanupSelection
+            {
+                CleanCache = false, CleanHistory = kinds.Contains(BrowserDataKind.History),
+                CleanDownloads = kinds.Contains(BrowserDataKind.Downloads), CleanCookies = kinds.Contains(BrowserDataKind.Cookies),
+                CleanSessions = kinds.Contains(BrowserDataKind.Sessions), KeepCookieDomains = keepDomains
+            }, ct);
+            summaries.Add($"{group.Key.BrowserName} ({group.Key.ProfileName}): {result.UserSummaryMessage}");
+            summaries.AddRange(result.Warnings);
+        }
+        return string.Join("\n", summaries);
+    }, ct);
+
     public IReadOnlyList<DiskVolumeSummary> GetMountedVolumes() => FastDiskSpaceAnalyzer.GetReadyVolumes();
 
     /// <summary>
@@ -288,6 +309,7 @@ public sealed class VaultSafeCleanerService
         var totalBytes = allFiles.Sum(f => f.SizeBytes) + (options.EmptyRecycleBin ? recycleBytes : 0);
 
         return new CleanupScanReport(
+            Options: options with { KeepCookieDomains = options.KeepCookieDomains.ToArray() },
             ScannedAtUtc: DateTimeOffset.UtcNow,
             TotalReclaimableBytes: totalBytes,
             TotalFilesCount: allFiles.Count + (options.EmptyRecycleBin ? recycleItems : 0),
@@ -374,21 +396,21 @@ public sealed class VaultSafeCleanerService
     /// </summary>
     public async Task<CleanupExecutionResult> ExecuteCleanupAsync(
         CleanupScanReport report,
-        CleanupOptions options,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(report);
-        ArgumentNullException.ThrowIfNull(options);
+        var options = report.Options;
 
         long freedBytes = 0;
         int deletedFiles = 0;
-        int skippedLocked = 0;
+        int skippedLocked = 0, changed = 0;
+        string binNote = "";
 
         foreach (var file in report.CandidateFiles)
         {
             ct.ThrowIfCancellationRequested();
 
-            if (options.PreservePasswordsAndAutofill && BrowserVaultGuard.IsProtectedPersonalData(file.FullPath))
+            if (BrowserVaultGuard.IsProtectedPersonalData(file.FullPath))
             {
                 throw new InvalidOperationException(
                     $"АВАРИЙНАЯ БЛОКИРОВКА BrowserVaultGuard: попытка затронуть защищенные личные данные '{file.FullPath}' пресечена.");
@@ -396,6 +418,7 @@ public sealed class VaultSafeCleanerService
 
             if (!File.Exists(file.FullPath))
             {
+                changed++;
                 continue;
             }
 
@@ -407,6 +430,9 @@ public sealed class VaultSafeCleanerService
 
             try
             {
+                var now = new FileInfo(file.FullPath);
+                if (now.Length != file.SizeBytes || now.LastWriteTimeUtc != file.LastWriteTimeUtc ||
+                    now.Attributes.HasFlag(FileAttributes.ReparsePoint)) { changed++; continue; }
                 File.Delete(file.FullPath);
                 freedBytes += file.SizeBytes;
                 deletedFiles++;
@@ -421,14 +447,17 @@ public sealed class VaultSafeCleanerService
             }
         }
 
-        if (options.EmptyRecycleBin)
+        if (options.EmptyRecycleBin && report.Categories.FirstOrDefault(c => c.Category == CleanerCategoryKind.RecycleBin) is { } bin)
         {
             var (binBytes, binItems) = await _platformBridge.QueryRecycleBinSizeAsync(ct).ConfigureAwait(false);
-            if (binBytes > 0 && await _platformBridge.EmptyRecycleBinAsync(ct).ConfigureAwait(false))
+            if (binBytes != bin.TotalBytes || binItems != bin.ItemCount)
+                binNote = " Корзина изменилась после анализа и не очищена.";
+            else if (await _platformBridge.EmptyRecycleBinAsync(ct).ConfigureAwait(false))
             {
                 freedBytes += binBytes;
                 deletedFiles += binItems;
             }
+            else binNote = " Не удалось очистить корзину.";
         }
 
         int cleanedRegCount = 0;
@@ -443,7 +472,7 @@ public sealed class VaultSafeCleanerService
 
         var regPart = cleanedRegCount > 0 ? $", исправлено {cleanedRegCount} сирот реестра (точка отката сохранена)" : "";
         var skipPart = skippedLocked > 0 ? $" (пропущено занятых открытыми программами файлов: {skippedLocked})" : "";
-        var summaryMsg = $"Освобождено {ByteFormatter.Format(freedBytes)} ({deletedFiles} файлов){regPart}{skipPart}. Пароли и формы браузеров сохранены!";
+        var summaryMsg = $"Освобождено {ByteFormatter.Format(freedBytes)} ({deletedFiles} файлов){regPart}{skipPart}. Изменились или исчезли: {changed}.{binNote}";
 
         return new CleanupExecutionResult(
             FreedBytes: freedBytes,
@@ -451,7 +480,7 @@ public sealed class VaultSafeCleanerService
             SkippedLockedFilesCount: skippedLocked,
             CleanedRegistryOrphansCount: cleanedRegCount,
             RollbackSessionId: rollbackSessionId,
-            UserSummaryMessage: summaryMsg);
+            UserSummaryMessage: summaryMsg) { SkippedChangedFilesCount = changed };
     }
 
     public Task<DiskSpaceAnalysisReport> AnalyzeDiskSpaceAsync(

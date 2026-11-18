@@ -70,7 +70,8 @@ public sealed record CleanupCandidateFile(
     CleanerCategoryKind Category,
     string SourceLabel,
     string FullPath,
-    long SizeBytes)
+    long SizeBytes,
+    DateTime LastWriteTimeUtc)
 {
     public string FormattedSize => ByteFormatter.Format(SizeBytes);
 }
@@ -125,6 +126,7 @@ public sealed record CleanupCategorySummary(
 }
 
 public sealed record CleanupScanReport(
+    CleanupOptions Options,
     DateTimeOffset ScannedAtUtc,
     long TotalReclaimableBytes,
     int TotalFilesCount,
@@ -146,6 +148,7 @@ public sealed record CleanupExecutionResult(
     Guid? RollbackSessionId,
     string UserSummaryMessage)
 {
+    public int SkippedChangedFilesCount { get; init; }
     public string FormattedFreed => ByteFormatter.Format(FreedBytes);
 }
 

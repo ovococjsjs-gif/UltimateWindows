@@ -284,13 +284,16 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
             {
                 using var doc = JsonDocument.Parse(delta.PreviousStateJson);
                 var zipPath = doc.RootElement.TryGetProperty("RestoredArchivePath", out var zEl) ? zEl.GetString() : null;
-                if (!string.IsNullOrWhiteSpace(zipPath) && File.Exists(zipPath))
+                if (string.IsNullOrWhiteSpace(zipPath) || !File.Exists(zipPath))
+                    throw new FileNotFoundException("Архив драйвера недоступен для восстановления.", zipPath);
                 {
                     var unpackDir = Path.Combine(Path.GetTempPath(), "uw-drv-restore-" + Guid.NewGuid().ToString("N"));
                     try
                     {
                         ZipFile.ExtractToDirectory(zipPath, unpackDir, overwriteFiles: true);
-                        foreach (var infPath in Directory.GetFiles(unpackDir, "*.inf", SearchOption.AllDirectories))
+                        var infs = Directory.GetFiles(unpackDir, "*.inf", SearchOption.AllDirectories);
+                        if (infs.Length == 0) throw new InvalidDataException("Архив не содержит INF.");
+                        foreach (var infPath in infs)
                         {
                             var psi = new ProcessStartInfo
                             {
@@ -301,11 +304,9 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
                             psi.ArgumentList.Add("/add-driver");
                             psi.ArgumentList.Add(infPath);
                             psi.ArgumentList.Add("/install");
-                            using var proc = Process.Start(psi);
-                            if (proc is not null)
-                            {
-                                await proc.WaitForExitAsync(ct).ConfigureAwait(false);
-                            }
+                            using var proc = Process.Start(psi) ?? throw new IOException("Не удалось запустить pnputil.");
+                            await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+                            if (proc.ExitCode is not (0 or 3010)) throw new IOException($"pnputil: код {proc.ExitCode}.");
                         }
                     }
                     finally
@@ -358,12 +359,22 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
             {
                 using var doc = JsonDocument.Parse(delta.PreviousStateJson);
                 var regContent = doc.RootElement.TryGetProperty("RegFileContent", out var rEl) ? rEl.GetString() : null;
-                if (!string.IsNullOrWhiteSpace(regContent))
+                if (string.IsNullOrWhiteSpace(regContent)) throw new InvalidDataException("Нет сохранённого экспорта реестра.");
                 {
+                    var path = delta.TargetPath["AppRegistryExport:".Length..];
+                    var separator = path.IndexOf('\\');
+                    var hive = path.StartsWith("HKCU\\", StringComparison.OrdinalIgnoreCase) || path.StartsWith("HKEY_CURRENT_USER\\", StringComparison.OrdinalIgnoreCase)
+                        ? Registry.CurrentUser : Registry.LocalMachine;
+                    using var existing = hive.OpenSubKey(path[(separator + 1)..], writable: false);
+                    if (existing is not null)
+                    {
+                        if (await Apps.WindowsAppsPlatformBridge.ExportRegistryTreeAsync(path, ct).ConfigureAwait(false) == regContent) return;
+                        throw new IOException($"Ветка «{path}» существует и отличается от снимка. Перезапись отменена.");
+                    }
                     var tempReg = Path.Combine(Path.GetTempPath(), $"uw-reg-restore-{Guid.NewGuid():N}.reg");
                     try
                     {
-                        await File.WriteAllTextAsync(tempReg, regContent, ct).ConfigureAwait(false);
+                        await File.WriteAllTextAsync(tempReg, regContent, System.Text.Encoding.Unicode, ct).ConfigureAwait(false);
                         var psi = new ProcessStartInfo
                         {
                             FileName = Path.Combine(Environment.SystemDirectory, "reg.exe"),
@@ -372,11 +383,9 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
                         };
                         psi.ArgumentList.Add("import");
                         psi.ArgumentList.Add(tempReg);
-                        using var proc = Process.Start(psi);
-                        if (proc is not null)
-                        {
-                            await proc.WaitForExitAsync(ct).ConfigureAwait(false);
-                        }
+                        using var proc = Process.Start(psi) ?? throw new IOException("Не удалось запустить reg import.");
+                        await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+                        if (proc.ExitCode != 0) throw new IOException($"reg import: код {proc.ExitCode}.");
                     }
                     finally
                     {

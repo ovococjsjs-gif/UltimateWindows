@@ -87,7 +87,7 @@ public sealed class EssentialCatalogItemViewModel : ObservableObject
 
 public sealed class SelectableLeftoverItemViewModel : ObservableObject
 {
-    private bool _isSelected = true;
+    private bool _isSelected;
 
     public SelectableLeftoverItemViewModel(AppLeftoverItem item)
     {
@@ -124,6 +124,7 @@ public sealed class AppsStudioViewModel : ObservableObject
     // Вкладка 2: Чистый деинсталлятор
     private string _uninstallerSearchQuery = string.Empty;
     private InstalledApplicationInfo? _selectedInstalledApp;
+    private InstalledApplicationInfo? _leftoverTarget;
     private string _leftoverSummaryText = "Выберите программу в списке слева и нажмите «Найти хвосты» для проверки остаточных папок и реестра.";
     private readonly List<InstalledApplicationInfo> _allInstalledApps = new();
 
@@ -193,7 +194,7 @@ public sealed class AppsStudioViewModel : ObservableObject
 
         RefreshInstalledAppsCommand = new AsyncRelayCommand(_ => RefreshInstalledAppsAsync(), _ => !IsBusy);
         ScanLeftoversCommand = new AsyncRelayCommand(_ => ScanSelectedAppLeftoversAsync(), _ => !IsBusy && SelectedInstalledApp is not null);
-        CleanLeftoversOnlyCommand = new AsyncRelayCommand(_ => CleanSelectedLeftoversOnlyAsync(), _ => !IsBusy && SelectedInstalledApp is not null);
+        CleanLeftoversOnlyCommand = new AsyncRelayCommand(_ => CleanSelectedLeftoversOnlyAsync(), _ => !IsBusy && _leftoverTarget is not null);
         UninstallCleanCommand = new AsyncRelayCommand(_ => RunCleanUninstallAsync(), _ => !IsBusy && SelectedInstalledApp is not null);
         ForceRemoveAppCommand = new AsyncRelayCommand(_ => RunForceRemoveAppAsync(), _ => !IsBusy && SelectedInstalledApp is not null);
 
@@ -299,6 +300,7 @@ public sealed class AppsStudioViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedInstalledApp, value))
             {
+                _leftoverTarget = null;
                 FoundLeftovers.Clear();
                 LeftoverSummaryText = value is null
                     ? "Выберите программу слева для поиска остаточных хвостов."
@@ -571,6 +573,8 @@ public sealed class AppsStudioViewModel : ObservableObject
         {
             var target = SelectedInstalledApp;
             var leftovers = await _service.ScanApplicationLeftoversAsync(target);
+            if (target != SelectedInstalledApp) return;
+            _leftoverTarget = target;
             FoundLeftovers.Clear();
             foreach (var item in leftovers)
             {
@@ -579,7 +583,7 @@ public sealed class AppsStudioViewModel : ObservableObject
 
             LeftoverSummaryText = leftovers.Count == 0
                 ? $"Для «{target.DisplayName}» отдельных папок AppData/ProgramData и осиротевших ключей не обнаружено."
-                : $"Найдено связанных путей и веток реестра для «{target.DisplayName}»: {leftovers.Count}. Все объекты перед удалением сохраняются в Машину времени.";
+                : $"Найдено связанных путей и веток реестра для «{target.DisplayName}»: {leftovers.Count}. Отметьте только ненужные объекты. Без проверенной копии они останутся на месте.";
             StatusBannerText = LeftoverSummaryText;
         }
         finally
@@ -590,7 +594,8 @@ public sealed class AppsStudioViewModel : ObservableObject
 
     public async Task CleanSelectedLeftoversOnlyAsync()
     {
-        if (SelectedInstalledApp is null)
+        var target = _leftoverTarget;
+        if (target is null)
         {
             return;
         }
@@ -605,11 +610,13 @@ public sealed class AppsStudioViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            var res = await _service.CleanSelectedLeftoversAsync(SelectedInstalledApp, chosen);
+            if (!UserPrompts.Confirm(new("Очистить отмеченные остатки?", $"{target.DisplayName}: выбрано объектов — {chosen.Count}. Копия будет закреплена в Машине времени.", true))) return;
+            var res = await _service.CleanSelectedLeftoversAsync(target, chosen);
+            _leftoverTarget = null;
+            FoundLeftovers.Clear();
             LeftoverSummaryText = res.SummaryMessage;
             StatusBannerText = res.SummaryMessage;
             await _notifyParentAsync(res.SummaryMessage);
-            await ScanSelectedAppLeftoversAsync();
         }
         finally
         {
@@ -628,11 +635,14 @@ public sealed class AppsStudioViewModel : ObservableObject
         try
         {
             var target = SelectedInstalledApp;
-            StatusBannerText = $"Запуск штатного деинсталлятора «{target.DisplayName}» с последующим поиском и карантином хвостов...";
+            StatusBannerText = $"Запуск штатного деинсталлятора «{target.DisplayName}» с последующим просмотром остатков...";
             var res = await _service.UninstallWithLeftoverSweepAsync(target);
+            await RefreshInstalledAppsAsync();
+            FoundLeftovers.Clear();
+            _leftoverTarget = res.RemainingLeftovers.Count > 0 ? target : null;
+            foreach (var item in res.RemainingLeftovers) FoundLeftovers.Add(new SelectableLeftoverItemViewModel(item));
             LeftoverSummaryText = res.SummaryMessage;
             StatusBannerText = res.SummaryMessage;
-            await RefreshInstalledAppsAsync();
             await _notifyParentAsync(res.SummaryMessage);
         }
         finally
@@ -652,7 +662,7 @@ public sealed class AppsStudioViewModel : ObservableObject
         var confirm = MessageBox.Show(
             $"Выполнить принудительное удаление «{target.DisplayName}»?\n\n" +
             "Используйте этот режим, если штатный uninstall.exe повреждён или удалён. " +
-            "Запущенные процессы программы будут остановлены, а файлы, хвосты и запись реестра сохранены в карантин Машины времени.",
+            "Закройте программу. Занятые и слишком большие файлы останутся на месте. Перед удалением будет закреплён проверенный снимок.",
             "Принудительное удаление программы",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);

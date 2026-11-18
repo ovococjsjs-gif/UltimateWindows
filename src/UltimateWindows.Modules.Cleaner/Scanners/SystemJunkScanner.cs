@@ -189,7 +189,7 @@ public sealed class SystemJunkScanner
                         Category: category,
                         SourceLabel: sourceLabel,
                         FullPath: info.FullName,
-                        SizeBytes: info.Length));
+                        SizeBytes: info.Length, LastWriteTimeUtc: info.LastWriteTimeUtc));
                 }
             }
             catch

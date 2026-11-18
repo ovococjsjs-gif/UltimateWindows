@@ -1,28 +1,28 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <!-- Pro Light Studio Palette -->
-  <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F1F5F9" />
+  <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F1F5F4" />
   <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#FFFFFF" />
   <SolidColorBrush x:Key="SurfaceSidebarBrush" Color="#FFFFFF" />
   <SolidColorBrush x:Key="HeaderBackgroundBrush" Color="#FFFFFF" />
   <SolidColorBrush x:Key="SurfaceCardBrush" Color="#FFFFFF" />
   <SolidColorBrush x:Key="SurfaceElevatedBrush" Color="#F8FAFC" />
   <SolidColorBrush x:Key="SurfaceInputBrush" Color="#FFFFFF" />
-  <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#EEF2FF" />
+  <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#E2F2EF" />
   <SolidColorBrush x:Key="SurfaceBorderBrush" Color="#CBD5E1" />
   <SolidColorBrush x:Key="CardBorderBrush" Color="#CBD5E1" />
   <SolidColorBrush x:Key="DividerBrush" Color="#E2E8F0" />
-  <SolidColorBrush x:Key="ExpertPanelBackgroundBrush" Color="#EEF2FF" />
-  <SolidColorBrush x:Key="ExpertPanelBorderBrush" Color="#C7D2FE" />
+  <SolidColorBrush x:Key="ExpertPanelBackgroundBrush" Color="#E2F2EF" />
+  <SolidColorBrush x:Key="ExpertPanelBorderBrush" Color="#BBD7D3" />
 
   <SolidColorBrush x:Key="TextPrimaryBrush" Color="#0F172A" />
   <SolidColorBrush x:Key="TextSecondaryBrush" Color="#475569" />
-  <SolidColorBrush x:Key="TextMutedBrush" Color="#64748B" />
+  <SolidColorBrush x:Key="TextMutedBrush" Color="#52646B" />
 
-  <SolidColorBrush x:Key="AccentPrimaryBrush" Color="#4F46E5" />
-  <SolidColorBrush x:Key="AccentPrimaryHoverBrush" Color="#6366F1" />
-  <SolidColorBrush x:Key="AccentBrush" Color="#4F46E5" />
-  <SolidColorBrush x:Key="AccentSubtleBrush" Color="#EEF2FF" />
+  <SolidColorBrush x:Key="AccentPrimaryBrush" Color="#096575" />
+  <SolidColorBrush x:Key="AccentPrimaryHoverBrush" Color="#085664" />
+  <SolidColorBrush x:Key="AccentBrush" Color="#096575" />
+  <SolidColorBrush x:Key="AccentSubtleBrush" Color="#E2F2EF" />
 
   <SolidColorBrush x:Key="SafeEmeraldBrush" Color="#059669" />
   <SolidColorBrush x:Key="SafeEmeraldSubtleBrush" Color="#ECFDF5" />
@@ -41,7 +41,10 @@
   <SolidColorBrush x:Key="DangerTextBrush" Color="#B91C1C" />
   <SolidColorBrush x:Key="AmberTextBrush" Color="#92400E" />
   <SolidColorBrush x:Key="SafeTextBrush" Color="#047857" />
-  <SolidColorBrush x:Key="AccentTextBrush" Color="#4338CA" />
+  <SolidColorBrush x:Key="AccentTextBrush" Color="#075969" />
   <SolidColorBrush x:Key="ConsoleBackgroundBrush" Color="#0F172A" />
   <SolidColorBrush x:Key="ConsoleTextBrush" Color="#A5F3FC" />
+  <LinearGradientBrush x:Key="AuditBannerBrush" StartPoint="0,0" EndPoint="1,1">
+    <GradientStop Color="#E3F3EF" Offset="0" /><GradientStop Color="#F7FAF9" Offset="1" />
+  </LinearGradientBrush>
 </ResourceDictionary>

@@ -244,7 +244,7 @@ switch (command)
     {
         var options = new CleanupOptions { PreservePasswordsAndAutofill = true };
         var report = await cleaner.ScanAsync(options);
-        var exec = await cleaner.ExecuteCleanupAsync(report, options);
+        var exec = await cleaner.ExecuteCleanupAsync(report);
         Console.WriteLine("=== UltimateWindows Phase 2 — Результат бережной очистки ===");
         Console.WriteLine(exec.UserSummaryMessage);
         break;

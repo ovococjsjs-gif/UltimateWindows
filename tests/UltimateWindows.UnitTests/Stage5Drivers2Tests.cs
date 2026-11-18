@@ -460,6 +460,31 @@ public sealed class Stage5Drivers2Tests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DriverStore_DoesNotRemoveOrReplaceAnOemPackageWithoutAnExport(bool emptySuccess)
+    {
+        var dir = Directory.CreateTempSubdirectory("uw-drv-gate-");
+        try
+        {
+            var old = new DriverStoreEntry("oem3.inf", "sample.inf", "Test", "Net", "{net}", "1.0", "2023-01-01", "", "", 10, false, null, false, null);
+            var newer = old with { PublishedInfName = "oem4.inf", DriverVersion = "2.0" };
+            var bridge = new Stage5FakeDriverBridge { ExportEmptyResult = emptySuccess, StoreEntries = [old, newer] };
+            var service = new OfficialDriverService(new ZeroBloatVaultService(dir.FullName), bridge);
+            var clean = await service.CleanOldDriverStoreDuplicatesAsync();
+            Assert.False(clean.Succeeded);
+            Assert.Empty(bridge.DeletedInfPackages);
+            var device = new SystemDeviceNode(@"PCI\VEN_1234&DEV_0001\1", "Test", "Net", "Test", [@"PCI\VEN_1234&DEV_0001"], 0, "1.0", "2023-01-01", "oem3.inf");
+            var candidate = new OfficialDriverCandidate("test", "Test", "Test", "Test", "2.0", "2024-01-01", device.HardwareIds[0], 100, DriverSourceKind.WindowsUpdateWhqlCatalog, "", true);
+            var install = await service.InstallOfficialWhqlDriverAsync(device, candidate);
+            Assert.False(install.Succeeded);
+            Assert.Contains("oem3.inf", install.UserFriendlyMessage);
+            Assert.Equal(0, bridge.UpdateInstallCalls);
+        }
+        finally { dir.Delete(true); }
+    }
+
     private sealed class StubHttpHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
@@ -469,6 +494,13 @@ public sealed class Stage5Drivers2Tests
     private sealed class Stage5FakeDriverBridge : DefaultDriverPlatformBridge
     {
         public bool IsAdmin { get; set; } = true;
+        public bool? ExportEmptyResult { get; init; }
+        public int UpdateInstallCalls { get; private set; }
+        public override Task<(bool Succeeded, bool RebootRequired, string ErrorMessage)> InstallWindowsUpdateDriverAsync(string updateIdentityId, CancellationToken ct = default)
+        {
+            UpdateInstallCalls++;
+            return Task.FromResult((true, false, ""));
+        }
         public bool SignatureVerdict { get; set; } = true;
         public bool HvciEnabled { get; set; }
         public bool BlocklistEnabled { get; set; } = true;
@@ -503,6 +535,7 @@ public sealed class Stage5Drivers2Tests
             string destinationDirectory,
             CancellationToken ct = default)
         {
+            if (ExportEmptyResult is bool flag) return (flag, [], "test export unavailable");
             Directory.CreateDirectory(destinationDirectory);
             var f = Path.Combine(destinationDirectory, oemInfName);
             await File.WriteAllTextAsync(f, "; exported inf", ct);

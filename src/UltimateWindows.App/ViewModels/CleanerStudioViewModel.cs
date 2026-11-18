@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
 using Microsoft.Win32;
@@ -157,7 +158,10 @@ public sealed class CleanerStudioViewModel : ObservableObject
     private readonly VaultSafeCleanerService _cleanerService;
     private readonly Func<string, Task> _onActionCompletedAsync;
 
-    private CleanupScanReport? _lastScanReport;
+    private sealed record Preview(CleanupScanReport Files, BrowserDataItemSummary[] BrowserItems);
+    private Preview? _preview;
+    private int _selectionVersion;
+    private CancellationTokenSource? _previewCts;
     private CancellationTokenSource? _diskCts;
     private DiskTreeNode? _fullScannedRootNode;
     private readonly Stack<DiskTreeNode> _drillHistory = new();
@@ -166,8 +170,6 @@ public sealed class CleanerStudioViewModel : ObservableObject
     private bool _isFilesFlatView;
 
     // Опции стандартной очистки
-    private bool _preservePasswordsAndAutofill = true;
-    private bool _preserveBrowserSessions = true;
     private bool _cleanBrowserCaches = true;
     private bool _cleanSystemTempAndShaders = true;
     private bool _cleanRegistryOrphans = false;
@@ -196,7 +198,7 @@ public sealed class CleanerStudioViewModel : ObservableObject
     private bool _isScanningRegistry;
     private bool _isScanningDuplicates;
 
-    private string _scanSummaryHeadline = "Отметьте нужные пункты и нажмите «Анализ мусора» — пароли и автозаполнение браузеров защищены.";
+    private string _scanSummaryHeadline = "Выберите категории слева и рассчитайте план. Анализ ничего не удаляет.";
     private string _browserWarningBanner = "";
     private string _lastCleanupOutcome = "";
 
@@ -291,7 +293,8 @@ public sealed class CleanerStudioViewModel : ObservableObject
         });
 
         // Стандартная очистка
-        ScanPreviewCommand = new AsyncRelayCommand(_ => RunScanPreviewAsync());
+        ScanPreviewCommand = new AsyncRelayCommand(_ => RunScanPreviewAsync(), _ => !IsCleaning && !IsScanning);
+        CancelPreviewCommand = new RelayCommand(_ => _previewCts?.Cancel());
         ExecuteSafeCleanCommand = new AsyncRelayCommand(_ => ExecuteSafeCleanAsync(), _ => CanExecuteClean);
 
         // Реестр (CCleaner-стиль)
@@ -337,7 +340,6 @@ public sealed class CleanerStudioViewModel : ObservableObject
             UpdateAppRulesSelectionHeadline();
         });
 
-        ReloadVolumes();
     }
 
     public ObservableCollection<DiskVolumeSummary> MountedVolumes { get; }
@@ -426,53 +428,24 @@ public sealed class CleanerStudioViewModel : ObservableObject
         ? $"{SelectedTreeNode.FullPath}  •  {SelectedTreeNode.FormattedSize} ({SelectedTreeNode.ShareLabel})"
         : "Кликните по папке в дереве или блоку на карте снизу для просмотра и быстрых действий";
 
-    public bool PreservePasswordsAndAutofill
-    {
-        get => _preservePasswordsAndAutofill;
-        set
-        {
-            if (SetProperty(ref _preservePasswordsAndAutofill, value))
-            {
-                OnPropertyChanged(nameof(VaultShieldBadgeText));
-            }
-        }
-    }
+    public bool CleanBrowserCaches { get => _cleanBrowserCaches; set => SetSelection(ref _cleanBrowserCaches, value); }
+    public bool CleanSystemTempAndShaders { get => _cleanSystemTempAndShaders; set => SetSelection(ref _cleanSystemTempAndShaders, value); }
+    public bool CleanRegistryOrphans { get => _cleanRegistryOrphans; set => SetSelection(ref _cleanRegistryOrphans, value); }
+    public bool EmptyRecycleBin { get => _emptyRecycleBin; set => SetSelection(ref _emptyRecycleBin, value); }
+    public bool IncludeDeveloperCaches { get => _includeDeveloperCaches; set => SetSelection(ref _includeDeveloperCaches, value); }
+    public bool CleanBrowserHistory { get => _cleanBrowserHistory; set => SetSelection(ref _cleanBrowserHistory, value); }
+    public bool CleanBrowserDownloads { get => _cleanBrowserDownloads; set => SetSelection(ref _cleanBrowserDownloads, value); }
+    public bool CleanBrowserCookies { get => _cleanBrowserCookies; set => SetSelection(ref _cleanBrowserCookies, value); }
+    public bool CleanBrowserSessions { get => _cleanBrowserSessions; set => SetSelection(ref _cleanBrowserSessions, value); }
+    public string KeepCookieDomainsText { get => _keepCookieDomainsText; set => SetSelection(ref _keepCookieDomainsText, value); }
 
-    public bool PreserveBrowserSessions { get => _preserveBrowserSessions; set => SetProperty(ref _preserveBrowserSessions, value); }
-    public bool CleanBrowserCaches { get => _cleanBrowserCaches; set => SetProperty(ref _cleanBrowserCaches, value); }
-    public bool CleanSystemTempAndShaders { get => _cleanSystemTempAndShaders; set => SetProperty(ref _cleanSystemTempAndShaders, value); }
-    public bool CleanRegistryOrphans { get => _cleanRegistryOrphans; set => SetProperty(ref _cleanRegistryOrphans, value); }
-    public bool EmptyRecycleBin { get => _emptyRecycleBin; set => SetProperty(ref _emptyRecycleBin, value); }
-    public bool IncludeDeveloperCaches { get => _includeDeveloperCaches; set => SetProperty(ref _includeDeveloperCaches, value); }
-
-    public bool CleanBrowserHistory
+    private void SetSelection<T>(ref T field, T value, [CallerMemberName] string? property = null)
     {
-        get => _cleanBrowserHistory;
-        set { if (SetProperty(ref _cleanBrowserHistory, value)) RaiseCleanButtonState(); }
-    }
-
-    public bool CleanBrowserDownloads
-    {
-        get => _cleanBrowserDownloads;
-        set { if (SetProperty(ref _cleanBrowserDownloads, value)) RaiseCleanButtonState(); }
-    }
-
-    public bool CleanBrowserCookies
-    {
-        get => _cleanBrowserCookies;
-        set { if (SetProperty(ref _cleanBrowserCookies, value)) RaiseCleanButtonState(); }
-    }
-
-    public bool CleanBrowserSessions
-    {
-        get => _cleanBrowserSessions;
-        set { if (SetProperty(ref _cleanBrowserSessions, value)) RaiseCleanButtonState(); }
-    }
-
-    public string KeepCookieDomainsText
-    {
-        get => _keepCookieDomainsText;
-        set => SetProperty(ref _keepCookieDomainsText, value);
+        if (!SetProperty(ref field, value, property)) return;
+        _selectionVersion++;
+        ResetPreview();
+        LastCleanupOutcome = "";
+        ScanSummaryHeadline = "Выбор изменён. Рассчитайте новый план перед очисткой.";
     }
 
     public string AppRuleSearchText
@@ -522,10 +495,6 @@ public sealed class CleanerStudioViewModel : ObservableObject
     public string ExternalWinapp2Badge { get => _externalWinapp2Badge; private set => SetProperty(ref _externalWinapp2Badge, value); }
     public bool HasExternalWinapp2 => _cleanerService.ExternalRules.Count > 0;
 
-    public string VaultShieldBadgeText => PreservePasswordsAndAutofill
-        ? "БРОНЯ ПАРОЛЕЙ АКТИВНА: пароли, логины, куки входа и автозаполнение форм заблокированы от удаления"
-        : "Внимание: защита паролей снята вручную (рекомендуется держать включенной)";
-
     public bool IsScanning
     {
         get => _isScanning;
@@ -533,8 +502,8 @@ public sealed class CleanerStudioViewModel : ObservableObject
         {
             if (SetProperty(ref _isScanning, value))
             {
-                OnPropertyChanged(nameof(CanExecuteClean));
-                ExecuteSafeCleanCommand.RaiseCanExecuteChanged();
+                RaiseCleanButtonState();
+                ScanPreviewCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -546,8 +515,8 @@ public sealed class CleanerStudioViewModel : ObservableObject
         {
             if (SetProperty(ref _isCleaning, value))
             {
-                OnPropertyChanged(nameof(CanExecuteClean));
-                ExecuteSafeCleanCommand.RaiseCanExecuteChanged();
+                RaiseCleanButtonState();
+                ScanPreviewCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -570,17 +539,27 @@ public sealed class CleanerStudioViewModel : ObservableObject
         private set => SetProperty(ref _isScanningDuplicates, value);
     }
 
-    public bool CanExecuteClean =>
-        !IsScanning &&
-        !IsCleaning &&
-        _lastScanReport is not null &&
-        (_lastScanReport.TotalReclaimableBytes > 0 ||
-         _lastScanReport.TotalRegistryOrphansCount > 0 ||
-         (BrowserDetailItems.Count > 0 && (CleanBrowserHistory || CleanBrowserDownloads || CleanBrowserCookies || CleanBrowserSessions)));
+    public bool CanExecuteClean => !IsScanning && !IsCleaning && _preview is { } p &&
+        (p.Files.TotalFilesCount > 0 || p.Files.TotalRegistryOrphansCount > 0 ||
+         p.BrowserItems.Any(i => !i.BlockedByRunningBrowser && i.ItemCount > 0));
+
+    public string ApplyPlanLabel => _preview is { } p && p.Files.TotalReclaimableBytes > 0
+        ? $"Очистить · {p.Files.FormattedTotalReclaimable}" : "Применить план";
+
+    private void ResetPreview()
+    {
+        _preview = null;
+        Categories.Clear();
+        BrowserDetailItems.Clear();
+        CandidateFilesPreview.Clear();
+        BrowserWarningBanner = "";
+        RaiseCleanButtonState();
+    }
 
     private void RaiseCleanButtonState()
     {
         OnPropertyChanged(nameof(CanExecuteClean));
+        OnPropertyChanged(nameof(ApplyPlanLabel));
         ExecuteSafeCleanCommand.RaiseCanExecuteChanged();
     }
 
@@ -633,7 +612,8 @@ public sealed class CleanerStudioViewModel : ObservableObject
     public ICommand RecycleSelectedNodeCommand { get; }
     public ICommand SelectDiskPresetCommand { get; }
 
-    public ICommand ScanPreviewCommand { get; }
+    public AsyncRelayCommand ScanPreviewCommand { get; }
+    public ICommand CancelPreviewCommand { get; }
     public AsyncRelayCommand ExecuteSafeCleanCommand { get; }
 
     public ICommand ScanRegistryCommand { get; }
@@ -794,94 +774,69 @@ public sealed class CleanerStudioViewModel : ObservableObject
     public async Task RunScanPreviewAsync()
     {
         if (IsScanning || IsCleaning) return;
-
+        ResetPreview();
+        var version = _selectionVersion;
+        var options = BuildCleanupOptions();
+        using var cts = new CancellationTokenSource();
+        _previewCts = cts;
         IsScanning = true;
         LastCleanupOutcome = "";
-        ScanSummaryHeadline = "Сканирование кэша браузеров, временных папок и шейдеров GPU...";
-
+        ScanSummaryHeadline = "Идёт анализ выбранных категорий…";
         try
         {
-            var options = BuildCleanupOptions();
-            var report = await _cleanerService.ScanAsync(options);
-            var keepDomains = BrowserDataCleaner.ParseKeepCookieDomains(KeepCookieDomainsText);
-            var browserDetails = await _cleanerService.ScanBrowserDataDetailsAsync(keepDomains);
-            _lastScanReport = report;
-
-            Categories.Clear();
-            foreach (var cat in report.Categories) Categories.Add(cat);
-
-            BrowserDetailItems.Clear();
-            foreach (var bd in browserDetails.Items) BrowserDetailItems.Add(bd);
-
-            CandidateFilesPreview.Clear();
-            foreach (var f in report.CandidateFiles.OrderByDescending(x => x.SizeBytes).Take(200))
+            var report = await _cleanerService.ScanAsync(options, cts.Token);
+            BrowserDataScanReport? browser = null;
+            if (options.CleanBrowserHistory || options.CleanBrowserDownloads || options.CleanBrowserCookies || options.CleanBrowserSessions)
+                browser = await _cleanerService.ScanBrowserDataDetailsAsync(options.KeepCookieDomains, cts.Token);
+            cts.Token.ThrowIfCancellationRequested();
+            if (version != _selectionVersion) return;
+            var items = browser?.Items.Where(i => i.Kind switch
             {
-                CandidateFilesPreview.Add(f);
-            }
-
-            var allWarnings = report.RunningBrowserWarnings.Concat(browserDetails.Warnings).Distinct().ToList();
-            BrowserWarningBanner = allWarnings.Count > 0 ? string.Join("\n", allWarnings) : "";
-
-            ScanSummaryHeadline = report.TotalReclaimableBytes == 0 && report.TotalRegistryOrphansCount == 0 && browserDetails.Items.Count == 0
-                ? "Система уже чиста — лишних временных данных не обнаружено."
-                : $"Найдено файлов кэша и мусора: {report.FormattedTotalReclaimable} ({report.TotalFilesCount:N0} шт.); пунктов данных браузеров: {browserDetails.Items.Count}. Пароли и автозаполнение под защитой.";
-            RaiseCleanButtonState();
-
-            await _onActionCompletedAsync($"Анализ очистки завершен: {report.FormattedTotalReclaimable}");
+                BrowserDataKind.History => options.CleanBrowserHistory, BrowserDataKind.Downloads => options.CleanBrowserDownloads,
+                BrowserDataKind.Sessions => options.CleanBrowserSessions, BrowserDataKind.Cookies => options.CleanBrowserCookies,
+                _ => false
+            }).ToArray() ?? [];
+            foreach (var cat in report.Categories) Categories.Add(cat);
+            foreach (var item in items) BrowserDetailItems.Add(item);
+            foreach (var file in report.CandidateFiles.OrderByDescending(x => x.SizeBytes).Take(200)) CandidateFilesPreview.Add(file);
+            BrowserWarningBanner = string.Join("\n", report.RunningBrowserWarnings.Concat(browser?.Warnings ?? []).Distinct());
+            _preview = new Preview(report, items);
+            ScanSummaryHeadline = $"План на {report.ScannedAtUtc.ToLocalTime():HH:mm:ss} · файлов: {report.TotalFilesCount:N0} · {report.FormattedTotalReclaimable}. " +
+                (items.Length > 0 ? $"Пунктов данных браузеров: {items.Length}. " : "") + "Ничего не удалено.";
         }
-        catch (Exception ex)
-        {
-            ScanSummaryHeadline = $"Ошибка сканирования: {ex.Message}";
-        }
-        finally
-        {
-            IsScanning = false;
-        }
+        catch (OperationCanceledException) { ScanSummaryHeadline = "Анализ остановлен. Ничего не удалено."; }
+        catch (Exception ex) { ResetPreview(); ScanSummaryHeadline = $"Не удалось рассчитать план: {ex.Message}"; }
+        finally { _previewCts = null; IsScanning = false; }
     }
 
-    private async Task ExecuteSafeCleanAsync()
+    public async Task ExecuteSafeCleanAsync()
     {
-        if (_lastScanReport is null || IsCleaning || IsScanning) return;
-
+        if (!CanExecuteClean || _preview is not { } plan) return;
+        var details = string.Join("\n", plan.Files.Categories.Select(c => $"{c.FriendlyTitle}: {c.FormattedSize}"));
+        var browser = string.Join("\n", plan.BrowserItems.Where(i => !i.BlockedByRunningBrowser).Select(i => i.FriendlyTitle));
+        if (!UserPrompts.Confirm(new("Применить план очистки?",
+            $"{details}\n{browser}\n\nФайлы кэша и выбранные данные браузера не попадают в Машину времени." +
+            (plan.Files.Options.EmptyRecycleBin ? " Корзина будет очищена без возможности отката." : ""), true))) return;
+        if (_preview != plan) return;
         IsCleaning = true;
+        ResetPreview(); // одноразовый план, в том числе при частичной ошибке
+        ScanSummaryHeadline = "Выполняется подтверждённый план…";
         try
         {
-            var options = BuildCleanupOptions();
-            var result = await _cleanerService.ExecuteCleanupAsync(_lastScanReport, options);
-            var summary = result.UserSummaryMessage;
-
-            if (CleanBrowserHistory || CleanBrowserDownloads || CleanBrowserCookies || CleanBrowserSessions)
-            {
-                var browserSelection = new BrowserCleanupSelection
-                {
-                    CleanCache = CleanBrowserCaches,
-                    CleanHistory = CleanBrowserHistory,
-                    CleanDownloads = CleanBrowserDownloads,
-                    CleanCookies = CleanBrowserCookies,
-                    CleanSessions = CleanBrowserSessions,
-                    KeepCookieDomains = BrowserDataCleaner.ParseKeepCookieDomains(KeepCookieDomainsText)
-                };
-                var browserRes = await _cleanerService.CleanBrowserDataDetailsAsync(browserSelection);
-                summary = summary + " " + browserRes.UserSummaryMessage;
-            }
-
-            LastCleanupOutcome = summary;
-            _lastScanReport = null;
-            Categories.Clear();
-            BrowserDetailItems.Clear();
-            CandidateFilesPreview.Clear();
-            ScanSummaryHeadline = summary;
+            var result = await Task.Run(() => _cleanerService.ExecuteCleanupAsync(plan.Files));
+            LastCleanupOutcome = result.UserSummaryMessage;
+            var browserResult = await _cleanerService.CleanPreviewedBrowserDataAsync(plan.BrowserItems, plan.Files.Options.KeepCookieDomains);
+            if (browserResult.Length > 0) LastCleanupOutcome += "\n" + browserResult;
+            ScanSummaryHeadline = "План завершён. Для следующей очистки нужен новый анализ.";
             ReloadVolumes();
-            await _onActionCompletedAsync(result.UserSummaryMessage);
+            await _onActionCompletedAsync(LastCleanupOutcome);
         }
         catch (Exception ex)
         {
-            LastCleanupOutcome = $"Очистка остановлена защитным фильтром: {ex.Message}";
+            LastCleanupOutcome += $" Операция прервана: {ex.Message}. Уже выполненные изменения сохраняются.";
+            ScanSummaryHeadline = "Перед повтором пересчитайте план.";
         }
-        finally
-        {
-            IsCleaning = false;
-        }
+        finally { IsCleaning = false; }
     }
 
     public async Task ScanRegistryIssuesAsync()
@@ -1164,8 +1119,8 @@ public sealed class CleanerStudioViewModel : ObservableObject
 
     private CleanupOptions BuildCleanupOptions() => new()
     {
-        PreservePasswordsAndAutofill = PreservePasswordsAndAutofill,
-        PreserveBrowserSessions = PreserveBrowserSessions && !CleanBrowserSessions,
+        PreservePasswordsAndAutofill = true,
+        PreserveBrowserSessions = !CleanBrowserSessions,
         CleanBrowserCaches = CleanBrowserCaches,
         CleanSystemTempAndShaders = CleanSystemTempAndShaders,
         CleanRegistryOrphans = CleanRegistryOrphans,

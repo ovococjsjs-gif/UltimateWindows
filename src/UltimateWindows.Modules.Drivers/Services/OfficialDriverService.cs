@@ -561,79 +561,37 @@ public sealed class OfficialDriverService
             return new DriverOperationResult(false, "Для очистки хранилища DriverStore требуются права Администратора.");
         }
 
-        var store = candidates ?? (await AuditDriverStoreAsync(ct).ConfigureAwait(false)).Entries;
-        var toRemove = store.Where(e => e.IsSupersededDuplicate && !e.IsInUseByDevice).ToList();
+        var current = await AuditDriverStoreAsync(ct).ConfigureAwait(false);
+        var selected = candidates?.Where(e => e.IsSupersededDuplicate && !e.IsInUseByDevice)
+            .Select(e => e.PublishedInfName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var toRemove = current.Entries.Where(e => e.IsSupersededDuplicate && !e.IsInUseByDevice &&
+            (selected is null || selected.Contains(e.PublishedInfName))).ToList();
         if (toRemove.Count == 0)
-        {
-            return new DriverOperationResult(true, "В хранилище DriverStore нет устаревших неиспользуемых дублей для удаления.");
-        }
+            return new DriverOperationResult(true, "В текущем состоянии хранилища нет выбранных неиспользуемых дублей.");
 
-        int removedCount = 0;
-        long freedBytes = 0;
+        int removed = 0;
+        long freed = 0;
         var errors = new List<string>();
-
         foreach (var entry in toRemove)
         {
             ct.ThrowIfCancellationRequested();
-
-            // Сначала делаем компактный страховочный бэкап пакета в Машину времени!
-            var tempExport = Path.Combine(Path.GetTempPath(), "uw-ds-clean-" + Guid.NewGuid().ToString("N"));
-            var zipPath = Path.Combine(Path.GetTempPath(), $"uw-ds-{entry.PublishedInfName}-{Guid.NewGuid():N}.zip");
-
-            try
+            var backup = await CreateVerifiedDriverBackupAsync(entry.PublishedInfName, entry.OriginalInfName,
+                entry.DriverVersion, ct).ConfigureAwait(false);
+            if (!backup.Succeeded)
             {
-                Directory.CreateDirectory(tempExport);
-                var (expOk, expFiles, _) = await _platformBridge.ExportSingleOemInfAsync(entry.PublishedInfName, tempExport, ct).ConfigureAwait(false);
-                if (expOk && expFiles.Count > 0)
-                {
-                    ZipFile.CreateFromDirectory(tempExport, zipPath, CompressionLevel.Optimal, includeBaseDirectory: false);
-                    await using var tx = _vaultService.BeginTransaction(
-                        SystemDomain.HardwareAndDrivers,
-                        friendlyTitle: $"Очистка старого дубля DriverStore: {entry.OriginalInfName} ({entry.DriverVersion})",
-                        friendlySummary: $"Удалён неиспользуемый пакет {entry.PublishedInfName} (актуальная версия: {entry.SupersededByVersion}). Доступен откат.",
-                        technicalDetails: $"INF={entry.PublishedInfName}; Original={entry.OriginalInfName}; Version={entry.DriverVersion}");
-
-                    var metaJson = JsonSerializer.Serialize(new
-                    {
-                        InfName = entry.PublishedInfName,
-                        DeviceName = entry.OriginalInfName,
-                        DriverVersion = entry.DriverVersion,
-                        RestoredArchivePath = zipPath
-                    });
-
-                    tx.RecordStateDelta(
-                        StateTargetKind.SystemSetting,
-                        $"DriverInfBackup:{entry.PublishedInfName}",
-                        previousStateJson: metaJson,
-                        newStateJson: null);
-
-                    _ = await tx.QuarantineFileAsync(zipPath, ct).ConfigureAwait(false);
-                    await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
-                }
-
-                var (delOk, delErr) = await _platformBridge.DeleteDriverStorePackageAsync(entry.PublishedInfName, ct).ConfigureAwait(false);
-                if (delOk)
-                {
-                    removedCount++;
-                    freedBytes += entry.SizeBytes;
-                }
-                else
-                {
-                    errors.Add($"{entry.PublishedInfName}: {delErr}");
-                }
+                errors.Add(backup.UserFriendlyMessage);
+                continue;
             }
-            finally
-            {
-                TryDeleteDirectory(tempExport);
-                TryDeleteFile(zipPath);
-            }
+
+            var (ok, error) = await _platformBridge.DeleteDriverStorePackageAsync(entry.PublishedInfName, ct).ConfigureAwait(false);
+            if (ok) { removed++; freed += entry.SizeBytes; }
+            else errors.Add($"{entry.PublishedInfName}: {error}");
         }
 
-        return new DriverOperationResult(
-            Succeeded: removedCount > 0,
-            UserFriendlyMessage: removedCount > 0
-                ? $"Очищено старых дублей DriverStore: {removedCount} из {toRemove.Count} (освобождено ~{ByteFormatter.Format(freedBytes)}, страховочные копии сохранены в Машине времени)."
-                : $"Не удалось удалить пакеты DriverStore: {string.Join("; ", errors.Take(3))}",
+        var detail = string.Join("; ", errors.Take(3));
+        return new DriverOperationResult(errors.Count == 0,
+            $"Удалено пакетов: {removed} из {toRemove.Count} (~{ByteFormatter.Format(freed)}). " +
+            (removed > 0 ? "Копии закреплены в Машине времени. " : "") + detail,
             TechnicalDetails: string.Join("\n", errors));
     }
 
@@ -925,55 +883,40 @@ public sealed class OfficialDriverService
                 "Устройство использует встроенный системный драйвер Windows (не oemXX.inf) — он уже защищен хранилищем WinSxS и не требует отдельного бэкапа.");
         }
 
-        var tempStaging = Path.Combine(Path.GetTempPath(), "uw-drv-export-" + Guid.NewGuid().ToString("N"));
-        var archiveFile = Path.Combine(Path.GetTempPath(), $"uw-drv-{device.InfName}-{Guid.NewGuid():N}.zip");
+        return await CreateVerifiedDriverBackupAsync(device.InfName, device.FriendlyName, device.DriverVersion, ct).ConfigureAwait(false);
+    }
 
+    private async Task<DriverOperationResult> CreateVerifiedDriverBackupAsync(
+        string infName, string name, string version, CancellationToken ct)
+    {
+        var staging = Path.Combine(Path.GetTempPath(), "uw-drv-" + Guid.NewGuid().ToString("N"));
+        var archive = staging + ".zip";
         try
         {
-            Directory.CreateDirectory(tempStaging);
-            var (ok, exported, err) = await _platformBridge.ExportSingleOemInfAsync(device.InfName, tempStaging, ct).ConfigureAwait(false);
-            if (!ok || exported.Count == 0)
-            {
-                return new DriverOperationResult(
-                    false,
-                    $"Не удалось экспортировать пакет {device.InfName}: {(string.IsNullOrWhiteSpace(err) ? "требуются права Администратора." : err)}");
-            }
+            Directory.CreateDirectory(staging);
+            var (ok, files, error) = await _platformBridge.ExportSingleOemInfAsync(infName, staging, ct).ConfigureAwait(false);
+            if (!ok || files.Count == 0 || !Directory.EnumerateFiles(staging, "*.inf", SearchOption.AllDirectories).Any(f => new FileInfo(f).Length > 0))
+                return new DriverOperationResult(false, $"{infName}: нет экспортированного INF, пакет не изменён. {error}");
 
-            ZipFile.CreateFromDirectory(tempStaging, archiveFile, CompressionLevel.Optimal, includeBaseDirectory: false);
-
-            await using var tx = _vaultService.BeginTransaction(
-                SystemDomain.HardwareAndDrivers,
-                friendlyTitle: $"Компактный бэкап драйвера: {device.FriendlyName} ({device.InfName})",
-                friendlySummary: $"Сохранен пакет {device.DriverVersion} с автоочисткой по квоте Zero-Bloat Vault.",
-                technicalDetails: $"InstanceId={device.InstanceId}; INF={device.InfName}; Files={exported.Count}");
-
-            var metaJson = JsonSerializer.Serialize(new
-            {
-                InfName = device.InfName,
-                DeviceName = device.FriendlyName,
-                DriverVersion = device.DriverVersion,
-                RestoredArchivePath = archiveFile
-            });
-
-            tx.RecordStateDelta(
-                StateTargetKind.SystemSetting,
-                $"DriverInfBackup:{device.InfName}",
-                previousStateJson: metaJson,
-                newStateJson: null);
-
-            var archiveSha256 = await tx.QuarantineFileAsync(archiveFile, ct).ConfigureAwait(false);
-
-            var committed = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
-            return new DriverOperationResult(
-                Succeeded: true,
-                UserFriendlyMessage: $"Драйвер «{device.FriendlyName}» ({device.InfName}) компактно сжат в Машину времени без мусора на диске!",
-                TechnicalDetails: $"SHA-256: {archiveSha256}",
-                RollbackSessionId: committed.SessionId);
+            ZipFile.CreateFromDirectory(staging, archive, CompressionLevel.Optimal, includeBaseDirectory: false);
+            await using var tx = _vaultService.BeginTransaction(SystemDomain.HardwareAndDrivers,
+                $"Резервная копия: {name} ({infName})", $"Пакет {version}. Копия закреплена до снятия закрепления.",
+                $"INF={infName}; Files={files.Count}");
+            tx.RecordStateDelta(StateTargetKind.SystemSetting, $"DriverInfBackup:{infName}",
+                JsonSerializer.Serialize(new { InfName = infName, DeviceName = name, DriverVersion = version, RestoredArchivePath = archive }), null);
+            var hash = await tx.BackupFileAsync(archive, ct).ConfigureAwait(false);
+            var saved = await tx.CommitVerifiedBackupAsync(ct).ConfigureAwait(false);
+            return new DriverOperationResult(true, $"Резервная копия {infName} проверена и закреплена в Машине времени.",
+                TechnicalDetails: $"SHA-256: {hash}", RollbackSessionId: saved.SessionId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return new DriverOperationResult(false, $"{infName}: не удалось подготовить проверенную копию. Пакет не изменён. {ex.Message}");
         }
         finally
         {
-            TryDeleteDirectory(tempStaging);
-            TryDeleteFile(archiveFile);
+            TryDeleteDirectory(staging);
+            TryDeleteFile(archive);
         }
     }
 
@@ -1015,10 +958,8 @@ public sealed class OfficialDriverService
         if (device.IsThirdPartyOemInf)
         {
             var backup = await BackupDeviceDriverToVaultAsync(device, ct).ConfigureAwait(false);
-            if (backup.Succeeded)
-            {
-                rollbackId = backup.RollbackSessionId;
-            }
+            if (!backup.Succeeded || backup.RollbackSessionId is null) return backup with { Succeeded = false };
+            rollbackId = backup.RollbackSessionId;
         }
 
         var (ok, reboot, err) = await _platformBridge

@@ -18,6 +18,43 @@ public sealed class ZeroBloatVaultTests : IDisposable
     }
 
     [Fact]
+    public async Task PreparedBackup_IsReadableAcrossRestart_AndRestoreWillNotReplaceANewerFile()
+    {
+        var root = Path.Combine(_tempRoot, "state");
+        var path = Path.Combine(_tempRoot, "original.dat");
+        await File.WriteAllTextAsync(path, "saved");
+        var vault = new ZeroBloatVaultService(root);
+        await using var tx = vault.BeginTransaction(SystemDomain.AppsAndAutomation, "Before", "Backup only");
+        await tx.BackupFileAsync(path);
+        var saved = await tx.CommitVerifiedBackupAsync();
+        Assert.True(saved.IsPinned);
+        Assert.Equal("saved", await File.ReadAllTextAsync(path));
+        await File.WriteAllTextAsync(path, "new data");
+        var reopened = new ZeroBloatVaultService(root);
+        await Assert.ThrowsAsync<IOException>(() => reopened.RollbackTransactionAsync(saved.SessionId));
+        Assert.Equal("new data", await File.ReadAllTextAsync(path));
+        Assert.False(Assert.Single(await reopened.GetHistoryAsync()).IsReverted);
+        File.Delete(path);
+        await reopened.RollbackTransactionAsync(saved.SessionId);
+        Assert.Equal("saved", await File.ReadAllTextAsync(path));
+    }
+
+    [Fact]
+    public async Task DamagedBackup_FailsVerification_WithoutRemovingSource()
+    {
+        var root = Path.Combine(_tempRoot, "state");
+        var vault = new ZeroBloatVaultService(root);
+        var path = Path.Combine(_tempRoot, "original.dat");
+        await File.WriteAllTextAsync(path, "original");
+        await using var tx = vault.BeginTransaction(SystemDomain.AppsAndAutomation, "Before", "Backup");
+        var hash = await tx.BackupFileAsync(path);
+        await File.WriteAllTextAsync(Path.Combine(root, "blobs", hash + ".uwq"), "broken");
+        await Assert.ThrowsAsync<InvalidDataException>(() => tx.CommitVerifiedBackupAsync());
+        Assert.Equal("original", await File.ReadAllTextAsync(path));
+        Assert.False(Assert.Single(await vault.GetHistoryAsync()).IsPinned);
+    }
+
+    [Fact]
     public void QuotaPolicy_ShrinksAutomaticallyOnLowDiskSpace()
     {
         var policy = new VaultQuotaPolicy

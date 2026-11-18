@@ -269,6 +269,12 @@ internal sealed class InMemoryVault : IVaultService
         public Task<string> QuarantineFileAsync(string sourceFilePath, CancellationToken ct = default) =>
             throw new NotSupportedException("Хранилище в памяти не помещает файлы в карантин.");
 
+        public Task<string> BackupFileAsync(string sourceFilePath, CancellationToken ct = default) =>
+            throw new NotSupportedException("No file storage in this test double.");
+
+        public Task<TransactionRecord> CommitVerifiedBackupAsync(CancellationToken ct = default) =>
+            throw new NotSupportedException("No verified storage in this test double.");
+
         public void RecordDriverStoreReference(string deviceInstanceId, string publishedInfName, string driverVersion) =>
             throw new NotSupportedException("Хранилище в памяти не ведёт ссылки на драйверы.");
 

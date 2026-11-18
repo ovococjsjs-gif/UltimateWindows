@@ -25,6 +25,13 @@ public interface ITransactionSession : IAsyncDisposable
     /// </summary>
     Task<string> QuarantineFileAsync(string sourceFilePath, CancellationToken ct = default);
 
+    /// <summary>Готовит файловый снимок, не удаляя оригинал.</summary>
+    Task<string> BackupFileAsync(string sourceFilePath, CancellationToken ct = default);
+
+    /// <summary>Применяет квоту, закрепляет снимок и проверяет сохранённые файлы чтением из Vault.
+    /// Только после успешного возврата можно изменять оригиналы.</summary>
+    Task<TransactionRecord> CommitVerifiedBackupAsync(CancellationToken ct = default);
+
     /// <summary>
     /// Фиксирует ссылку на пакет драйвера в системном DriverStore без лишнего копирования сотен мегабайт.
     /// </summary>

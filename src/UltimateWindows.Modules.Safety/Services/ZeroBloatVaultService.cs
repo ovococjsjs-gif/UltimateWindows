@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using UltimateWindows.Core.Contracts;
 using UltimateWindows.Core.Enums;
@@ -33,7 +34,25 @@ public class DefaultFileStateApplier : ISystemStateApplier
                 Directory.CreateDirectory(parentDir);
             }
 
-            await File.WriteAllBytesAsync(delta.TargetPath, bytes, ct).ConfigureAwait(false);
+            // Повтор после частичного отката безопасен; новый файл по старому пути не заменяем.
+            if (File.Exists(delta.TargetPath))
+            {
+                await using var current = File.OpenRead(delta.TargetPath);
+                var hash = await SHA256.HashDataAsync(current, ct).ConfigureAwait(false);
+                if (Convert.ToHexString(hash).Equals(delta.BlobSha256, StringComparison.OrdinalIgnoreCase)) return;
+                throw new IOException($"По пути «{delta.TargetPath}» уже находится другой файл. Переместите его перед повторным восстановлением.");
+            }
+
+            var temp = Path.Combine(parentDir!, $".uw-restore-{Guid.NewGuid():N}.tmp");
+            try
+            {
+                await File.WriteAllBytesAsync(temp, bytes, ct).ConfigureAwait(false);
+                File.Move(temp, delta.TargetPath, overwrite: false);
+            }
+            finally
+            {
+                File.Delete(temp);
+            }
         }
     }
 }
@@ -287,7 +306,13 @@ public sealed class ZeroBloatVaultService : IVaultService
                 OriginalSizeBytes: approxMetadataBytes));
         }
 
-        public async Task<string> QuarantineFileAsync(string sourceFilePath, CancellationToken ct = default)
+        public Task<string> QuarantineFileAsync(string sourceFilePath, CancellationToken ct = default) =>
+            CaptureFileAsync(sourceFilePath, removeSource: true, ct);
+
+        public Task<string> BackupFileAsync(string sourceFilePath, CancellationToken ct = default) =>
+            CaptureFileAsync(sourceFilePath, removeSource: false, ct);
+
+        private async Task<string> CaptureFileAsync(string sourceFilePath, bool removeSource, CancellationToken ct)
         {
             EnsureNotCommitted();
             ArgumentException.ThrowIfNullOrWhiteSpace(sourceFilePath);
@@ -302,7 +327,7 @@ public sealed class ZeroBloatVaultService : IVaultService
             }
 
             var stored = await _blobStore.StoreFileAsync(fullPath, ct).ConfigureAwait(false);
-            File.Delete(fullPath);
+            if (removeSource) File.Delete(fullPath);
 
             _hasFileBlobs = true;
             if (!stored.WasDeduplicated)
@@ -317,7 +342,7 @@ public sealed class ZeroBloatVaultService : IVaultService
                 TargetKind: StateTargetKind.QuarantinedFile,
                 TargetPath: fullPath,
                 PreviousStateJson: JsonSerializer.Serialize(new { Exists = true, Sha256 = stored.Sha256Hex }),
-                NewStateJson: JsonSerializer.Serialize(new { Exists = false, Quarantined = true }),
+                NewStateJson: removeSource ? JsonSerializer.Serialize(new { Exists = false, Quarantined = true }) : null,
                 BlobSha256: stored.Sha256Hex,
                 OriginalSizeBytes: stored.OriginalSizeBytes));
 
@@ -373,6 +398,29 @@ public sealed class ZeroBloatVaultService : IVaultService
             await _owner.EnforceQuotaAndRetentionAsync(ct).ConfigureAwait(false);
 
             return record;
+        }
+
+        public async Task<TransactionRecord> CommitVerifiedBackupAsync(CancellationToken ct = default)
+        {
+            // Не обходить квоту закреплением: сначала обычная фиксация с вытеснением.
+            var saved = await CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
+            await _repository.SetPinnedAsync(SessionId, true, ct).ConfigureAwait(false);
+            try
+            {
+                var retained = await _repository.GetTransactionByIdAsync(SessionId, ct).ConfigureAwait(false);
+                if (retained is not { IsPinned: true, IsReverted: false } || retained.Deltas.Count != saved.Deltas.Count ||
+                    retained.Deltas.Any(d => d.TargetKind == StateTargetKind.QuarantinedFile && d.BlobSha256 is null))
+                    throw new IOException("Копия не помещается в квоту хранилища. Исходные объекты не удалены.");
+
+                foreach (var hash in retained.Deltas.Select(d => d.BlobSha256).OfType<string>().Distinct())
+                    _ = await _blobStore.RestoreBytesAsync(hash, ct).ConfigureAwait(false);
+                return retained;
+            }
+            catch
+            {
+                await _repository.SetPinnedAsync(SessionId, false, CancellationToken.None).ConfigureAwait(false);
+                throw;
+            }
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;

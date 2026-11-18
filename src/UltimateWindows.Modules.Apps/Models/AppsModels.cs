@@ -142,6 +142,7 @@ public sealed record CleanUninstallResult(
     long ReclaimedBytes,
     string SummaryMessage)
 {
+    public IReadOnlyList<AppLeftoverItem> RemainingLeftovers { get; init; } = [];
     public string FormattedReclaimed => ByteFormatter.Format(ReclaimedBytes);
 }
 

@@ -1,277 +1,68 @@
-<UserControl x:Class="UltimateWindows.App.Views.OverviewWorkspaceView"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<UserControl x:Class="UltimateWindows.App.Views.OverviewWorkspaceView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20,16">
-    <StackPanel>
-
-      <!-- 1. ВЕРХНИЙ БЛОК: ЖИВОЙ ИНДЕКС ЗДОРОВЬЯ + СИСТЕМНЫЙ ДИСК C:\ -->
-      <Grid Margin="0,0,0,14">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="1.25*" />
-          <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
-
-        <!-- Левая карточка: Комплексный аудит ПК -->
-        <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Margin="0,0,12,0">
-          <Grid>
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="Auto" />
-              <ColumnDefinition Width="*" />
-              <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-
-            <Border Grid.Column="0"
-                    Width="74"
-                    Height="74"
-                    CornerRadius="37"
-                    Background="{DynamicResource SafeEmeraldSubtleBrush}"
-                    BorderBrush="{DynamicResource SafeEmeraldBrush}"
-                    BorderThickness="3.5"
-                    VerticalAlignment="Center"
-                    Margin="0,0,16,0">
-              <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                <TextBlock Text="{Binding CompositeHealthScore}"
-                           FontSize="22"
-                           FontWeight="Bold"
-                           HorizontalAlignment="Center"
-                           Foreground="{DynamicResource SafeEmeraldBrush}" />
-                <TextBlock Text="из 100"
-                           FontSize="10"
-                           HorizontalAlignment="Center"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
-              </StackPanel>
-            </Border>
-
-            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,14,0">
-              <TextBlock Text="{Binding SmartAuditTitle}"
-                         FontSize="15"
-                         FontWeight="SemiBold"
-                         TextWrapping="Wrap" />
-              <TextBlock Text="{Binding SmartAuditSubheadline}"
-                         FontSize="12"
-                         TextWrapping="Wrap"
-                         Margin="0,4,0,0"
-                         Foreground="{DynamicResource TextSecondaryBrush}" />
-            </StackPanel>
-
-            <Button Grid.Column="2"
-                    VerticalAlignment="Center"
-                    Style="{StaticResource PrimaryButtonStyle}"
-                    Command="{Binding RunOneClickSmartAuditCommand}"
-                    Content="Запустить полный аудит" />
-          </Grid>
-        </Border>
-
-        <!-- Правая карточка: Контроль системного диска C:\ (WizTree / Гибернация) -->
-        <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}">
+  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Margin="20,4,20,20" MaxWidth="1500">
+      <Border Background="{DynamicResource AuditBannerBrush}" BorderBrush="{DynamicResource ExpertPanelBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="22,18">
+        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="3*" /><ColumnDefinition Width="*" MaxWidth="200" /></Grid.ColumnDefinitions>
           <StackPanel>
-            <DockPanel Margin="0,0,0,6">
-              <Border DockPanel.Dock="Right"
-                      Visibility="{Binding IsSystemDriveCriticallyFull, Converter={StaticResource BoolToVis}}"
-                      Background="{DynamicResource DangerSubtleBrush}"
-                      BorderBrush="{DynamicResource DangerCoralBrush}"
-                      BorderThickness="1"
-                      CornerRadius="4"
-                      Padding="7,2">
-                <TextBlock Text="МАЛО МЕСТА!"
-                           FontSize="10.5"
-                           FontWeight="Bold"
-                           Foreground="#FCA5A5" />
-              </Border>
-              <TextBlock Text="Состояние системного раздела"
-                         FontSize="13.5"
-                         FontWeight="SemiBold" />
-            </DockPanel>
-
-            <TextBlock Text="{Binding SystemDriveUsageHeadline}"
-                       FontSize="12.5"
-                       Foreground="{DynamicResource TextSecondaryBrush}"
-                       Margin="0,0,0,8" />
-
-            <!-- Полоса заполнения диска -->
-            <Border Height="9"
-                    CornerRadius="4.5"
-                    Background="{DynamicResource ToggleOffTrackBrush}"
-                    ClipToBounds="True"
-                    Margin="0,0,0,12">
-              <Border HorizontalAlignment="Left"
-                      Width="{Binding SystemDriveUsedPercent, Converter={StaticResource PctToWidth}, ConverterParameter=340}">
-                <Border.Style>
-                  <Style TargetType="Border">
-                    <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
-                    <Style.Triggers>
-                      <DataTrigger Binding="{Binding IsSystemDriveCriticallyFull}" Value="True">
-                        <Setter Property="Background" Value="{DynamicResource DangerCoralBrush}" />
-                      </DataTrigger>
-                    </Style.Triggers>
-                  </Style>
-                </Border.Style>
-              </Border>
-            </Border>
-
-            <StackPanel Orientation="Horizontal">
-              <Button Style="{StaticResource PrimaryButtonStyle}"
-                      Command="{Binding JumpToDiskAnalyzerCommand}"
-                      Content="Анализ диска"
-                      Margin="0,0,8,0" />
-              <Button Style="{StaticResource SecondaryButtonStyle}"
-                      Command="{Binding JumpToSpaceSaverCommand}"
-                      Content="Освободить ГБ (hiberfil / дубли)" />
-            </StackPanel>
+            <WrapPanel><TextBlock Text="ДИАГНОСТИКА ПК" Style="{StaticResource EyebrowText}" Foreground="{DynamicResource AccentTextBrush}" Margin="0,3,12,3" />
+              <Border CornerRadius="4" Background="{DynamicResource SurfaceCardBrush}" Padding="7,2"><TextBlock Text="{Binding AuditStamp}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11.5" /></Border></WrapPanel>
+            <TextBlock AutomationProperties.AutomationId="AuditHeadline" Text="{Binding SmartAuditTitle}" FontSize="26" FontWeight="SemiBold" Margin="0,10,0,3" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding SmartAuditSubheadline}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" />
+            <TextBlock Text="{Binding AuditDetails}" Style="{StaticResource HintTextStyle}" Visibility="{Binding IsExpertMode, Converter={StaticResource BoolToVis}}" />
+            <WrapPanel Margin="0,14,0,0">
+              <Button Style="{StaticResource PrimaryButtonStyle}" Command="{Binding RunOneClickSmartAuditCommand}" Content="Запустить проверку" Visibility="{Binding IsRunningSmartAudit, Converter={StaticResource InverseBoolToVis}}" />
+              <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding CancelAuditCommand}" Content="Остановить проверку" Visibility="{Binding IsRunningSmartAudit, Converter={StaticResource BoolToVis}}" />
+              <TextBlock Text="Только чтение" VerticalAlignment="Center" Margin="12,0,0,0" Style="{StaticResource HintTextStyle}" />
+            </WrapPanel>
           </StackPanel>
-        </Border>
-      </Grid>
-
-      <!-- Найденные точки быстрого улучшения после аудита -->
-      <ItemsControl ItemsSource="{Binding SmartAuditActions}"
-                    Margin="0,0,0,14"
-                    Visibility="{Binding HasSmartAuditActions, Converter={StaticResource BoolToVis}}">
-        <ItemsControl.ItemTemplate>
-          <DataTemplate>
-            <Border Style="{StaticResource CardBorderStyle}" Padding="12,9" Margin="0,0,0,6">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="Auto" />
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <Border Grid.Column="0" Background="{DynamicResource AccentSubtleBrush}"
-                        CornerRadius="4" Padding="8,3" Margin="0,0,10,0" VerticalAlignment="Center">
-                  <TextBlock Text="{Binding DomainBadge}" FontSize="11" FontWeight="SemiBold"
-                             Foreground="{DynamicResource AccentBrush}" />
-                </Border>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                  <TextBlock Text="{Binding SimpleTitle}" FontSize="13" FontWeight="SemiBold" />
-                  <TextBlock Text="{Binding SimpleRecommendation}" FontSize="11.5"
-                             Foreground="{DynamicResource TextSecondaryBrush}" />
-                </StackPanel>
-                <Button Grid.Column="2" Style="{StaticResource CompactButtonStyle}"
-                        Command="{Binding JumpCommand}" Content="Перейти →" VerticalAlignment="Center" />
-              </Grid>
-            </Border>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-
-      <!-- 2. ЖИВАЯ СВОДКА АППАРАТНОЙ КОНФИГУРАЦИИ -->
-      <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,14">
-        <Grid>
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="*" />
-          </Grid.ColumnDefinitions>
-
-          <StackPanel Grid.Column="0" Margin="0,0,12,0">
-            <TextBlock Text="ПРОЦЕССОР" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource TextMutedBrush}" />
-            <TextBlock Text="{Binding HardwareStudio.CpuSummary}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap" />
-          </StackPanel>
-
-          <StackPanel Grid.Column="1" Margin="0,0,12,0">
-            <TextBlock Text="ОПЕРАТИВНАЯ ПАМЯТЬ" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource TextMutedBrush}" />
-            <TextBlock Text="{Binding HardwareStudio.MemorySummary}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap" />
-          </StackPanel>
-
-          <StackPanel Grid.Column="2" Margin="0,0,12,0">
-            <TextBlock Text="ВИДЕОКАРТА И ЭКРАН" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource TextMutedBrush}" />
-            <TextBlock Text="{Binding HardwareStudio.GpuSummary}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap" />
-          </StackPanel>
-
-          <StackPanel Grid.Column="3">
-            <TextBlock Text="НАКОПИТЕЛИ S.M.A.R.T." FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource TextMutedBrush}" />
-            <TextBlock Text="{Binding HardwareStudio.StorageSummary}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap" />
-          </StackPanel>
+          <!-- Иллюстрация корпуса ПК, не график измеренных данных. -->
+          <Viewbox Grid.Column="1" Stretch="Uniform" MaxWidth="160" Margin="18,2,0,2" IsHitTestVisible="False" Focusable="False">
+            <Canvas Width="156" Height="112">
+              <Path Data="M8,76 L77,43 147,76 77,109Z" Fill="{DynamicResource AccentSubtleBrush}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.4" />
+              <Path Data="M8,62 L77,29 147,62 77,95Z" Fill="{DynamicResource SurfaceSidebarBrush}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" />
+              <Path Data="M8,48 L77,15 147,48 77,81Z" Fill="{DynamicResource ExpertPanelBackgroundBrush}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" />
+              <Path Data="M37,48 L77,29 117,48 77,67Z" Fill="{DynamicResource AccentPrimaryBrush}" />
+              <Path Data="M60,48 L77,40 94,48 77,56Z" Fill="White" Opacity="0.9" />
+              <Path Data="M17,69 L32,76 M17,83 L32,90 M122,66 L139,58 M122,80 L139,72" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" />
+            </Canvas>
+          </Viewbox>
         </Grid>
       </Border>
-
-      <!-- 3. ПЛИТКИ РАБОЧИХ ИНСТРУМЕНТОВ (В 3 КОЛОНКИ, ПЛОТНЫЙ DESKTOP-ФОРМАТ) -->
-      <UniformGrid Columns="3">
-        <!-- 1. Диск и Очистка -->
-        <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,10,10">
-          <DockPanel>
-            <Button DockPanel.Dock="Bottom" Style="{StaticResource SecondaryButtonStyle}" Margin="0,12,0,0"
-                    Command="{Binding NavigateCommand}" CommandParameter="SmartCleaner"
-                    Content="Открыть Диск, Кэш и Реестр →" />
-            <StackPanel>
-              <TextBlock Text="Диск, очистка 2.0 и реестр" FontSize="14" FontWeight="SemiBold" />
-              <TextBlock Text="Прямое чтение индекса NTFS $MFT, карта блоков диска, 98+ правил очистки программ без потери паролей, 13 категорий реестра и дубли SHA-256."
-                         FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0" />
-            </StackPanel>
-          </DockPanel>
-        </Border>
-
-        <!-- 2. Optimizer -->
-        <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,10,10">
-          <DockPanel>
-            <Button DockPanel.Dock="Bottom" Style="{StaticResource SecondaryButtonStyle}" Margin="0,12,0,0"
-                    Command="{Binding NavigateCommand}" CommandParameter="Optimizer"
-                    Content="Открыть Твики, Службы и Сеть →" />
-            <StackPanel>
-              <TextBlock Text="Оптимизатор 2.0 (167 настроек)" FontSize="14" FontWeight="SemiBold" />
-              <TextBlock Text="167 переключателей Windows 10/11, телеметрии и игр, менеджер служб и заданий Планировщика, автозапуск, UWP, Пингер, DNS и Hosts."
-                         FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0" />
-            </StackPanel>
-          </DockPanel>
-        </Border>
-
-        <!-- 3. Анти-Майнер -->
-        <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,10">
-          <DockPanel>
-            <Button DockPanel.Dock="Bottom" Style="{StaticResource SecondaryButtonStyle}" Margin="0,12,0,0"
-                    Command="{Binding NavigateCommand}" CommandParameter="AntiMiner"
-                    Content="Открыть Защиту 2.0 →" />
-            <StackPanel>
-              <TextBlock Text="Анти-Майнер и Защита 2.0" FontSize="14" FontWeight="SemiBold" />
-              <TextBlock Text="Ревизия 18 зон автозагрузки, детектор скрытых майнеров и Stratum-пулов, проверка исключений Защитника, брандмауэра и осады ОС."
-                         FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0" />
-            </StackPanel>
-          </DockPanel>
-        </Border>
-
-        <!-- 4. Ремонт ОС и PE Doctor -->
-        <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,10,0">
-          <DockPanel>
-            <Button DockPanel.Dock="Bottom" Style="{StaticResource SecondaryButtonStyle}" Margin="0,12,0,0"
-                    Command="{Binding NavigateCommand}" CommandParameter="DllAndRepair"
-                    Content="Открыть Ремонт ОС и DLL →" />
-            <StackPanel>
-              <TextBlock Text="Ремонт 2.0 (107 рецептов и BSOD)" FontSize="14" FontWeight="SemiBold" />
-              <TextBlock Text="107 проверок ОС, 23 официальных пакета VC++ / .NET / DirectX, рекурсивный PE-доктор, справочник ошибок и расшифровка дампов BSOD."
-                         FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0" />
-            </StackPanel>
-          </DockPanel>
-        </Border>
-
-        <!-- 5. Железо и Драйверы -->
-        <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,10,0">
-          <DockPanel>
-            <Button DockPanel.Dock="Bottom" Style="{StaticResource SecondaryButtonStyle}" Margin="0,12,0,0"
-                    Command="{Binding NavigateCommand}" CommandParameter="HardwareAndDrivers"
-                    Content="Открыть Железо и Драйверы →" />
-            <StackPanel>
-              <TextBlock Text="Железо 2.0, Бенчмарки и Драйверы" FontSize="14" FontWeight="SemiBold" />
-              <TextBlock Text="Паспорт уровня AIDA64, датчики без WinRing0, экспресс-бенчмарк CPU/GPU/ОЗУ/Диска, живой поиск Microsoft Update Catalog и 39 пакетов драйверов."
-                         FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0" />
-            </StackPanel>
-          </DockPanel>
-        </Border>
-
-        <!-- 6. Программы, Windows 11 и Автопилот -->
-        <Border Style="{StaticResource CardBorderStyle}">
-          <DockPanel>
-            <Button DockPanel.Dock="Bottom" Style="{StaticResource SecondaryButtonStyle}" Margin="0,12,0,0"
-                    Command="{Binding NavigateCommand}" CommandParameter="AppsAndAutomation"
-                    Content="Открыть Программы и Автопилот →" />
-            <StackPanel>
-              <TextBlock Text="Программы winget, Win 11 и Автопилот" FontSize="14" FontWeight="SemiBold" />
-              <TextBlock Text="Обновление всех программ и каталог из 36 утилит без рекламы, чистый деинсталлятор с поиском хвостов, готовность к Windows 11, расписание и .zip-отчёт."
-                         FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0" />
-            </StackPanel>
-          </DockPanel>
-        </Border>
-      </UniformGrid>
-
+      <TextBlock Text="Быстрые задачи" FontWeight="SemiBold" FontSize="18" Margin="0,18,0,8" />
+      <ItemsControl ItemsSource="{Binding QuickTasks}">
+        <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate><DataTemplate>
+          <Button Command="{Binding DataContext.OpenToolCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Style="{StaticResource WorkbenchTile}" AutomationProperties.Name="{Binding Title}">
+            <StackPanel><DockPanel><TextBlock DockPanel.Dock="Right" Text="↗" Foreground="{DynamicResource TextMutedBrush}" />
+              <TextBlock Text="{Binding Section.Glyph}" FontFamily="Segoe MDL2 Assets" Foreground="{DynamicResource AccentBrush}" FontSize="20" /></DockPanel>
+              <TextBlock Text="{Binding Title}" TextWrapping="Wrap" FontWeight="SemiBold" FontSize="15" Margin="0,12,0,3" />
+              <TextBlock Text="{Binding Detail}" Style="{StaticResource HintTextStyle}" /></StackPanel>
+          </Button>
+        </DataTemplate></ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <TextBlock Text="Рабочая среда" FontWeight="SemiBold" FontSize="18" Margin="0,16,0,8" />
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="1.2*" /><ColumnDefinition Width="10" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+        <Border Style="{StaticResource CardBorderStyle}"><StackPanel>
+          <TextBlock Text="СИСТЕМНЫЙ ТОМ" Style="{StaticResource EyebrowText}" />
+          <TextBlock Text="{Binding SystemDriveUsageHeadline}" TextWrapping="Wrap" FontSize="14" FontWeight="SemiBold" Margin="0,7,0,8" />
+          <ProgressBar Value="{Binding SystemDriveUsedPercent, Mode=OneWay}" Minimum="0" Maximum="100" Height="5" AutomationProperties.Name="Занято на системном томе, процентов" Foreground="{DynamicResource AccentPrimaryBrush}" Background="{DynamicResource ToggleOffTrackBrush}" BorderThickness="0" />
+          <TextBlock Text="Осталось менее 10% места" Foreground="{DynamicResource AmberTextBrush}" Visibility="{Binding IsSystemDriveCriticallyFull, Converter={StaticResource BoolToVis}}" />
+        </StackPanel></Border>
+        <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}"><StackPanel>
+          <TextBlock Text="ОПЕРАЦИОННАЯ СИСТЕМА" Style="{StaticResource EyebrowText}" />
+          <TextBlock Text="{Binding OsDisplayHeader}" TextWrapping="Wrap" FontSize="14" FontWeight="SemiBold" Margin="0,7,0,0" />
+        </StackPanel></Border>
+      </Grid>
+      <StackPanel Visibility="{Binding HasSmartAuditActions, Converter={StaticResource BoolToVis}}" Margin="0,16,0,0">
+        <TextBlock Text="По результатам проверки" FontWeight="SemiBold" FontSize="18" Margin="0,0,0,8" />
+        <ItemsControl ItemsSource="{Binding SmartAuditActions}"><ItemsControl.ItemTemplate><DataTemplate>
+          <Border Style="{StaticResource CardBorderStyle}" Padding="12,9" Margin="0,0,0,6"><DockPanel>
+            <Button DockPanel.Dock="Right" VerticalAlignment="Center" Style="{StaticResource CompactButtonStyle}" Command="{Binding JumpCommand}" Content="Открыть раздел" Margin="10,0,0,0" />
+            <StackPanel><TextBlock Text="{Binding DomainBadge}" Style="{StaticResource EyebrowText}" /><TextBlock Text="{Binding SimpleTitle}" FontWeight="SemiBold" TextWrapping="Wrap" /><TextBlock Text="{Binding SimpleRecommendation}" Style="{StaticResource HintTextStyle}" /></StackPanel>
+          </DockPanel></Border>
+        </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+      </StackPanel>
     </StackPanel>
   </ScrollViewer>
 </UserControl>

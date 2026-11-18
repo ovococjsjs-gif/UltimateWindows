@@ -237,41 +237,18 @@ public sealed class AppsAndAutomationService
             ct).ConfigureAwait(false);
 
         if (!launched)
-        {
-            return new CleanUninstallResult(
-                Succeeded: false,
-                SessionId: null,
-                AppName: targetApp.DisplayName,
-                UninstallerLaunched: false,
-                RemovedFileLeftovers: 0,
-                RemovedRegistryLeftovers: 0,
-                ReclaimedBytes: 0,
-                SummaryMessage: $"Штатный деинсталлятор «{targetApp.DisplayName}» не запустился или отсутствует. При необходимости используйте принудительное удаление.");
-        }
+            return new(false, null, targetApp.DisplayName, false, 0, 0, 0,
+                "Штатное удаление не подтверждено: операция отменена, завершилась с ошибкой или ещё работает. Остатки не удалялись.");
 
-        // После завершения штатного деинсталлятора сканируем и помещаем оставшиеся хвосты в карантин Машины времени
-        var remainingLeftovers = await ScanApplicationLeftoversAsync(targetApp, ct).ConfigureAwait(false);
-        if (remainingLeftovers.Count == 0)
-        {
-            return new CleanUninstallResult(
-                Succeeded: true,
-                SessionId: null,
-                AppName: targetApp.DisplayName,
-                UninstallerLaunched: true,
-                RemovedFileLeftovers: 0,
-                RemovedRegistryLeftovers: 0,
-                ReclaimedBytes: 0,
-                SummaryMessage: $"Штатный деинсталлятор «{targetApp.DisplayName}» завершён, остаточных хвостов не осталось.");
-        }
+        var installed = await _bridge.GetInstalledWin32AppsAsync(ct).ConfigureAwait(false);
+        if (installed.Any(a => a.RegistryKeyPath.Equals(targetApp.RegistryKeyPath, StringComparison.OrdinalIgnoreCase)))
+            return new(false, null, targetApp.DisplayName, true, 0, 0, 0,
+                "Запись программы ещё присутствует. Дождитесь завершения удаления или перезагрузки. Остатки не удалялись.");
 
-        var cleanup = await _bridge.QuarantineAndRemoveLeftoversAsync(
-            targetApp.DisplayName,
-            forceRemoveUninstallEntry: null,
-            remainingLeftovers,
-            _vaultService,
-            ct).ConfigureAwait(false);
-
-        return cleanup with { UninstallerLaunched = true };
+        var remaining = LeftoverScanner.ScanLeftovers(targetApp, installed, _bridge.GetCandidateLeftoverRoots(), _bridge.EnumerateRegistrySoftwareKeys());
+        return new CleanUninstallResult(true, null, targetApp.DisplayName, true, 0, 0, 0,
+            $"Штатное удаление «{targetApp.DisplayName}» завершено. Найдено возможных остатков: {remaining.Count}. Ничего из списка не удалено.")
+            { RemainingLeftovers = remaining };
     }
 
     public async Task<CleanUninstallResult> ForceRemoveBrokenAppAsync(
@@ -355,7 +332,7 @@ public sealed class AppsAndAutomationService
             var scan = await _cleanerService.ScanAsync(opts, ct).ConfigureAwait(false);
             if (scan.CandidateFiles.Count > 0)
             {
-                var exec = await _cleanerService.ExecuteCleanupAsync(scan, opts, ct).ConfigureAwait(false);
+                var exec = await _cleanerService.ExecuteCleanupAsync(scan, ct).ConfigureAwait(false);
                 freedBytes = exec.FreedBytes;
             }
         }

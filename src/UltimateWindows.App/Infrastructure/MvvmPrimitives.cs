@@ -39,13 +39,18 @@ public sealed class RelayCommand : ICommand
         _canExecute = canExecute;
     }
 
-    public event EventHandler? CanExecuteChanged;
+    private event EventHandler? StateChanged;
+    public event EventHandler? CanExecuteChanged
+    {
+        add { StateChanged += value; CommandManager.RequerySuggested += value; }
+        remove { StateChanged -= value; CommandManager.RequerySuggested -= value; }
+    }
 
     public bool CanExecute(object? parameter) => _canExecute?.Invoke(parameter) ?? true;
 
     public void Execute(object? parameter) => _execute(parameter);
 
-    public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+    public void RaiseCanExecuteChanged() => StateChanged?.Invoke(this, EventArgs.Empty);
 }
 
 public sealed class AsyncRelayCommand : ICommand
@@ -60,11 +65,16 @@ public sealed class AsyncRelayCommand : ICommand
         _canExecute = canExecute;
     }
 
-    public event EventHandler? CanExecuteChanged;
+    private event EventHandler? StateChanged;
+    public event EventHandler? CanExecuteChanged
+    {
+        add { StateChanged += value; CommandManager.RequerySuggested += value; }
+        remove { StateChanged -= value; CommandManager.RequerySuggested -= value; }
+    }
 
     public bool CanExecute(object? parameter) => !_isRunning && (_canExecute?.Invoke(parameter) ?? true);
 
-    public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+    public void RaiseCanExecuteChanged() => StateChanged?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
     /// Куда сообщать об ошибке, которую команда не обработала сама. Без этого необработанное исключение
@@ -82,7 +92,7 @@ public sealed class AsyncRelayCommand : ICommand
         try
         {
             _isRunning = true;
-            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+            StateChanged?.Invoke(this, EventArgs.Empty);
             await _executeAsync(parameter);
         }
         catch (OperationCanceledException)
@@ -102,7 +112,7 @@ public sealed class AsyncRelayCommand : ICommand
         finally
         {
             _isRunning = false;
-            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+            StateChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 }
