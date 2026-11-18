@@ -18,6 +18,22 @@ public sealed class ZeroBloatVaultTests : IDisposable
     }
 
     [Fact]
+    public async Task VerifiedBackupOverQuota_RefusesCommitWithoutDeletingTheOriginal()
+    {
+        var vault = new ZeroBloatVaultService(Path.Combine(_tempRoot, "quota"));
+        await vault.UpdatePolicyAsync(vault.CurrentPolicy with { MaxVaultBytes = 4096 });
+        var path = Path.Combine(_tempRoot, "original.bin");
+        var contents = new byte[16384];
+        new Random(17).NextBytes(contents);
+        await File.WriteAllBytesAsync(path, contents);
+        await using var tx = vault.BeginTransaction(SystemDomain.AppsAndAutomation, "Before", "Backup");
+        await tx.BackupFileAsync(path);
+        await Assert.ThrowsAsync<IOException>(() => tx.CommitVerifiedBackupAsync());
+        Assert.Equal(contents, await File.ReadAllBytesAsync(path));
+        Assert.False(Assert.Single(await vault.GetHistoryAsync()).IsPinned);
+    }
+
+    [Fact]
     public async Task PreparedBackup_IsReadableAcrossRestart_AndRestoreWillNotReplaceANewerFile()
     {
         var root = Path.Combine(_tempRoot, "state");

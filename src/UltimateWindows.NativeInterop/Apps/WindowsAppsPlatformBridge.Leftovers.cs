@@ -9,6 +9,7 @@ using UltimateWindows.Core.Enums;
 using UltimateWindows.Core.Models;
 using UltimateWindows.Modules.Apps.Models;
 using UltimateWindows.Modules.Apps.Uninstaller;
+using UltimateWindows.Modules.Optimizer.Models;
 
 namespace UltimateWindows.NativeInterop.Apps;
 
@@ -97,7 +98,15 @@ public sealed partial class WindowsAppsPlatformBridge
         if (files.Count + keys.Count > 0)
         {
             // Если квота вытеснила файл, хеш не совпал или SQLite не зафиксировал снимок — ничего не удаляем.
-            id = (await tx.CommitVerifiedBackupAsync(ct).ConfigureAwait(false)).SessionId;
+            try
+            {
+                id = (await tx.CommitVerifiedBackupAsync(ct).ConfigureAwait(false)).SessionId;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return new(false, null, appDisplayName, false, 0, 0, 0,
+                    $"Не удалось подтвердить сохранность снимка: {ex.Message} Очистка не начиналась.");
+            }
             foreach (var file in files)
             {
                 ct.ThrowIfCancellationRequested();

@@ -412,6 +412,10 @@ public sealed class ZeroBloatVaultService : IVaultService
                     retained.Deltas.Any(d => d.TargetKind == StateTargetKind.QuarantinedFile && d.BlobSha256 is null))
                     throw new IOException("Копия не помещается в квоту хранилища. Исходные объекты не удалены.");
 
+                var usage = await _owner.GetStorageStatsAsync(ct).ConfigureAwait(false);
+                if (usage.TotalUsedBytes > usage.EffectiveLimitBytes)
+                    throw new IOException("Квота исчерпана. Исходные объекты не удалены.");
+
                 foreach (var hash in retained.Deltas.Select(d => d.BlobSha256).OfType<string>().Distinct())
                     _ = await _blobStore.RestoreBytesAsync(hash, ct).ConfigureAwait(false);
                 return retained;
