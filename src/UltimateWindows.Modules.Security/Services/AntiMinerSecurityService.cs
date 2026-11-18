@@ -167,6 +167,18 @@ public sealed class AntiMinerSecurityService
         int actionsDone = 0;
         var summaryParts = new List<string>();
 
+        // Снимок файла готовим до изменений процесса и настроек. До Commit он не удаляется.
+        string? pendingFile = null;
+        if (hasFileTarget && !isUnderWindows && finding.CanQuarantineFileSafely)
+        {
+            pendingFile = Path.GetFullPath(finding.SuspectFilePath!);
+            try { await tx.QuarantineFileAsync(pendingFile, ct).ConfigureAwait(false); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return new(false, null, 0, $"Не удалось подготовить снимок «{pendingFile}»: {ex.Message} Изменения не начинались.");
+            }
+        }
+
         // 1. Завершаем активный подозрительный процесс (или донор с имплантом памяти)
         if (finding.SuspectProcessId is int pid and > 4)
         {
@@ -235,50 +247,25 @@ public sealed class AntiMinerSecurityService
             }
         }
 
-        // 5. Изолируем тело угрозы в шифрованный карантин .uwq (строго вне C:\Windows)
-        if (hasFileTarget && !isUnderWindows && finding.CanQuarantineFileSafely)
-        {
-            var fullPath = Path.GetFullPath(finding.SuspectFilePath!);
-            if (File.Exists(fullPath))
-            {
-                try
-                {
-                    File.SetAttributes(fullPath, FileAttributes.Normal);
-                    // QuarantineFileAsync шифрует/дедуплицирует файл в .uwq и сразу удаляет оригинал с диска
-                    await tx.QuarantineFileAsync(fullPath, ct).ConfigureAwait(false);
-                    actionsDone++;
-                    summaryParts.Add($"файл «{Path.GetFileName(fullPath)}» изолирован в карантин (.uwq)");
-                }
-                catch (Exception ex)
-                {
-                    return new SecurityRemediationResult(
-                        false,
-                        null,
-                        actionsDone,
-                        $"Не удалось изолировать заблокированный файл «{fullPath}»: {ex.Message}");
-                }
-            }
-            else if (actionsDone == 0)
-            {
-                return new SecurityRemediationResult(false, null, 0, $"Файл «{fullPath}» уже не существует на диске.");
-            }
-        }
+        if (actionsDone == 0 && pendingFile is null)
+            return new(false, null, 0, "Не удалось выполнить автоматическое действие (возможно, требуются права администратора).");
 
-        if (actionsDone == 0)
+        try
         {
-            return new SecurityRemediationResult(
-                false,
-                null,
-                0,
-                "Не удалось выполнить автоматическое действие (возможно, требуются права администратора).");
+            var record = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
+            if (pendingFile is not null)
+            {
+                actionsDone++;
+                summaryParts.Add($"файл «{Path.GetFileName(pendingFile)}» изолирован в карантин");
+            }
+            Guid? rollbackId = record.RollbackUnavailableReason is null ? record.SessionId : null;
+            return new(true, rollbackId, actionsDone, $"Выполнено: {string.Join(", ", summaryParts)}. " +
+                (rollbackId.HasValue ? "Сохранённые файлы и настройки доступны в «Машине времени»." : "Это действие не имеет отката."));
         }
-
-        var record = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
-        return new SecurityRemediationResult(
-            true,
-            record.SessionId,
-            actionsDone,
-            $"Угроза обезврежена ({string.Join(", ", summaryParts)}). Откат доступен в «Машине времени».");
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return new(false, null, actionsDone, $"Не удалось завершить операцию: {ex.Message} Выполнено других действий: {actionsDone}. Проверьте журнал.");
+        }
     }
 
     /// <summary>
@@ -499,7 +486,8 @@ public sealed class AntiMinerSecurityService
                     .Select(d => d.TargetPath)
                     .ToList(),
                 StateDeltaCount: h.Deltas.Count,
-                IsReverted: h.IsReverted))
+                IsReverted: h.IsReverted,
+                RollbackUnavailableReason: h.RollbackUnavailableReason))
             .ToList();
     }
 

@@ -354,7 +354,8 @@ public sealed record QuarantinedThreatEntry(
     string FriendlySummary,
     IReadOnlyList<string> QuarantinedPaths,
     int StateDeltaCount,
-    bool IsReverted)
+    bool IsReverted,
+    string? RollbackUnavailableReason = null)
 {
     public string TimestampLocalText => QuarantinedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss");
     public string PrimaryPath => QuarantinedPaths.Count > 0 ? QuarantinedPaths[0] : "Системная запись (реестр / задача / служба)";

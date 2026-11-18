@@ -4,7 +4,7 @@
 # Знак «+» после имени — снимок со сглаженным текстом (в несколько раз крупнее обычного).
 # Пустой список — снимки не делаются и не передаются.
 
-workbench-home+
-cleaner-plan
-workbench-small
 cleaner-tab-1
+cleaner-plan
+workbench-home
+workbench-small

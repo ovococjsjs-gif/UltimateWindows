@@ -1,6 +1,5 @@
 using System.ComponentModel;
-using UltimateWindows.Modules.Cleaner.Models;
-using UltimateWindows.NativeInterop.Files;
+using UltimateWindows.Modules.Safety.Storage;
 using System.Text.Json;
 using Microsoft.Win32;
 using UltimateWindows.Core.Contracts;
@@ -111,7 +110,7 @@ public sealed partial class WindowsAppsPlatformBridge
                 ct.ThrowIfCancellationRequested();
                 try
                 {
-                    if (CheckedFileDeletion.Remove(file.Path, file.Length, null, file.Hash) != FileRemovalOutcome.Removed)
+                    if (!CheckedFileDeletion.TryRemove(file.Path, file.Length, null, file.Hash))
                     {
                         Skip(file.Path, "Файл исчез или изменился после создания снимка");
                         continue;

@@ -96,6 +96,7 @@ public sealed class CleanerStage2Tests : IDisposable
         var chromeDefault = Path.Combine(localApp, "Google", "Chrome", "User Data", "Default");
         var loginData = WriteBytes(Path.Combine(chromeDefault, "Login Data"), "SECRET_PASSWORDS_SQLITE_BYTES"u8.ToArray());
         var chromeCache = WriteBytes(Path.Combine(chromeDefault, "Cache", "Cache_Data", "data_1"), "CHROME_DISPOSABLE_CACHE"u8.ToArray());
+        var offline = WriteBytes(Path.Combine(chromeDefault, "Service Worker", "CacheStorage", "Cache", "Cache_Data", "draft.bin"), "UNSYNCED"u8.ToArray());
         var loginHashBefore = Sha256OfFile(loginData);
 
         // 3. Подключаем внешний Winapp2.ini: одно нормальное правило для 7-Zip/CustomApp и одно вредоносное, целящееся в весь профиль Chrome!
@@ -147,6 +148,7 @@ public sealed class CleanerStage2Tests : IDisposable
         Assert.False(File.Exists(photoCache));
 
         // Защищённые данные целы и побайтово совпадают!
+        Assert.Equal("UNSYNCED"u8.ToArray(), File.ReadAllBytes(offline));
         Assert.True(File.Exists(discordTokenLike));
         Assert.True(File.Exists(loginData));
         Assert.Equal(loginHashBefore, Sha256OfFile(loginData));

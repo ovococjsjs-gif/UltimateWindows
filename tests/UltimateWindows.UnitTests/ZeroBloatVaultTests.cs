@@ -223,6 +223,94 @@ public sealed class ZeroBloatVaultTests : IDisposable
     }
 
     [Fact]
+    public async Task PurgeByAnotherInstanceBetweenCaptureAndCommitCannotLoseThePendingCopy()
+    {
+        var root = Path.Combine(_tempRoot, "shared");
+        var first = new ZeroBloatVaultService(root);
+        var second = new ZeroBloatVaultService(root);
+        var path = Path.Combine(_tempRoot, "draft.txt");
+        await File.WriteAllTextAsync(path, "reviewed bytes");
+        await using (var older = first.BeginTransaction(SystemDomain.SmartCleaner, "Old", "Copy"))
+        {
+            await older.BackupFileAsync(path);
+            await older.CommitAsync();
+        }
+        await using var newer = second.BeginTransaction(SystemDomain.SmartCleaner, "New", "Copy");
+        await newer.BackupFileAsync(path);
+        Assert.Equal(1, await first.PurgeAllUnpinnedBlobsAsync());
+        // Commit must publish the captured bytes, not reread the source or reuse the evicted reference.
+        await File.WriteAllTextAsync(path, "changed since scan");
+        var saved = await newer.CommitVerifiedBackupAsync();
+        Assert.True(saved.IsPinned);
+        Assert.Equal(1, (await first.GetStorageStatsAsync()).BlobCount);
+        File.Delete(path);
+        await first.RollbackTransactionAsync(saved.SessionId);
+        Assert.Equal("reviewed bytes", await File.ReadAllTextAsync(path));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AbandonedOrCancelledQuarantineLeavesOriginalAndNoTemporaryBlob(bool cancel)
+    {
+        var dir = Path.Combine(_tempRoot, "vault");
+        var vault = new ZeroBloatVaultService(dir);
+        var path = Path.Combine(_tempRoot, "keep.txt");
+        await File.WriteAllTextAsync(path, "keep");
+        await using (var tx = vault.BeginTransaction(SystemDomain.DllAndRepair, "Test", "Prepare only"))
+        {
+            await tx.QuarantineFileAsync(path);
+            Assert.Equal("keep", await File.ReadAllTextAsync(path));
+            if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tx.CommitAsync(ct: new CancellationToken(true)));
+        }
+        Assert.Equal("keep", await File.ReadAllTextAsync(path));
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(dir, "blobs")));
+        Assert.Empty(await vault.GetHistoryAsync());
+    }
+
+    [Fact]
+    public async Task QuarantineNeverDeletesAChangedFileOrOneThatDoesNotFit()
+    {
+        var vault = new ZeroBloatVaultService(Path.Combine(_tempRoot, "state"));
+        var path = Path.Combine(_tempRoot, "binary.dat");
+        await File.WriteAllTextAsync(path, "AAAA");
+        await using (var tx = vault.BeginTransaction(SystemDomain.DllAndRepair, "Changed", "Test"))
+        {
+            await tx.QuarantineFileAsync(path);
+            await File.WriteAllTextAsync(path, "BBBB");
+            await Assert.ThrowsAsync<IOException>(() => tx.CommitAsync());
+        }
+        Assert.Equal("BBBB", await File.ReadAllTextAsync(path));
+        await vault.UpdatePolicyAsync(vault.CurrentPolicy with { MaxVaultBytes = 4096 });
+        await using var small = vault.BeginTransaction(SystemDomain.DllAndRepair, "No space", "Test");
+        await small.QuarantineFileAsync(path);
+        await Assert.ThrowsAsync<IOException>(() => small.CommitAsync(pinTransaction: true));
+        Assert.Equal("BBBB", await File.ReadAllTextAsync(path));
+        Assert.True((await vault.GetHistoryAsync()).Single(r => r.SessionId == small.SessionId).HasExpiredFile);
+    }
+
+    [Fact]
+    public async Task QuotaDoesNotDetachSharedPinnedContentButManualPurgeCanReleaseTheUnpinnedReference()
+    {
+        var vault = new ZeroBloatVaultService(Path.Combine(_tempRoot, "pin"));
+        var path = Path.Combine(_tempRoot, "shared.txt");
+        await File.WriteAllTextAsync(path, "same");
+        await using var pinned = vault.BeginTransaction(SystemDomain.DllAndRepair, "Pinned", "Test");
+        await pinned.BackupFileAsync(path);
+        await pinned.CommitVerifiedBackupAsync();
+        await using var other = vault.BeginTransaction(SystemDomain.DllAndRepair, "Other", "Test");
+        await other.BackupFileAsync(path);
+        await other.CommitAsync();
+        await vault.UpdatePolicyAsync(vault.CurrentPolicy with { MaxVaultBytes = 4096 });
+        Assert.All(await vault.GetHistoryAsync(), r => Assert.False(r.HasExpiredFile));
+        Assert.Equal(0, await vault.PurgeAllUnpinnedBlobsAsync());
+        Assert.True((await vault.GetHistoryAsync()).Single(r => r.SessionId == other.SessionId).HasExpiredFile);
+        File.Delete(path);
+        await vault.RollbackTransactionAsync(pinned.SessionId);
+        Assert.Equal("same", await File.ReadAllTextAsync(path));
+    }
+
+    [Fact]
     public async Task BrokenOrMissingKeyNeverOverwritesCredentialsForExistingArchives()
     {
         var dir = Path.Combine(_tempRoot, "key");

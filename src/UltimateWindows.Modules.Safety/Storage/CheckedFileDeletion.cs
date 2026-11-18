@@ -3,41 +3,53 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
-using UltimateWindows.Modules.Cleaner.Models;
 
-namespace UltimateWindows.NativeInterop.Files;
+namespace UltimateWindows.Modules.Safety.Storage;
 
 /// <summary>Проверка и удаление одного открытого объекта. Не переходим по ссылке и не допускаем
 /// запись или подмену имени между проверкой и запросом удаления.</summary>
-internal static class CheckedFileDeletion
+public static class CheckedFileDeletion
 {
-    internal static FileRemovalOutcome Remove(string path, long expectedLength, DateTime? writeTimeUtc, string? hash)
+    public static bool TryRemove(string path, long expectedLength, DateTime? writeTimeUtc, string? hash)
     {
+        path = Path.GetFullPath(path);
+        if (!OperatingSystem.IsWindows())
+        {
+            // Переносимый путь для файловых тестов; гарантия удаления по тому же дескриптору — на Windows.
+            if (!File.Exists(path)) return false;
+            for (var entry = path; entry is not null; entry = Path.GetDirectoryName(entry))
+                if (File.GetAttributes(entry).HasFlag(FileAttributes.ReparsePoint)) return false;
+            using var current = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+            if (current.Length != expectedLength || (writeTimeUtc.HasValue && File.GetLastWriteTimeUtc(current.SafeFileHandle) != writeTimeUtc) ||
+                (hash is not null && !Convert.ToHexString(SHA256.HashData(current)).Equals(hash, StringComparison.OrdinalIgnoreCase))) return false;
+            File.Delete(path);
+            return true;
+        }
         using var handle = CreateFileW(path, 0x80000000u | 0x10000u /* GENERIC_READ | DELETE */,
             FileShare.Read, IntPtr.Zero, FileMode.Open, 0x00200000 /* OPEN_REPARSE_POINT */, IntPtr.Zero);
         if (handle.IsInvalid)
         {
             var error = Marshal.GetLastWin32Error();
-            if (error is 2 or 3) return FileRemovalOutcome.ChangedOrMissing;
+            if (error is 2 or 3) return false;
             throw new Win32Exception(error);
         }
         if ((File.GetAttributes(handle) & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0 ||
             RandomAccess.GetLength(handle) != expectedLength ||
             (writeTimeUtc.HasValue && File.GetLastWriteTimeUtc(handle) != writeTimeUtc))
-            return FileRemovalOutcome.ChangedOrMissing;
+            return false;
 
         var final = new StringBuilder(Math.Max(512, path.Length + 16));
         var size = GetFinalPathNameByHandleW(handle, final, (uint)final.Capacity, 0);
         if (size == 0) throw new Win32Exception(Marshal.GetLastWin32Error());
         if (size >= final.Capacity || !NormalName(final.ToString()).Equals(NormalName(Path.GetFullPath(path)), StringComparison.OrdinalIgnoreCase))
-            return FileRemovalOutcome.ChangedOrMissing;
+            return false;
 
         using var stream = new FileStream(handle, FileAccess.Read);
         if (hash is not null && !Convert.ToHexString(SHA256.HashData(stream)).Equals(hash, StringComparison.OrdinalIgnoreCase))
-            return FileRemovalOutcome.ChangedOrMissing;
+            return false;
         byte delete = 1;
         if (!SetFileInformationByHandle(handle, 4 /* FileDispositionInfo */, ref delete, 1)) throw new Win32Exception(Marshal.GetLastWin32Error());
-        return FileRemovalOutcome.Removed;
+        return true;
     }
 
     private static string NormalName(string path) => path.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)

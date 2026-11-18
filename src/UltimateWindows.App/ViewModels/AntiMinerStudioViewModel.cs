@@ -58,8 +58,8 @@ public sealed class QuarantineEntryViewModel : ObservableObject
     public string TimestampLocalText => Entry.TimestampLocalText;
     public string FriendlyTitle => Entry.FriendlyTitle;
     public string PrimaryPath => Entry.PrimaryPath;
-    public string StatusBadge => Entry.IsReverted ? "Восстановлено" : "В карантине (.uwq)";
-    public bool CanRestore => !Entry.IsReverted;
+    public string StatusBadge => Entry.RollbackUnavailableReason ?? (Entry.QuarantinedPaths.Count > 0 ? "Файловый снимок" : "Настройки");
+    public bool CanRestore => !Entry.IsReverted && Entry.RollbackUnavailableReason is null;
     public ICommand RestoreCommand { get; }
 }
 

@@ -175,7 +175,7 @@ public sealed class ZeroBloatVaultService : IVaultService
         var effectiveLimit = _currentPolicy.ComputeEffectiveLimitBytes(_freeSpaceBytesProvider());
         var candidates = await _repository.GetUnpinnedBlobReferencesOldestFirstAsync(ct).ConfigureAwait(false);
 
-        var removedBlobs = 0;
+        var removedBlobs = await CollectPendingDeletesAsync(ct).ConfigureAwait(false);
         var processedHashes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Шаг 1: Очистка блобов с истекшим TTL
@@ -193,9 +193,8 @@ public sealed class ZeroBloatVaultService : IVaultService
             }
         }
 
-        processedHashes.Clear(); // свежие ссылки на тот же хеш участвуют в отдельном расчёте квоты
-        // Шаг 2: Кольцевое вытеснение старых блобов, если суммарный объем превышает бюджет
-        foreach (var item in candidates)
+        // Шаг 2: файл с несколькими ссылками вытесняется по возрасту новейшей из них.
+        foreach (var group in candidates.GroupBy(c => c.BlobSha256).OrderBy(g => g.Max(c => c.CreatedAtUtc)))
         {
             var currentTotal = _repository.GetDatabaseSizeBytes() + _blobStore.ComputeTotalBlobBytesOnDisk();
             if (currentTotal <= effectiveLimit)
@@ -203,13 +202,7 @@ public sealed class ZeroBloatVaultService : IVaultService
                 break;
             }
 
-            if (processedHashes.Add(item.BlobSha256))
-            {
-                if (await TryEvictBlobAsync(item.BlobSha256, ct).ConfigureAwait(false))
-                {
-                    removedBlobs++;
-                }
-            }
+            if (await TryEvictBlobAsync(group.Key, ct, quotaOnly: true).ConfigureAwait(false)) removedBlobs++;
         }
 
         return removedBlobs;
@@ -221,7 +214,7 @@ public sealed class ZeroBloatVaultService : IVaultService
     public async Task<int> PurgeAllUnpinnedBlobsAsync(CancellationToken ct = default)
     {
         var candidates = await _repository.GetUnpinnedBlobReferencesOldestFirstAsync(ct).ConfigureAwait(false);
-        var removed = 0;
+        var removed = await CollectPendingDeletesAsync(ct).ConfigureAwait(false);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var item in candidates)
@@ -238,8 +231,19 @@ public sealed class ZeroBloatVaultService : IVaultService
         return removed;
     }
 
-    private Task<bool> TryEvictBlobAsync(string hash, CancellationToken ct, DateTimeOffset? expiredAt = null) =>
-        _repository.ReleaseBlobReferencesAsync(hash, expiredAt, _blobStore.DeleteBlobIfPresent, ct);
+    private async Task<int> CollectPendingDeletesAsync(CancellationToken ct)
+    {
+        int count = 0;
+        foreach (var hash in await _repository.GetPendingDeletesAsync(ct).ConfigureAwait(false))
+            if (await _repository.CollectReleasedBlobAsync(hash, _blobStore.DeleteBlobIfPresent, ct).ConfigureAwait(false)) count++;
+        return count;
+    }
+
+    private async Task<bool> TryEvictBlobAsync(string hash, CancellationToken ct, DateTimeOffset? expiredAt = null, bool quotaOnly = false)
+    {
+        await _repository.ReleaseBlobReferencesAsync(hash, expiredAt, quotaOnly, ct).ConfigureAwait(false);
+        return await _repository.CollectReleasedBlobAsync(hash, _blobStore.DeleteBlobIfPresent, ct).ConfigureAwait(false);
+    }
 
     private sealed class SafetyTransactionSession : ITransactionSession
     {
@@ -252,9 +256,9 @@ public sealed class ZeroBloatVaultService : IVaultService
         private readonly string _friendlySummary;
         private readonly string _technicalDetails;
         private readonly List<StateDeltaRecord> _deltas = [];
-        private long _storedBlobBytesDelta;
-        private bool _hasFileBlobs;
-        private bool _committed;
+        private readonly Dictionary<string, PreparedBlob> _prepared = new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<StateDeltaRecord> _toQuarantine = [];
+        private bool _finished;
 
         public SafetyTransactionSession(
             ZeroBloatVaultService owner,
@@ -312,35 +316,29 @@ public sealed class ZeroBloatVaultService : IVaultService
             EnsureNotCommitted();
             ArgumentException.ThrowIfNullOrWhiteSpace(sourceFilePath);
 
-            // Жесткая защита: даже карантин не имеет права трогать пароли и автозаполнение браузеров!
-            BrowserVaultGuard.ThrowIfProtected(sourceFilePath);
-
             var fullPath = Path.GetFullPath(sourceFilePath);
-            if (!File.Exists(fullPath))
-            {
-                throw new FileNotFoundException("Исходный файл для помещения в карантин не найден.", fullPath);
-            }
+            BrowserVaultGuard.ThrowIfProtected(fullPath);
+            var vaultPrefix = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_owner.VaultDirectory)) + Path.DirectorySeparatorChar;
+            if (fullPath.StartsWith(vaultPrefix, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Файлы самого хранилища нельзя помещать в карантин.");
+            for (var entry = fullPath; entry is not null; entry = Path.GetDirectoryName(entry))
+                if (File.GetAttributes(entry).HasFlag(FileAttributes.ReparsePoint))
+                    throw new IOException("Снимок по пути через ссылку или точку подключения запрещён.");
 
-            var stored = await _blobStore.StoreFileAsync(fullPath, ct).ConfigureAwait(false);
-            if (removeSource) File.Delete(fullPath);
-
-            _hasFileBlobs = true;
-            if (!stored.WasDeduplicated)
-            {
-                _storedBlobBytesDelta += stored.CompressedEncryptedBytes;
-            }
-
-            _deltas.Add(new StateDeltaRecord(
+            var stored = await _blobStore.PrepareFileAsync(fullPath, ct).ConfigureAwait(false);
+            if (!_prepared.TryAdd(stored.Sha256Hex, stored)) stored.Dispose();
+            var delta = new StateDeltaRecord(
                 DeltaId: Guid.NewGuid(),
                 SessionId: SessionId,
                 SequenceOrder: _deltas.Count,
                 TargetKind: StateTargetKind.QuarantinedFile,
                 TargetPath: fullPath,
                 PreviousStateJson: JsonSerializer.Serialize(new { Exists = true, Sha256 = stored.Sha256Hex }),
-                NewStateJson: removeSource ? JsonSerializer.Serialize(new { Exists = false, Quarantined = true }) : null,
+                NewStateJson: removeSource ? JsonSerializer.Serialize(new { QuarantineRequested = true }) : null,
                 BlobSha256: stored.Sha256Hex,
-                OriginalSizeBytes: stored.OriginalSizeBytes));
-
+                OriginalSizeBytes: stored.OriginalSizeBytes);
+            _deltas.Add(delta);
+            if (removeSource) _toQuarantine.Add(delta);
             return stored.Sha256Hex;
         }
 
@@ -362,73 +360,70 @@ public sealed class ZeroBloatVaultService : IVaultService
                 newStateJson: null);
         }
 
-        public async Task<TransactionRecord> CommitAsync(bool pinTransaction = false, CancellationToken ct = default)
+        public Task<TransactionRecord> CommitAsync(bool pinTransaction = false, CancellationToken ct = default) =>
+            CommitCoreAsync(pinTransaction, verify: _toQuarantine.Count != 0, ct);
+
+        public Task<TransactionRecord> CommitVerifiedBackupAsync(CancellationToken ct = default) =>
+            CommitCoreAsync(pinTransaction: true, verify: true, ct);
+
+        private async Task<TransactionRecord> CommitCoreAsync(bool pinTransaction, bool verify, CancellationToken ct)
         {
             EnsureNotCommitted();
-            _committed = true;
-
+            _finished = true;
             var now = _timeProvider.GetUtcNow();
-            DateTimeOffset? expiresAt = _hasFileBlobs
-                ? now.AddDays(_owner.CurrentPolicy.FileBlobRetentionDays)
-                : null;
-
-            var metadataBytes = _deltas.Sum(d => (long)(d.TargetPath.Length + (d.PreviousStateJson?.Length ?? 0) + 128));
-            var totalStoredBytes = _storedBlobBytesDelta + metadataBytes;
-
             var record = new TransactionRecord(
-                SessionId: SessionId,
-                Domain: _domain,
-                FriendlyTitle: _friendlyTitle,
-                FriendlySummary: _friendlySummary,
-                TechnicalDetails: _technicalDetails,
-                CreatedAtUtc: now,
-                BlobExpiresAtUtc: expiresAt,
-                IsPinned: pinTransaction,
-                IsReverted: false,
-                RevertedAtUtc: null,
-                TotalStoredBytes: totalStoredBytes,
-                Deltas: _deltas.ToList());
-
-            await _repository.SaveTransactionAsync(record, ct).ConfigureAwait(false);
-            await _owner.EnforceQuotaAndRetentionAsync(ct).ConfigureAwait(false);
-
-            return record;
-        }
-
-        public async Task<TransactionRecord> CommitVerifiedBackupAsync(CancellationToken ct = default)
-        {
-            // Не обходить квоту закреплением: сначала обычная фиксация с вытеснением.
-            var saved = await CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
-            await _repository.SetPinnedAsync(SessionId, true, ct).ConfigureAwait(false);
+                SessionId, _domain, _friendlyTitle, _friendlySummary, _technicalDetails, now,
+                BlobExpiresAtUtc: _prepared.Count != 0 ? now.AddDays(_owner.CurrentPolicy.FileBlobRetentionDays) : null,
+                IsPinned: pinTransaction && !verify, IsReverted: false, RevertedAtUtc: null,
+                TotalStoredBytes: _deltas.Sum(d => 128L + d.TargetPath.Length + (d.PreviousStateJson?.Length ?? 0) + (d.NewStateJson?.Length ?? 0)),
+                Deltas: _deltas.ToArray());
             try
             {
-                var retained = await _repository.GetTransactionByIdAsync(SessionId, ct).ConfigureAwait(false);
-                if (retained is not { IsPinned: true, IsReverted: false } || retained.Deltas.Count != saved.Deltas.Count ||
-                    retained.Deltas.Any(d => d.TargetKind == StateTargetKind.QuarantinedFile && d.BlobSha256 is null))
-                    throw new IOException("Копия не помещается в квоту хранилища. Исходные объекты не удалены.");
-
-                var usage = await _owner.GetStorageStatsAsync(ct).ConfigureAwait(false);
-                if (usage.TotalUsedBytes > usage.EffectiveLimitBytes)
-                    throw new IOException("Квота исчерпана. Исходные объекты не удалены.");
-
-                foreach (var hash in retained.Deltas.Select(d => d.BlobSha256).OfType<string>().Distinct())
-                    _ = await _blobStore.RestoreBytesAsync(hash, ct).ConfigureAwait(false);
-                return retained;
+                record = await _repository.SaveTransactionAsync(record, () => _prepared.Values.Select(_blobStore.Publish)
+                    .Where(blob => !blob.WasDeduplicated).Sum(blob => blob.CompressedEncryptedBytes), ct).ConfigureAwait(false);
             }
-            catch
+            finally { DiscardPrepared(); }
+            await _owner.EnforceQuotaAndRetentionAsync(ct).ConfigureAwait(false);
+            if (!verify)
+                return record.BlobExpiresAtUtc is null ? record :
+                    await _repository.GetTransactionByIdAsync(SessionId, ct).ConfigureAwait(false) ?? throw new IOException("Запись не найдена после сохранения.");
+
+            await _repository.UseRetainedSnapshotAsync(SessionId, pinTransaction, async () =>
             {
-                await _repository.SetPinnedAsync(SessionId, false, CancellationToken.None).ConfigureAwait(false);
-                throw;
-            }
+                // Бюджет физического хранилища, а не сумма исторических оценок для отдельных записей.
+                var limit = _owner.CurrentPolicy.ComputeEffectiveLimitBytes(_owner._freeSpaceBytesProvider());
+                if (_repository.GetDatabaseSizeBytes() + _blobStore.ComputeTotalBlobBytesOnDisk() > limit)
+                    throw new IOException("Квота исчерпана. Исходные файлы не удалены.");
+                foreach (var hash in record.Deltas.Select(d => d.BlobSha256).OfType<string>().Distinct())
+                    _ = await _blobStore.RestoreBytesAsync(hash, ct).ConfigureAwait(false);
+                foreach (var file in _toQuarantine)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    if (!CheckedFileDeletion.TryRemove(file.TargetPath, file.OriginalSizeBytes, null, file.BlobSha256))
+                        throw new IOException($"«{file.TargetPath}» изменился или исчез. Этот файл не удалён. Снимок: {SessionId}.");
+                }
+            }, ct).ConfigureAwait(false);
+            return record with { IsPinned = pinTransaction };
         }
 
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        private void DiscardPrepared()
+        {
+            foreach (var blob in _prepared.Values) blob.Dispose();
+            _prepared.Clear();
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            _finished = true;
+            DiscardPrepared();
+            return ValueTask.CompletedTask;
+        }
 
         private void EnsureNotCommitted()
         {
-            if (_committed)
+            if (_finished)
             {
-                throw new InvalidOperationException("Транзакция уже зафиксирована.");
+                throw new InvalidOperationException("Транзакция уже завершена.");
             }
         }
     }

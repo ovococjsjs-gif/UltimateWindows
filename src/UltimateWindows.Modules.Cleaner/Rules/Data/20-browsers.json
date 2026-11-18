@@ -41,15 +41,6 @@
           "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\ShaderCache"
         },
         {
-          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\Service Worker\\CacheStorage"
-        },
-        {
-          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\Service Worker\\ScriptCache"
-        },
-        {
-          "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\Application Cache"
-        },
-        {
           "path": "%LocalAppData%\\Google\\Chrome\\User Data\\*\\Media Cache"
         },
         {
@@ -151,15 +142,6 @@
           "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\ShaderCache"
         },
         {
-          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\Service Worker\\CacheStorage"
-        },
-        {
-          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\Service Worker\\ScriptCache"
-        },
-        {
-          "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\Application Cache"
-        },
-        {
           "path": "%LocalAppData%\\Microsoft\\Edge\\User Data\\*\\Media Cache"
         },
         {
@@ -240,15 +222,6 @@
         },
         {
           "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\ShaderCache"
-        },
-        {
-          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\Service Worker\\CacheStorage"
-        },
-        {
-          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\Service Worker\\ScriptCache"
-        },
-        {
-          "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\Application Cache"
         },
         {
           "path": "%LocalAppData%\\Yandex\\YandexBrowser\\User Data\\*\\Media Cache"
@@ -333,15 +306,6 @@
           "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\ShaderCache"
         },
         {
-          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\Service Worker\\CacheStorage"
-        },
-        {
-          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\Service Worker\\ScriptCache"
-        },
-        {
-          "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\Application Cache"
-        },
-        {
           "path": "%LocalAppData%\\BraveSoftware\\Brave-Browser\\User Data\\*\\Media Cache"
         },
         {
@@ -422,15 +386,6 @@
         },
         {
           "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\ShaderCache"
-        },
-        {
-          "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\Service Worker\\CacheStorage"
-        },
-        {
-          "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\Service Worker\\ScriptCache"
-        },
-        {
-          "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\Application Cache"
         },
         {
           "path": "%LocalAppData%\\Vivaldi\\User Data\\*\\Media Cache"
@@ -515,15 +470,6 @@
           "path": "%LocalAppData%\\Chromium\\User Data\\*\\ShaderCache"
         },
         {
-          "path": "%LocalAppData%\\Chromium\\User Data\\*\\Service Worker\\CacheStorage"
-        },
-        {
-          "path": "%LocalAppData%\\Chromium\\User Data\\*\\Service Worker\\ScriptCache"
-        },
-        {
-          "path": "%LocalAppData%\\Chromium\\User Data\\*\\Application Cache"
-        },
-        {
           "path": "%LocalAppData%\\Chromium\\User Data\\*\\Media Cache"
         },
         {
@@ -606,15 +552,6 @@
           "path": "%LocalAppData%\\Opera Software\\Opera Stable\\ShaderCache"
         },
         {
-          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\Service Worker\\CacheStorage"
-        },
-        {
-          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\Service Worker\\ScriptCache"
-        },
-        {
-          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\Application Cache"
-        },
-        {
           "path": "%LocalAppData%\\Opera Software\\Opera Stable\\Media Cache"
         },
         {
@@ -646,15 +583,6 @@
         },
         {
           "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\ShaderCache"
-        },
-        {
-          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\Service Worker\\CacheStorage"
-        },
-        {
-          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\Service Worker\\ScriptCache"
-        },
-        {
-          "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\Application Cache"
         },
         {
           "path": "%LocalAppData%\\Opera Software\\Opera Stable\\*\\Media Cache"
@@ -690,15 +618,6 @@
           "path": "%AppData%\\Opera Software\\Opera Stable\\ShaderCache"
         },
         {
-          "path": "%AppData%\\Opera Software\\Opera Stable\\Service Worker\\CacheStorage"
-        },
-        {
-          "path": "%AppData%\\Opera Software\\Opera Stable\\Service Worker\\ScriptCache"
-        },
-        {
-          "path": "%AppData%\\Opera Software\\Opera Stable\\Application Cache"
-        },
-        {
           "path": "%AppData%\\Opera Software\\Opera Stable\\Media Cache"
         },
         {
@@ -730,15 +649,6 @@
         },
         {
           "path": "%AppData%\\Opera Software\\Opera Stable\\*\\ShaderCache"
-        },
-        {
-          "path": "%AppData%\\Opera Software\\Opera Stable\\*\\Service Worker\\CacheStorage"
-        },
-        {
-          "path": "%AppData%\\Opera Software\\Opera Stable\\*\\Service Worker\\ScriptCache"
-        },
-        {
-          "path": "%AppData%\\Opera Software\\Opera Stable\\*\\Application Cache"
         },
         {
           "path": "%AppData%\\Opera Software\\Opera Stable\\*\\Media Cache"
@@ -811,15 +721,6 @@
           "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\ShaderCache"
         },
         {
-          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\Service Worker\\CacheStorage"
-        },
-        {
-          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\Service Worker\\ScriptCache"
-        },
-        {
-          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\Application Cache"
-        },
-        {
           "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\Media Cache"
         },
         {
@@ -851,15 +752,6 @@
         },
         {
           "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\ShaderCache"
-        },
-        {
-          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\Service Worker\\CacheStorage"
-        },
-        {
-          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\Service Worker\\ScriptCache"
-        },
-        {
-          "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\Application Cache"
         },
         {
           "path": "%LocalAppData%\\Opera Software\\Opera GX Stable\\*\\Media Cache"
@@ -895,15 +787,6 @@
           "path": "%AppData%\\Opera Software\\Opera GX Stable\\ShaderCache"
         },
         {
-          "path": "%AppData%\\Opera Software\\Opera GX Stable\\Service Worker\\CacheStorage"
-        },
-        {
-          "path": "%AppData%\\Opera Software\\Opera GX Stable\\Service Worker\\ScriptCache"
-        },
-        {
-          "path": "%AppData%\\Opera Software\\Opera GX Stable\\Application Cache"
-        },
-        {
           "path": "%AppData%\\Opera Software\\Opera GX Stable\\Media Cache"
         },
         {
@@ -935,15 +818,6 @@
         },
         {
           "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\ShaderCache"
-        },
-        {
-          "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\Service Worker\\CacheStorage"
-        },
-        {
-          "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\Service Worker\\ScriptCache"
-        },
-        {
-          "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\Application Cache"
         },
         {
           "path": "%AppData%\\Opera Software\\Opera GX Stable\\*\\Media Cache"
@@ -1002,9 +876,6 @@
         },
         {
           "path": "%LocalAppData%\\Mozilla\\Firefox\\Profiles\\*\\shader-cache"
-        },
-        {
-          "path": "%LocalAppData%\\Mozilla\\Firefox\\Profiles\\*\\OfflineCache"
         }
       ]
     },

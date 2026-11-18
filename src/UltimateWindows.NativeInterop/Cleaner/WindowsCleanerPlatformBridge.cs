@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Win32;
 using System.ComponentModel;
-using UltimateWindows.NativeInterop.Files;
+using UltimateWindows.Modules.Safety.Storage;
 using UltimateWindows.Modules.Cleaner.Models;
 using UltimateWindows.Modules.Cleaner.Services;
 using UltimateWindows.Modules.Cleaner.Utilities;
@@ -19,7 +19,7 @@ public sealed class WindowsCleanerPlatformBridge : DefaultCleanerPlatformBridge
 {
     public override FileRemovalOutcome TryRemovePreviewedFile(FileRevision file)
     {
-        try { return CheckedFileDeletion.Remove(file.FullPath, file.Length, file.WriteTimeUtc, file.Sha256); }
+        try { return CheckedFileDeletion.TryRemove(file.FullPath, file.Length, file.WriteTimeUtc, file.Sha256) ? FileRemovalOutcome.Removed : FileRemovalOutcome.ChangedOrMissing; }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Win32Exception)
         { return FileRemovalOutcome.Unavailable; }
     }

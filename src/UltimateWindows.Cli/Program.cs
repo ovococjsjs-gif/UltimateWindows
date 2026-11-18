@@ -1292,9 +1292,9 @@ switch (command)
 
         foreach (var item in history)
         {
-            var state = item.IsReverted ? "[ОТМЕНЕНО]" : "[АКТИВНО]";
+            var state = $"[{item.RollbackUnavailableReason ?? "В журнале"}]";
             var pin = item.IsPinned ? " 📌" : "";
-            Console.WriteLine($"{item.CreatedDisplayLocal} {state}{pin} {item.SessionId} | {item.FriendlyTitle} ({item.FormattedStoredSize})");
+            Console.WriteLine($"{item.CreatedDisplayLocal} {state}{pin} {item.SessionId} | {item.FriendlyTitle} (при записи ≈ {item.FormattedStoredSize})");
         }
         break;
     }

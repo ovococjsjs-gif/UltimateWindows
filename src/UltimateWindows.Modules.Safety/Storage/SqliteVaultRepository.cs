@@ -86,6 +86,9 @@ public sealed class SqliteVaultRepository
                 FOREIGN KEY (session_id) REFERENCES transactions(session_id) ON DELETE CASCADE
             );
 
+            -- Ссылки снимаются ДО физического удаления. После сбоя можно безопасно повторить сборку мусора.
+            CREATE TABLE IF NOT EXISTS pending_blob_deletes (sha TEXT PRIMARY KEY);
+
             CREATE INDEX IF NOT EXISTS idx_deltas_session ON deltas(session_id, sequence_order);
             CREATE INDEX IF NOT EXISTS idx_deltas_blob ON deltas(blob_sha256);
             CREATE INDEX IF NOT EXISTS idx_tx_created ON transactions(created_at_utc);
@@ -93,14 +96,18 @@ public sealed class SqliteVaultRepository
         cmd.ExecuteNonQuery();
     }
 
-    public async Task SaveTransactionAsync(TransactionRecord record, CancellationToken ct = default)
+    public Task SaveTransactionAsync(TransactionRecord record, CancellationToken ct = default) =>
+        SaveTransactionAsync(record, static () => 0, ct);
+
+    internal async Task<TransactionRecord> SaveTransactionAsync(TransactionRecord record, Func<long> publishPrepared,
+        CancellationToken ct)
     {
         await using var conn = await OpenConnectionAsync(ct).ConfigureAwait(false);
-        await using var tx = await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+        using var tx = conn.BeginTransaction(deferred: false);
 
         await using (var cmd = conn.CreateCommand())
         {
-            cmd.Transaction = (SqliteTransaction)tx;
+            cmd.Transaction = tx;
             cmd.CommandText = """
                 INSERT INTO transactions (
                     session_id, domain, friendly_title, friendly_summary, technical_details,
@@ -131,7 +138,7 @@ public sealed class SqliteVaultRepository
         foreach (var delta in record.Deltas)
         {
             await using var deltaCmd = conn.CreateCommand();
-            deltaCmd.Transaction = (SqliteTransaction)tx;
+            deltaCmd.Transaction = tx;
             deltaCmd.CommandText = """
                 INSERT INTO deltas (
                     delta_id, session_id, sequence_order, target_kind, target_path,
@@ -152,7 +159,44 @@ public sealed class SqliteVaultRepository
             await deltaCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
 
-        await tx.CommitAsync(ct).ConfigureAwait(false);
+        // Все строки проверены, удерживается тот же writer, что и при сборке мусора.
+        // Перенос готовых контейнеров не требует повторного чтения/сжатия исходников под блокировкой.
+        ct.ThrowIfCancellationRequested();
+        var addedBytes = publishPrepared();
+        if (addedBytes != 0)
+        {
+            using var bytes = conn.CreateCommand();
+            bytes.Transaction = tx;
+            bytes.CommandText = "UPDATE transactions SET total_stored_bytes = total_stored_bytes + $added WHERE session_id = $id";
+            bytes.Parameters.AddWithValue("$added", addedBytes);
+            bytes.Parameters.AddWithValue("$id", record.SessionId.ToString("D"));
+            bytes.ExecuteNonQuery();
+        }
+        tx.Commit();
+        return record with { TotalStoredBytes = record.TotalStoredBytes + addedBytes };
+    }
+
+    // Пока проверяются читаемость, квота и оригиналы, другой процесс не может снять
+    // ссылки через TTL/purge. Сама резервная запись УЖЕ закоммичена в отдельной транзакции.
+    internal async Task UseRetainedSnapshotAsync(Guid id, bool pinAfterUse, Func<Task> verifyAndUse, CancellationToken ct)
+    {
+        await using var conn = await OpenConnectionAsync(ct).ConfigureAwait(false);
+        using var tx = conn.BeginTransaction(deferred: false);
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.Parameters.AddWithValue("$id", id.ToString("D"));
+        cmd.Parameters.AddWithValue("$file", (int)StateTargetKind.QuarantinedFile);
+        cmd.CommandText = """
+            SELECT EXISTS (SELECT 1 FROM transactions WHERE session_id = $id AND is_reverted = 0)
+               AND NOT EXISTS (SELECT 1 FROM deltas WHERE session_id = $id AND target_kind = $file AND blob_sha256 IS NULL);
+            """;
+        if (Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture) == 0)
+            throw new IOException("Копия недоступна после применения квоты. Исходные файлы не удалены.");
+        await verifyAndUse().ConfigureAwait(false);
+        cmd.CommandText = "UPDATE transactions SET is_pinned = $pin WHERE session_id = $id";
+        cmd.Parameters.AddWithValue("$pin", pinAfterUse ? 1 : 0);
+        cmd.ExecuteNonQuery();
+        tx.Commit();
     }
 
     public async Task<TransactionRecord?> GetTransactionByIdAsync(Guid sessionId, CancellationToken ct = default)
@@ -258,10 +302,9 @@ public sealed class SqliteVaultRepository
         return list;
     }
 
-    /// <summary>TTL относится к ссылке транзакции, а не к физическому блобу. Проверка последней
-    /// ссылки и удаление сериализованы с фиксацией/закреплением другой сессии (в т.ч. из CLI).</summary>
-    internal async Task<bool> ReleaseBlobReferencesAsync(string hash, DateTimeOffset? expiredAt,
-        Func<string, bool> deleteBlob, CancellationToken ct)
+    /// <summary>TTL относится к ссылке, а не к контейнеру. При вытеснении ради места
+    /// оставляем ссылки на закреплённый контейнер: их снятие не освободит ни байта.</summary>
+    internal async Task ReleaseBlobReferencesAsync(string hash, DateTimeOffset? expiredAt, bool quotaOnly, CancellationToken ct)
     {
         await using var conn = await OpenConnectionAsync(ct).ConfigureAwait(false);
         using var tx = conn.BeginTransaction(deferred: false);
@@ -269,14 +312,49 @@ public sealed class SqliteVaultRepository
         cmd.Transaction = tx;
         cmd.Parameters.AddWithValue("$sha", hash);
         cmd.Parameters.AddWithValue("$now", (object?)expiredAt?.UtcDateTime.ToString("O", CultureInfo.InvariantCulture) ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$quota", quotaOnly ? 1 : 0);
         cmd.CommandText = """
             UPDATE deltas SET blob_sha256 = NULL WHERE blob_sha256 = $sha AND session_id IN
-              (SELECT session_id FROM transactions WHERE is_pinned = 0 AND ($now IS NULL OR blob_expires_at_utc <= $now));
+              (SELECT session_id FROM transactions WHERE is_pinned = 0 AND ($now IS NULL OR blob_expires_at_utc <= $now))
+              AND ($quota = 0 OR NOT EXISTS (SELECT 1 FROM deltas d JOIN transactions t USING(session_id)
+                                               WHERE d.blob_sha256 = $sha AND t.is_pinned = 1));
             """;
-        var released = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
-        cmd.CommandText = "SELECT EXISTS (SELECT 1 FROM deltas WHERE blob_sha256 = $sha)";
-        var referenced = Convert.ToInt32(await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false), CultureInfo.InvariantCulture) != 0;
-        bool deleted = released > 0 && !referenced && deleteBlob(hash);
+        if (await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false) > 0)
+        {
+            cmd.CommandText = """
+                INSERT OR IGNORE INTO pending_blob_deletes (sha) SELECT $sha
+                  WHERE NOT EXISTS (SELECT 1 FROM deltas WHERE blob_sha256 = $sha);
+                """;
+            await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+        tx.Commit();
+    }
+
+    internal async Task<string[]> GetPendingDeletesAsync(CancellationToken ct)
+    {
+        await using var conn = await OpenConnectionAsync(ct).ConfigureAwait(false);
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT sha FROM pending_blob_deletes";
+        using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        var hashes = new List<string>();
+        while (await reader.ReadAsync(ct).ConfigureAwait(false)) hashes.Add(reader.GetString(0));
+        return hashes.ToArray();
+    }
+
+    internal async Task<bool> CollectReleasedBlobAsync(string hash, Func<string, bool> deleteBlob, CancellationToken ct)
+    {
+        await using var conn = await OpenConnectionAsync(ct).ConfigureAwait(false);
+        using var tx = conn.BeginTransaction(deferred: false);
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.Parameters.AddWithValue("$sha", hash);
+        cmd.CommandText = """
+            SELECT EXISTS (SELECT 1 FROM pending_blob_deletes WHERE sha = $sha)
+               AND NOT EXISTS (SELECT 1 FROM deltas WHERE blob_sha256 = $sha);
+            """;
+        bool deleted = Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture) != 0 && deleteBlob(hash);
+        cmd.CommandText = "DELETE FROM pending_blob_deletes WHERE sha = $sha";
+        cmd.ExecuteNonQuery();
         tx.Commit();
         return deleted;
     }

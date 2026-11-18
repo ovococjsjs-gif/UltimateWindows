@@ -20,8 +20,8 @@ public interface ITransactionSession : IAsyncDisposable
         string? newStateJson);
 
     /// <summary>
-    /// Помещает файл в сжатое дедуплицированное шифрованное хранилище карантина (.uwq)
-    /// с автоматическим контролем не засоряющей систему квоты.
+    /// Готовит шифрованный снимок для карантина, не меняя оригинал. Удаление запрашивается
+    /// только при фиксации, после записи журнала, применения квоты и проверки контрольных сумм.
     /// </summary>
     Task<string> QuarantineFileAsync(string sourceFilePath, CancellationToken ct = default);
 

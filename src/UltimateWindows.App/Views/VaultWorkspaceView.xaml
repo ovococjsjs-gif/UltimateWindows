@@ -13,7 +13,7 @@
       <DataGrid.Columns>
         <DataGridTextColumn Header="Время" Binding="{Binding CreatedDisplay}" Width="135" />
         <DataGridTextColumn Header="Изменение" Binding="{Binding FriendlyTitle}" Width="*" />
-        <DataGridTextColumn Header="Размер" Binding="{Binding StoredSizeText}" Width="82" />
+        <DataGridTextColumn Header="При записи ≈" Binding="{Binding StoredSizeText}" Width="90" />
         <DataGridTextColumn Header="Статус" Binding="{Binding StatusBadge}" Width="95" />
         <DataGridTemplateColumn Header="Управление" Width="175">
           <DataGridTemplateColumn.CellTemplate>

@@ -55,7 +55,7 @@ public partial class MainWindow : Window
     {
         if (RailColumn is null || BrandText is null) return;
         CompactNavigation = e.NewSize.Width < 980;
-        RailColumn.Width = new GridLength(CompactNavigation ? 70 : e.NewSize.Width < 1200 ? 195 : 220);
+        RailColumn.Width = new GridLength(CompactNavigation ? 70 : 220);
         NavLabel.Visibility = BrandText.Visibility = ThemeLabel.Visibility = CompactNavigation ? Visibility.Collapsed : Visibility.Visible;
     }
 

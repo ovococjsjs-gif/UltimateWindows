@@ -242,14 +242,21 @@ public sealed class SystemRepairService
             friendlySummary: $"Локальная библиотека «{fileName}» неверной разрядности перенесена в сжатый карантин, чтобы программа загружала правильную системную версию. Доступен возврат в 1 клик.",
             technicalDetails: fullPath);
 
-        var sha256 = await tx.QuarantineFileAsync(fullPath, ct).ConfigureAwait(false);
-        var record = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
+        try
+        {
+            var sha256 = await tx.QuarantineFileAsync(fullPath, ct).ConfigureAwait(false);
+            var record = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
 
-        return new RepairOperationResult(
-            Succeeded: true,
-            UserFriendlySummary: $"Конфликтная библиотека «{fileName}» безопасно изолирована в Машину времени! Теперь программа сможет загрузить штатную библиотеку нужной разрядности.",
-            TechnicalLogOutput: $"Quarantined '{fullPath}' -> Vault Blob SHA-256: {sha256}",
-            RollbackSessionId: record.SessionId);
+            return new RepairOperationResult(
+                Succeeded: true,
+                UserFriendlySummary: $"Конфликтная библиотека «{fileName}» безопасно изолирована в Машину времени! Теперь программа сможет загрузить штатную библиотеку нужной разрядности.",
+                TechnicalLogOutput: $"Quarantined '{fullPath}' -> Vault Blob SHA-256: {sha256}",
+                RollbackSessionId: record.SessionId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return new RepairOperationResult(false, $"Не удалось завершить карантин «{fileName}»: {ex.Message}", fullPath);
+        }
     }
 
     /// <summary>

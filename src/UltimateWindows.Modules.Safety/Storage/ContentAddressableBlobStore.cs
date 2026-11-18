@@ -9,6 +9,13 @@ public sealed record StoredBlobResult(
     long CompressedEncryptedBytes,
     bool WasDeduplicated);
 
+// Файл принадлежит сессии до переноса в CAS. Это не ссылка на общий .uwq:
+// другую, уже сохранённую копию с таким же хешем в это время можно вытеснить.
+internal sealed record PreparedBlob(string TemporaryPath, string Sha256Hex, long OriginalSizeBytes) : IDisposable
+{
+    public void Dispose() => File.Delete(TemporaryPath);
+}
+
 /// <summary>
 /// Контентно-адресуемое хранилище файлов карантина и бэкапов (.uwq):
 /// 1) Дедупликация по SHA-256 (одинаковые файлы хранятся в одном экземпляре);
@@ -37,18 +44,18 @@ public sealed class ContentAddressableBlobStore
 
     public async Task<StoredBlobResult> StoreBytesAsync(byte[] plainBytes, CancellationToken ct = default)
     {
+        using var prepared = await PrepareBytesAsync(plainBytes, ct).ConfigureAwait(false);
+        return Publish(prepared);
+    }
+
+    internal async Task<PreparedBlob> PrepareFileAsync(string path, CancellationToken ct) =>
+        await PrepareBytesAsync(await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false), ct).ConfigureAwait(false);
+
+    private async Task<PreparedBlob> PrepareBytesAsync(byte[] plainBytes, CancellationToken ct)
+    {
         ArgumentNullException.ThrowIfNull(plainBytes);
-
-        var hashBytes = SHA256.HashData(plainBytes);
-        var sha256Hex = Convert.ToHexString(hashBytes).ToLowerInvariant();
-        var blobPath = GetBlobFilePath(sha256Hex);
-
-        if (File.Exists(blobPath))
-        {
-            var existingInfo = new FileInfo(blobPath);
-            return new StoredBlobResult(sha256Hex, plainBytes.LongLength, existingInfo.Length, WasDeduplicated: true);
-        }
-
+        ct.ThrowIfCancellationRequested();
+        var sha256Hex = Convert.ToHexString(SHA256.HashData(plainBytes)).ToLowerInvariant();
         byte[] compressedBytes;
         using (var compressedStream = new MemoryStream())
         {
@@ -71,20 +78,31 @@ public sealed class ContentAddressableBlobStore
             aes.Encrypt(nonce, compressedBytes, cipherBytes, tag, MagicHeader);
         }
 
-        var tempPath = blobPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        await using (var fs = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        var temp = Path.Combine(_blobsDirectory, $"capture-{Guid.NewGuid():N}.tmp");
+        try
         {
+            await using var fs = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None);
             await fs.WriteAsync(MagicHeader, ct).ConfigureAwait(false);
             await fs.WriteAsync(nonce, ct).ConfigureAwait(false);
             await fs.WriteAsync(tag, ct).ConfigureAwait(false);
             await fs.WriteAsync(cipherBytes, ct).ConfigureAwait(false);
-            await fs.FlushAsync(ct).ConfigureAwait(false);
+            fs.Flush(flushToDisk: true);
+            return new PreparedBlob(temp, sha256Hex, plainBytes.LongLength);
         }
+        catch
+        {
+            File.Delete(temp);
+            throw;
+        }
+    }
 
-        File.Move(tempPath, blobPath, overwrite: true);
-        var finalInfo = new FileInfo(blobPath);
-
-        return new StoredBlobResult(sha256Hex, plainBytes.LongLength, finalInfo.Length, WasDeduplicated: false);
+    internal StoredBlobResult Publish(PreparedBlob prepared)
+    {
+        var path = GetBlobFilePath(prepared.Sha256Hex);
+        bool shared = false;
+        try { File.Move(prepared.TemporaryPath, path, overwrite: false); }
+        catch (IOException) when (File.Exists(path)) { shared = true; }
+        return new(prepared.Sha256Hex, prepared.OriginalSizeBytes, new FileInfo(path).Length, shared);
     }
 
     public async Task<StoredBlobResult> StoreFileAsync(string filePath, CancellationToken ct = default)

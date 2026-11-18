@@ -839,7 +839,7 @@ public sealed class OfficialDriverService
         await using var tx = _vaultService.BeginTransaction(
             SystemDomain.HardwareAndDrivers,
             friendlyTitle: $"Изоляция уязвимого драйвера ядра: {finding.MatchedRule.FamilyName} ({drv.ServiceName})",
-            friendlySummary: $"Служба «{drv.ServiceName}» отключена ({finding.MatchedRule.CveOrAdvisory}), файл помещён в карантин .uwq с возвратом в 1 клик.",
+            friendlySummary: $"Служба «{drv.ServiceName}» отключена ({finding.MatchedRule.CveOrAdvisory}), снимок перед попыткой файловой изоляции.",
             technicalDetails: $"Service={drv.ServiceName}; Path={drv.BinaryPath}; PrevStart={prevStart}");
 
         tx.RecordStateDelta(
@@ -848,24 +848,29 @@ public sealed class OfficialDriverService
             previousStateJson: JsonSerializer.Serialize(new { ServiceName = drv.ServiceName, StartType = prevStart }),
             newStateJson: JsonSerializer.Serialize(new { ServiceName = drv.ServiceName, StartType = 4 }));
 
+        string fileResult = "Файл для изоляции не найден.";
         if (drv.FileExists && !string.IsNullOrWhiteSpace(drv.BinaryPath) && File.Exists(drv.BinaryPath))
         {
             try
             {
-                File.SetAttributes(drv.BinaryPath, FileAttributes.Normal);
-                _ = await tx.QuarantineFileAsync(drv.BinaryPath, ct).ConfigureAwait(false);
+                await tx.QuarantineFileAsync(drv.BinaryPath, ct).ConfigureAwait(false);
+                fileResult = "Файл изолирован в карантин.";
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Если драйвер прямо сейчас загружен в ядро и удерживает блокировку .sys — отключение Start=4 обезвредит его после перезагрузки
+                fileResult = $"Файл оставлен на месте: {ex.Message}";
             }
         }
-
-        var committed = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
-        return new DriverOperationResult(
-            true,
-            $"Уязвимый драйвер «{finding.MatchedRule.FamilyName}» ({drv.ServiceName}) обезврежен! Точка отката сохранена в Машине времени.",
-            RollbackSessionId: committed.SessionId);
+        try
+        {
+            var committed = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
+            return new DriverOperationResult(true, $"Запуск службы «{drv.ServiceName}» отключён. {fileResult} Для применения может потребоваться перезагрузка.",
+                RollbackSessionId: committed.SessionId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return new DriverOperationResult(false, $"Служба «{drv.ServiceName}» отключена, но операция не завершена: {ex.Message} Проверьте журнал.");
+        }
     }
 
     // ==================== СУЩЕСТВУЮЩИЕ МЕТОДЫ БЭКАПА ОДИНОЧНОГО INF И УСТАНОВКИ WINDOWS UPDATE ====================
