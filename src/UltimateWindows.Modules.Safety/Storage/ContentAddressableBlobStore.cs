@@ -30,6 +30,7 @@ public sealed class ContentAddressableBlobStore
     private const int KeySize = 32;
 
     private readonly string _blobsDirectory;
+    private readonly string _keyPath;
     private readonly byte[] _encryptionKey;
 
     public ContentAddressableBlobStore(string vaultDirectory)
@@ -37,7 +38,8 @@ public sealed class ContentAddressableBlobStore
         Directory.CreateDirectory(vaultDirectory);
         _blobsDirectory = Path.Combine(vaultDirectory, "blobs");
         Directory.CreateDirectory(_blobsDirectory);
-        _encryptionKey = LoadOrCreateKey(Path.Combine(vaultDirectory, "vault.key"));
+        _keyPath = Path.Combine(vaultDirectory, "vault.key");
+        _encryptionKey = LoadOrCreateKey(_keyPath);
     }
 
     public string BlobsDirectory => _blobsDirectory;
@@ -98,6 +100,7 @@ public sealed class ContentAddressableBlobStore
 
     internal StoredBlobResult Publish(PreparedBlob prepared)
     {
+        using var key = OpenVerifiedKey();
         var path = GetBlobFilePath(prepared.Sha256Hex);
         bool shared = false;
         try { File.Move(prepared.TemporaryPath, path, overwrite: false); }
@@ -201,11 +204,27 @@ public sealed class ContentAddressableBlobStore
         return Path.Combine(_blobsDirectory, $"{sanitized}.uwq");
     }
 
+    internal FileStream OpenVerifiedKey()
+    {
+        var key = File.Open(_keyPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        try
+        {
+            Span<byte> current = stackalloc byte[KeySize];
+            if (key.Length == KeySize)
+            {
+                key.ReadExactly(current);
+                if (CryptographicOperations.FixedTimeEquals(current, _encryptionKey)) return key;
+            }
+            throw new InvalidDataException("Ключ на диске изменился. Восстановите исходный vault.key перед продолжением.");
+        }
+        catch { key.Dispose(); throw; }
+    }
+
     private byte[] LoadOrCreateKey(string keyPath)
     {
         if (!File.Exists(keyPath))
         {
-            if (Directory.EnumerateFiles(_blobsDirectory, "*.uwq").Any())
+            if (Directory.EnumerateFiles(_blobsDirectory, "*.uwq").Any() || Directory.EnumerateFiles(_blobsDirectory, "capture-*.tmp").Any())
                 throw new InvalidDataException("Ключ отсутствует. Восстановите vault.key из копии этого хранилища.");
             var temp = keyPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try

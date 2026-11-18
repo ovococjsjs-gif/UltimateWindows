@@ -313,64 +313,47 @@ public sealed class WindowsCleanerPlatformBridge : DefaultCleanerPlatformBridge
         }, ct);
     }
 
-    public override Task<int> DeleteVerifiedRegistryOrphansAsync(
-        IReadOnlyList<RegistryOrphanCandidate> candidates,
-        CancellationToken ct = default)
+    public override Task<bool> TryDeleteReviewedRegistryValueAsync(RegistryOrphanCandidate item, CancellationToken ct = default)
     {
-        if (!OperatingSystem.IsWindows() || candidates.Count == 0)
-        {
-            return Task.FromResult(0);
-        }
-
+        if (!OperatingSystem.IsWindows() || CommandLinePathExtractor.IsForbiddenComOrSystemRegistryKey($@"{item.HiveName}\{item.SubKeyPath}"))
+            return Task.FromResult(false);
         return Task.Run(() =>
         {
-            var deleted = 0;
-            foreach (var item in candidates)
+            ct.ThrowIfCancellationRequested();
+            try
             {
-                ct.ThrowIfCancellationRequested();
-
-                if (CommandLinePathExtractor.IsForbiddenComOrSystemRegistryKey($@"{item.HiveName}\{item.SubKeyPath}"))
+                var rootHive = item.HiveName.ToUpperInvariant() switch { "HKLM" => Registry.LocalMachine, "HKCU" => Registry.CurrentUser, _ => null };
+                if (rootHive is null || string.IsNullOrWhiteSpace(item.SubKeyPath)) return false;
+                if (item.Kind == RegistryOrphanKind.BrokenStartupApprovedEntry)
                 {
-                    continue;
+                    using var runKey = rootHive.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run");
+                    if (runKey?.GetValueNames().Contains(item.ValueName, StringComparer.OrdinalIgnoreCase) == true) return false;
                 }
+                else if (!IsConfirmedMissingOnLocalDrive(item.MissingReferencedFilePath)) return false;
 
-                try
-                {
-                    var rootHive = string.Equals(item.HiveName, "HKLM", StringComparison.OrdinalIgnoreCase)
-                        ? Registry.LocalMachine
-                        : Registry.CurrentUser;
-
-                    if (item.Kind == RegistryOrphanKind.BrokenStartupApprovedEntry)
-                    {
-                        const string correspondingRunSubKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-                        using var runKey = rootHive.OpenSubKey(correspondingRunSubKey, writable: false);
-                        if (runKey?.GetValue(item.ValueName) is not null)
-                        {
-                            continue;
-                        }
-                    }
-                    else if (File.Exists(item.MissingReferencedFilePath) || Directory.Exists(item.MissingReferencedFilePath))
-                    {
-                        continue;
-                    }
-
-                    using var key = rootHive.OpenSubKey(item.SubKeyPath, writable: true);
-                    if (key?.GetValue(item.ValueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames) is { } value &&
-                        (int)key.GetValueKind(item.ValueName) == item.RegistryValueKindCode &&
-                        SerializeRegistryValue(value, (RegistryValueKind)item.RegistryValueKindCode) == item.PreviousValueSerialized)
-                    {
-                        key.DeleteValue(item.ValueName, throwOnMissingValue: true);
-                        deleted++;
-                    }
-                }
-                catch
-                {
-                    // Пропускаем защищенные системой ключи
-                }
+                using var key = rootHive.OpenSubKey(item.SubKeyPath, writable: true);
+                if (key?.GetValue(item.ValueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames) is not { } value) return false;
+                var kind = key.GetValueKind(item.ValueName);
+                if ((int)kind != item.RegistryValueKindCode || kind is not (RegistryValueKind.String or RegistryValueKind.ExpandString or
+                    RegistryValueKind.DWord or RegistryValueKind.QWord or RegistryValueKind.Binary or RegistryValueKind.MultiString) ||
+                    SerializeRegistryValue(value, kind) != item.PreviousValueSerialized) return false;
+                key.DeleteValue(item.ValueName, throwOnMissingValue: true);
+                return true;
             }
-
-            return deleted;
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or System.Security.SecurityException)
+            { return false; }
         }, ct);
+    }
+
+    private static bool IsConfirmedMissingOnLocalDrive(string path)
+    {
+        // File.Exists также возвращает false при ошибке доступа или исчезновении тома.
+        if (!Path.IsPathFullyQualified(path) || Path.GetPathRoot(path) is not { Length: 3 } root || root[1] != ':') return false;
+        var drive = new DriveInfo(root);
+        if (drive.DriveType != DriveType.Fixed || !drive.IsReady) return false;
+        try { _ = File.GetAttributes(path); return false; }
+        catch (FileNotFoundException) { return true; }
+        catch (DirectoryNotFoundException) { return true; }
     }
 
     private static void ScanCommandLineSubKey(

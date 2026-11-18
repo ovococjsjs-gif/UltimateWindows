@@ -17,8 +17,8 @@ public interface ICleanerPlatformBridge
 
     Task<IReadOnlyList<RegistryOrphanCandidate>> ScanVerifiedRegistryOrphansAsync(CancellationToken ct = default);
 
-    Task<int> DeleteVerifiedRegistryOrphansAsync(
-        IReadOnlyList<RegistryOrphanCandidate> candidates,
+    Task<bool> TryDeleteReviewedRegistryValueAsync(
+        RegistryOrphanCandidate candidate,
         CancellationToken ct = default);
 
     Task<bool> SendPathToRecycleBinAsync(string fullPath, CancellationToken ct = default);

@@ -14,7 +14,14 @@ public sealed record StateDeltaRecord(
     string? PreviousStateJson,
     string? NewStateJson,
     string? BlobSha256,
-    long OriginalSizeBytes);
+    long OriginalSizeBytes)
+{
+    public bool IsJournalOnly => TargetKind == StateTargetKind.RegistryValueSnapshot ||
+        (TargetKind == StateTargetKind.SystemSetting &&
+         (TargetPath.StartsWith("OfficialRuntime:", StringComparison.OrdinalIgnoreCase) ||
+          TargetPath.StartsWith("RepairPlaybook:", StringComparison.OrdinalIgnoreCase) ||
+          TargetPath.StartsWith("RepairBatch:", StringComparison.OrdinalIgnoreCase)));
+}
 
 /// <summary>
 /// Завершенная транзакция изменений в «Машине времени» UltimateWindows.
@@ -34,10 +41,7 @@ public sealed record TransactionRecord(
     long TotalStoredBytes,
     IReadOnlyList<StateDeltaRecord> Deltas)
 {
-    public bool IsJournalOnly => Deltas.Count == 0 || Deltas.All(d => d.TargetKind == StateTargetKind.SystemSetting &&
-        (d.TargetPath.StartsWith("OfficialRuntime:", StringComparison.OrdinalIgnoreCase) ||
-         d.TargetPath.StartsWith("RepairPlaybook:", StringComparison.OrdinalIgnoreCase) ||
-         d.TargetPath.StartsWith("RepairBatch:", StringComparison.OrdinalIgnoreCase)));
+    public bool IsJournalOnly => Deltas.All(d => d.IsJournalOnly);
     public bool HasExpiredFile => Deltas.Any(d => d.TargetKind == StateTargetKind.QuarantinedFile && d.BlobSha256 is null);
     public string? RollbackUnavailableReason => IsReverted ? "Уже отменено" : IsJournalOnly ? "Только журнал" :
         HasExpiredFile ? "Копия удалена" : null;

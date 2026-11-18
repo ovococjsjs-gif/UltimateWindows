@@ -32,6 +32,10 @@ public interface ITransactionSession : IAsyncDisposable
     /// Только после успешного возврата можно изменять оригиналы.</summary>
     Task<TransactionRecord> CommitVerifiedBackupAsync(CancellationToken ct = default);
 
+    /// <summary>После проверенного снимка реестра разрешает откат только для значений,
+    /// которые действительно были удалены. Неподтверждённые остаются только в журнале.</summary>
+    Task ConfirmRemovedRegistryValuesAsync(IReadOnlyList<Guid> removedDeltaIds, CancellationToken ct = default);
+
     /// <summary>
     /// Фиксирует ссылку на пакет драйвера в системном DriverStore без лишнего копирования сотен мегабайт.
     /// </summary>

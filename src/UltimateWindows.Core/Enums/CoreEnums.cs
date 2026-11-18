@@ -48,7 +48,9 @@ public enum StateTargetKind
     ScheduledTask = 2,
     QuarantinedFile = 3,
     DriverStoreReference = 4,
-    SystemSetting = 5
+    SystemSetting = 5,
+    // Сохранено перед удалением. Пока удаление не подтверждено, автоматического отката нет.
+    RegistryValueSnapshot = 6
 }
 
 /// <summary>

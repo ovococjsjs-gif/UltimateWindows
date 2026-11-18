@@ -376,8 +376,8 @@ public sealed class VaultSafeCleanerTests : IDisposable
         public override Task<IReadOnlyList<RegistryOrphanCandidate>> ScanVerifiedRegistryOrphansAsync(CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<RegistryOrphanCandidate>>(RegistryOrphans);
 
-        public override Task<int> DeleteVerifiedRegistryOrphansAsync(IReadOnlyList<RegistryOrphanCandidate> candidates, CancellationToken ct = default)
-            => Task.FromResult(candidates.Count);
+        public override Task<bool> TryDeleteReviewedRegistryValueAsync(RegistryOrphanCandidate candidate, CancellationToken ct = default)
+            => Task.FromResult(true);
     }
 
     private sealed class RecordingStateApplier : ISystemStateApplier

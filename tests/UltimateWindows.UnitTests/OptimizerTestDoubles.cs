@@ -275,6 +275,9 @@ internal sealed class InMemoryVault : IVaultService
         public Task<TransactionRecord> CommitVerifiedBackupAsync(CancellationToken ct = default) =>
             throw new NotSupportedException("No verified storage in this test double.");
 
+        public Task ConfirmRemovedRegistryValuesAsync(IReadOnlyList<Guid> removedDeltaIds, CancellationToken ct = default) =>
+            throw new NotSupportedException("No verified registry snapshots in this test double.");
+
         public void RecordDriverStoreReference(string deviceInstanceId, string publishedInfName, string driverVersion) =>
             throw new NotSupportedException("Хранилище в памяти не ведёт ссылки на драйверы.");
 

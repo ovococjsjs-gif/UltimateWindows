@@ -328,6 +328,25 @@ public sealed class ZeroBloatVaultTests : IDisposable
         Assert.Equal(new byte[] { 1, 2, 3 }, await new ContentAddressableBlobStore(dir).RestoreBytesAsync(blob.Sha256Hex));
     }
 
+    [Fact]
+    public async Task KeyReplacementDuringPreparationStopsQuarantineEvenWithAValidLengthKey()
+    {
+        var dir = Path.Combine(_tempRoot, "changed-key");
+        var vault = new ZeroBloatVaultService(dir);
+        var path = Path.Combine(_tempRoot, "document.txt");
+        await File.WriteAllTextAsync(path, "original");
+        await using var tx = vault.BeginTransaction(SystemDomain.DllAndRepair, "Changing key", "Test");
+        await tx.QuarantineFileAsync(path);
+        var keyPath = Path.Combine(dir, "vault.key");
+        var replacement = File.ReadAllBytes(keyPath);
+        replacement[0] ^= 1;
+        File.WriteAllBytes(keyPath, replacement);
+        await Assert.ThrowsAsync<InvalidDataException>(() => tx.CommitAsync());
+        Assert.Equal("original", await File.ReadAllTextAsync(path));
+        Assert.Empty(await vault.GetHistoryAsync());
+        Assert.Equal(replacement, File.ReadAllBytes(keyPath));
+    }
+
     [Theory]
     [InlineData("OfficialRuntime:sample")]
     [InlineData("RepairBatch:sample")]

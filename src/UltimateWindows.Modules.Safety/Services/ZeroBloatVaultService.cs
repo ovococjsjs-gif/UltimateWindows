@@ -141,7 +141,7 @@ public sealed class ZeroBloatVaultService : IVaultService
             throw new InvalidOperationException($"Откат недоступен: {reason}.");
 
         // Откат строго в обратном порядке (LIFO), чтобы корректно восстанавливать зависимые ключи и файлы
-        foreach (var delta in record.Deltas.OrderByDescending(d => d.SequenceOrder))
+        foreach (var delta in record.Deltas.Where(d => !d.IsJournalOnly).OrderByDescending(d => d.SequenceOrder))
         {
             await _stateApplier.ApplyRollbackDeltaAsync(
                 delta,
@@ -259,6 +259,7 @@ public sealed class ZeroBloatVaultService : IVaultService
         private readonly Dictionary<string, PreparedBlob> _prepared = new(StringComparer.OrdinalIgnoreCase);
         private readonly List<StateDeltaRecord> _toQuarantine = [];
         private bool _finished;
+        private bool _canConfirmRegistry;
 
         public SafetyTransactionSession(
             ZeroBloatVaultService owner,
@@ -388,8 +389,10 @@ public sealed class ZeroBloatVaultService : IVaultService
                 return record.BlobExpiresAtUtc is null ? record :
                     await _repository.GetTransactionByIdAsync(SessionId, ct).ConfigureAwait(false) ?? throw new IOException("Запись не найдена после сохранения.");
 
-            await _repository.UseRetainedSnapshotAsync(SessionId, pinTransaction, async () =>
+            await _repository.UseRetainedSnapshotAsync(record, pinTransaction, async () =>
             {
+                // На Windows дескриптор не позволяет заменить ключ между проверкой и удалением.
+                using var key = record.BlobExpiresAtUtc is not null ? _blobStore.OpenVerifiedKey() : null;
                 // Бюджет физического хранилища, а не сумма исторических оценок для отдельных записей.
                 var limit = _owner.CurrentPolicy.ComputeEffectiveLimitBytes(_owner._freeSpaceBytesProvider());
                 if (_repository.GetDatabaseSizeBytes() + _blobStore.ComputeTotalBlobBytesOnDisk() > limit)
@@ -403,7 +406,15 @@ public sealed class ZeroBloatVaultService : IVaultService
                         throw new IOException($"«{file.TargetPath}» изменился или исчез. Этот файл не удалён. Снимок: {SessionId}.");
                 }
             }, ct).ConfigureAwait(false);
+            _canConfirmRegistry = record.Deltas.Count > 0 && record.Deltas.All(d => d.TargetKind == StateTargetKind.RegistryValueSnapshot);
             return record with { IsPinned = pinTransaction };
+        }
+
+        public async Task ConfirmRemovedRegistryValuesAsync(IReadOnlyList<Guid> removedDeltaIds, CancellationToken ct = default)
+        {
+            if (!_canConfirmRegistry) throw new InvalidOperationException("Требуется неподтверждённый проверенный снимок реестра.");
+            await _repository.ConfirmRemovedRegistryValuesAsync(SessionId, removedDeltaIds, ct).ConfigureAwait(false);
+            _canConfirmRegistry = false;
         }
 
         private void DiscardPrepared()
@@ -415,6 +426,7 @@ public sealed class ZeroBloatVaultService : IVaultService
         public ValueTask DisposeAsync()
         {
             _finished = true;
+            _canConfirmRegistry = false;
             DiscardPrepared();
             return ValueTask.CompletedTask;
         }

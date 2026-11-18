@@ -6,6 +6,8 @@ using UltimateWindows.App.Views;
 using UltimateWindows.Core.Enums;
 using UltimateWindows.Modules.Apps.Models;
 using UltimateWindows.Modules.Cleaner.Scanners;
+using UltimateWindows.Modules.Cleaner.Models;
+using UltimateWindows.NativeInterop.Cleaner;
 using UltimateWindows.Modules.Cleaner.Services;
 using UltimateWindows.Modules.Safety.Services;
 using UltimateWindows.NativeInterop.Apps;
@@ -98,6 +100,96 @@ public sealed class WorkbenchSafetyTests
             Registry.CurrentUser.DeleteSubKeyTree(subkey, false);
             dir.Delete(true);
         }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeferredVaultDeletionSurvivesReopenAndRechecksReferences(bool reuse)
+    {
+        var dir = Directory.CreateTempSubdirectory("uw-retry-gc-");
+        try
+        {
+            var vault = new ZeroBloatVaultService(Path.Combine(dir.FullName, "vault"));
+            var source = Path.Combine(dir.FullName, "sample");
+            await File.WriteAllTextAsync(source, "shared payload");
+            await using var old = vault.BeginTransaction(SystemDomain.SmartCleaner, "Old", "Test");
+            var hash = await old.BackupFileAsync(source);
+            await old.CommitAsync();
+            var path = Path.Combine(vault.VaultDirectory, "blobs", hash + ".uwq");
+            using (File.OpenRead(path)) // denies DELETE sharing on Windows
+            {
+                await Assert.ThrowsAsync<IOException>(() => vault.PurgeAllUnpinnedBlobsAsync());
+                Assert.True(Assert.Single(await vault.GetHistoryAsync()).HasExpiredFile);
+            }
+            var reopened = new ZeroBloatVaultService(vault.VaultDirectory);
+            if (reuse)
+            {
+                await using var fresh = reopened.BeginTransaction(SystemDomain.SmartCleaner, "New", "Test");
+                await fresh.BackupFileAsync(source);
+                var saved = await fresh.CommitVerifiedBackupAsync();
+                File.Delete(source);
+                await reopened.RollbackTransactionAsync(saved.SessionId);
+                Assert.Equal("shared payload", await File.ReadAllTextAsync(source));
+            }
+            else
+            {
+                Assert.Equal(1, await reopened.EnforceQuotaAndRetentionAsync());
+                Assert.False(File.Exists(path));
+            }
+        }
+        finally { dir.Delete(true); }
+    }
+
+    [Fact]
+    public async Task RegistryOrphanRollbackOnlyRestoresConfirmedDeletesAndRefusesAConflictingValue()
+    {
+        var dir = Directory.CreateTempSubdirectory("uw-orphan-test-");
+        var subkey = @"Software\UW-Orphan-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            var missing = Path.Combine(dir.FullName, "missing.exe");
+            var vault = new ZeroBloatVaultService(dir.FullName, new WindowsSystemStateApplier());
+            var service = new VaultSafeCleanerService(vault, new WindowsCleanerPlatformBridge());
+            RegistryOrphanCandidate Plan(string name) => new(RegistryOrphanKind.BrokenAppPath, "HKCU", subkey, name,
+                missing, missing, (int)RegistryValueKind.String, "fixture");
+            using (var k = Registry.CurrentUser.CreateSubKey(subkey))
+            {
+                k.SetValue("Removed", missing);
+                k.SetValue("Changed", missing + " --new");
+                k.SetValue("DifferentKind", missing, RegistryValueKind.ExpandString);
+            }
+            var skipped = await service.FixSelectedRegistryOrphansAsync([Plan("DifferentKind"), Plan("Absent")]);
+            Assert.Equal(0, skipped.FixedCount);
+            Assert.Null(skipped.RollbackSessionId);
+            Assert.True(Assert.Single(await vault.GetHistoryAsync()).IsJournalOnly);
+            var result = await service.FixSelectedRegistryOrphansAsync([Plan("Removed"), Plan("Changed"), Plan("DifferentKind"), Plan("Absent")]);
+            Assert.Equal(1, result.FixedCount);
+            var id = Assert.IsType<Guid>(result.RollbackSessionId);
+            var saved = (await vault.GetHistoryAsync()).Single(r => r.SessionId == id);
+            Assert.Single(saved.Deltas, d => !d.IsJournalOnly);
+            using (var k = Registry.CurrentUser.OpenSubKey(subkey, true)!)
+            {
+                Assert.Null(k.GetValue("Removed"));
+                Assert.Equal(missing + " --new", k.GetValue("Changed"));
+                Assert.Equal(RegistryValueKind.ExpandString, k.GetValueKind("DifferentKind"));
+                k.DeleteValue("Changed"); // unrelated change AFTER cleanup; rollback must not recreate this value
+                k.SetValue("Removed", "new owner");
+            }
+            await Assert.ThrowsAsync<IOException>(() => vault.RollbackTransactionAsync(id));
+            using (var k = Registry.CurrentUser.OpenSubKey(subkey, true)!)
+            {
+                Assert.Equal("new owner", k.GetValue("Removed"));
+                k.DeleteValue("Removed");
+            }
+            await vault.RollbackTransactionAsync(id);
+            using var restored = Registry.CurrentUser.OpenSubKey(subkey)!;
+            Assert.Equal(missing, restored.GetValue("Removed"));
+            Assert.Null(restored.GetValue("Changed"));
+            Assert.Null(restored.GetValue("Absent"));
+            Assert.Equal(RegistryValueKind.ExpandString, restored.GetValueKind("DifferentKind"));
+        }
+        finally { Registry.CurrentUser.DeleteSubKeyTree(subkey, false); dir.Delete(true); }
     }
 
     [Fact]

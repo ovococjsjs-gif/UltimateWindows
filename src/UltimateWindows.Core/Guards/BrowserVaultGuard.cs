@@ -40,8 +40,7 @@ public static class BrowserVaultGuard
     private static readonly string[] ProtectedSessionOrExtensionMarkers =
     [
         // Офлайн-содержимое сайтов и PWA может быть единственной локальной копией.
-        "/service worker/cachestorage/",
-        "/service worker/scriptcache/",
+        "/service worker/",
         "/application cache/",
         "/offlinecache/",
         "/local extension settings/",

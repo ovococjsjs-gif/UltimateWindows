@@ -178,13 +178,13 @@ public sealed class SqliteVaultRepository
 
     // Пока проверяются читаемость, квота и оригиналы, другой процесс не может снять
     // ссылки через TTL/purge. Сама резервная запись УЖЕ закоммичена в отдельной транзакции.
-    internal async Task UseRetainedSnapshotAsync(Guid id, bool pinAfterUse, Func<Task> verifyAndUse, CancellationToken ct)
+    internal async Task UseRetainedSnapshotAsync(TransactionRecord record, bool pinAfterUse, Func<Task> verifyAndUse, CancellationToken ct)
     {
         await using var conn = await OpenConnectionAsync(ct).ConfigureAwait(false);
         using var tx = conn.BeginTransaction(deferred: false);
         using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
-        cmd.Parameters.AddWithValue("$id", id.ToString("D"));
+        cmd.Parameters.AddWithValue("$id", record.SessionId.ToString("D"));
         cmd.Parameters.AddWithValue("$file", (int)StateTargetKind.QuarantinedFile);
         cmd.CommandText = """
             SELECT EXISTS (SELECT 1 FROM transactions WHERE session_id = $id AND is_reverted = 0)
@@ -192,10 +192,37 @@ public sealed class SqliteVaultRepository
             """;
         if (Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture) == 0)
             throw new IOException("Копия недоступна после применения квоты. Исходные файлы не удалены.");
+        var persisted = await LoadDeltasAsync(conn, record.SessionId, ct, tx).ConfigureAwait(false);
+        if (!persisted.SequenceEqual(record.Deltas)) throw new IOException("Снимок в журнале отличается от подготовленного плана.");
         await verifyAndUse().ConfigureAwait(false);
         cmd.CommandText = "UPDATE transactions SET is_pinned = $pin WHERE session_id = $id";
         cmd.Parameters.AddWithValue("$pin", pinAfterUse ? 1 : 0);
         cmd.ExecuteNonQuery();
+        tx.Commit();
+    }
+
+    internal async Task ConfirmRemovedRegistryValuesAsync(Guid id, IReadOnlyList<Guid> removed, CancellationToken ct)
+    {
+        await using var conn = await OpenConnectionAsync(ct).ConfigureAwait(false);
+        using var tx = conn.BeginTransaction(deferred: false);
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.Parameters.AddWithValue("$id", id.ToString("D"));
+        cmd.Parameters.AddWithValue("$snapshot", (int)StateTargetKind.RegistryValueSnapshot);
+        cmd.Parameters.AddWithValue("$value", (int)StateTargetKind.RegistryValue);
+        var deltaId = cmd.Parameters.Add("$delta", SqliteType.Text);
+        cmd.CommandText = "UPDATE deltas SET target_kind = $value WHERE session_id = $id AND delta_id = $delta AND target_kind = $snapshot";
+        foreach (var removedId in removed)
+        {
+            deltaId.Value = removedId.ToString("D");
+            if (await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false) != 1)
+                throw new InvalidOperationException("Удалённое значение не найдено в подготовленном снимке.");
+        }
+        // У этих снимков только метаданные SQLite — удерживать файлы от вытеснения не нужно.
+        cmd.Parameters.Clear();
+        cmd.Parameters.AddWithValue("$id", id.ToString("D"));
+        cmd.CommandText = "UPDATE transactions SET is_pinned = 0 WHERE session_id = $id";
+        await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         tx.Commit();
     }
 
@@ -435,9 +462,11 @@ public sealed class SqliteVaultRepository
     private static async Task<IReadOnlyList<StateDeltaRecord>> LoadDeltasAsync(
         SqliteConnection conn,
         Guid sessionId,
-        CancellationToken ct)
+        CancellationToken ct,
+        SqliteTransaction? tx = null)
     {
         await using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
         cmd.CommandText = """
             SELECT delta_id, session_id, sequence_order, target_kind, target_path,
                    previous_state_json, new_state_json, blob_sha256, original_size_bytes

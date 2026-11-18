@@ -78,10 +78,8 @@ public class DefaultCleanerPlatformBridge : ICleanerPlatformBridge
     public virtual Task<IReadOnlyList<RegistryOrphanCandidate>> ScanVerifiedRegistryOrphansAsync(CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<RegistryOrphanCandidate>>(Array.Empty<RegistryOrphanCandidate>());
 
-    public virtual Task<int> DeleteVerifiedRegistryOrphansAsync(
-        IReadOnlyList<RegistryOrphanCandidate> candidates,
-        CancellationToken ct = default)
-        => Task.FromResult(0);
+    public virtual Task<bool> TryDeleteReviewedRegistryValueAsync(RegistryOrphanCandidate candidate, CancellationToken ct = default)
+        => Task.FromResult(false);
 
     // Если системная корзина недоступна, нельзя молча заменять её безвозвратным удалением.
     public virtual Task<bool> SendPathToRecycleBinAsync(string fullPath, CancellationToken ct = default) => Task.FromResult(false);
@@ -290,8 +288,8 @@ public sealed class VaultSafeCleanerService
 
         await using var tx = _vaultService.BeginTransaction(
             SystemDomain.SmartCleaner,
-            friendlyTitle: $"Исправление проблем реестра ({safeList.Count} шт.)",
-            friendlySummary: "Снимок выбранных значений перед исправлением. При откате существующие отличающиеся значения не заменяются.",
+            friendlyTitle: $"Снимок перед очисткой реестра: выбрано {safeList.Count}",
+            friendlySummary: "Автоматический откат доступен только для подтверждённых удалений и не заменяет отличающиеся значения.",
             technicalDetails: string.Join("; ", safeList.Take(12).Select(r => r.FullRegistryDisplayPath)));
 
         foreach (var orphan in safeList)
@@ -308,24 +306,32 @@ public sealed class VaultSafeCleanerService
             });
 
             tx.RecordStateDelta(
-                StateTargetKind.RegistryValue,
+                StateTargetKind.RegistryValueSnapshot,
                 orphan.FullRegistryDisplayPath,
                 previousStateJson: snapshotJson,
                 newStateJson: null);
         }
 
         var backup = await tx.CommitVerifiedBackupAsync(ct).ConfigureAwait(false);
-        var fixedCount = await _platformBridge.DeleteVerifiedRegistryOrphansAsync(safeList, ct).ConfigureAwait(false);
-        // Значения хранятся в самой SQLite; файлов для удержания от вытеснения здесь нет.
-        await _vaultService.SetPinnedAsync(backup.SessionId, false, CancellationToken.None).ConfigureAwait(false);
-        Guid? sessionId = fixedCount > 0 ? backup.SessionId : null;
-
-        return (
-            fixedCount,
-            sessionId,
-            fixedCount > 0
-                ? $"Исправлено записей реестра: {fixedCount} (точка отката сохранена в Машину времени)."
-                : "Записи требуют прав Администратора или уже были исправлены.");
+        var removed = new List<Guid>();
+        try
+        {
+            for (int i = 0; i < safeList.Count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (await _platformBridge.TryDeleteReviewedRegistryValueAsync(safeList[i], ct).ConfigureAwait(false))
+                    removed.Add(backup.Deltas[i].DeltaId);
+            }
+        }
+        finally
+        {
+            // Отмена между объектами не теряет список уже выполненных удалений.
+            // Если процесс прерван, непроверенные снимки не будут выданы за реальные изменения.
+            await tx.ConfirmRemovedRegistryValuesAsync(removed, CancellationToken.None).ConfigureAwait(false);
+        }
+        return (removed.Count, removed.Count > 0 ? backup.SessionId : null,
+            $"Исправлено записей реестра: {removed.Count}; пропущено: {safeList.Count - removed.Count}. " +
+            (removed.Count > 0 ? "Для удалённых значений сохранён откат." : "Изменений нет."));
     }
 
     /// <summary>
@@ -374,7 +380,9 @@ public sealed class VaultSafeCleanerService
             rollbackSessionId = sid;
         }
 
-        var regPart = cleanedRegCount > 0 ? $", исправлено {cleanedRegCount} сирот реестра (точка отката сохранена)" : "";
+        var regPart = options.CleanRegistryOrphans && report.RegistryOrphans.Count > 0
+            ? $", реестр: исправлено {cleanedRegCount}, пропущено {report.RegistryOrphans.Count - cleanedRegCount}" +
+              (rollbackSessionId.HasValue ? " (откат сохранён)" : "") : "";
         var skipPart = skippedLocked > 0 ? $" (пропущено занятых открытыми программами файлов: {skippedLocked})" : "";
         var summaryMsg = $"Освобождено {ByteFormatter.Format(freedBytes)} ({deletedFiles} файлов){regPart}{skipPart}. Изменились или исчезли: {changed}.{(changed + skippedLocked > 0 ? " Причины см. в списке пропусков." : "")}";
 
