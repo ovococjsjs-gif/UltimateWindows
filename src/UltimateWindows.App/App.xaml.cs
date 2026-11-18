@@ -69,15 +69,15 @@ public partial class App : Application
 
     public void ToggleTheme()
     {
-        IsDarkTheme = !IsDarkTheme;
-        var themeUri = new Uri(
-            IsDarkTheme ? "Themes/FluentDarkTheme.xaml" : "Themes/FluentLightTheme.xaml",
-            UriKind.Relative);
+        var name = IsDarkTheme ? "FluentLightTheme" : "FluentDarkTheme";
+        var assembly = typeof(App).Assembly.GetName().Name;
+        var themeUri = new Uri($"/{assembly};component/Themes/{name}.xaml", UriKind.Relative);
 
         var dictionaries = Resources.MergedDictionaries;
         if (dictionaries.Count > 0)
         {
             dictionaries[0] = new ResourceDictionary { Source = themeUri };
+            IsDarkTheme = !IsDarkTheme;
         }
     }
 }

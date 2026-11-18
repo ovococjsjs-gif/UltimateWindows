@@ -202,7 +202,7 @@ public static class SupportBundleExporter
         }
         foreach (var disk in hw.Drives)
         {
-            sb.AppendLine($"<tr><th>Накопитель #{disk.DriveIndex}</th><td>{H(disk.Model)} ({H(disk.FormattedCapacity)}, {disk.BusKind}, S.M.A.R.T.: {(disk.IsHealthy ? "Норма" : "Внимание")})</td></tr>");
+            sb.AppendLine($"<tr><th>Накопитель #{disk.DriveIndex}</th><td>{H(disk.Model)} ({H(disk.FormattedCapacity)}, {disk.BusKind}, S.M.A.R.T.: {H(disk.HealthLabel)})</td></tr>");
         }
         sb.AppendLine("</table></div>");
 

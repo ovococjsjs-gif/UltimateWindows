@@ -12,7 +12,7 @@ using UltimateWindows.NativeInterop.Security;
 namespace UltimateWindows.NativeInterop.Cleaner;
 
 /// <summary>
-/// Полноценный Windows-мост очистки: Restart Manager API (rstrtmgr.dll), Корзина Shell32 (SHFileOperationW / SHEmptyRecycleBinW)
+/// Полноценный Windows-мост очистки: Restart Manager API (rstrtmgr.dll), Корзина Shell32 (SHFileOperationW)
 /// и многокатегорийный поиск мертвых ссылок реестра (в стиле CCleaner Registry Cleaner, но со 100% защитой системных ветвей COM/CLSID).
 /// </summary>
 public sealed class WindowsCleanerPlatformBridge : DefaultCleanerPlatformBridge
@@ -146,35 +146,6 @@ public sealed class WindowsCleanerPlatformBridge : DefaultCleanerPlatformBridge
         }
 
         return base.IsFileLockedByAnotherProcess(filePath);
-    }
-
-    public override Task<(long RecycleBinBytes, int RecycleBinItems)> QueryRecycleBinSizeAsync(CancellationToken ct = default)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return Task.FromResult((0L, 0));
-        }
-
-        var info = new SHQUERYRBINFO { cbSize = Marshal.SizeOf<SHQUERYRBINFO>() };
-        var hr = SHQueryRecycleBinW(null, ref info);
-        if (hr == 0 && info.i64Size >= 0)
-        {
-            return Task.FromResult((info.i64Size, (int)Math.Clamp(info.i64NumItems, 0, int.MaxValue)));
-        }
-
-        return Task.FromResult((0L, 0));
-    }
-
-    public override Task<bool> EmptyRecycleBinAsync(CancellationToken ct = default)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return Task.FromResult(false);
-        }
-
-        const uint flags = SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI | SHERB_NOSOUND;
-        var hr = SHEmptyRecycleBinW(IntPtr.Zero, null, flags);
-        return Task.FromResult(hr == 0);
     }
 
     public override Task<bool> SendPathToRecycleBinAsync(string fullPath, CancellationToken ct = default)
@@ -384,9 +355,11 @@ public sealed class WindowsCleanerPlatformBridge : DefaultCleanerPlatformBridge
                     }
 
                     using var key = rootHive.OpenSubKey(item.SubKeyPath, writable: true);
-                    if (key?.GetValue(item.ValueName) is not null)
+                    if (key?.GetValue(item.ValueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames) is { } value &&
+                        (int)key.GetValueKind(item.ValueName) == item.RegistryValueKindCode &&
+                        SerializeRegistryValue(value, (RegistryValueKind)item.RegistryValueKindCode) == item.PreviousValueSerialized)
                     {
-                        key.DeleteValue(item.ValueName, throwOnMissingValue: false);
+                        key.DeleteValue(item.ValueName, throwOnMissingValue: true);
                         deleted++;
                     }
                 }
@@ -920,9 +893,6 @@ public sealed class WindowsCleanerPlatformBridge : DefaultCleanerPlatformBridge
 
     // ==================== WIN32 P/INVOKE ====================
     private const int ERROR_MORE_DATA = 234;
-    private const uint SHERB_NOCONFIRMATION = 0x00000001;
-    private const uint SHERB_NOPROGRESSUI = 0x00000002;
-    private const uint SHERB_NOSOUND = 0x00000004;
 
     private const uint FO_DELETE = 0x0003;
     private const ushort FOF_SILENT = 0x0004;
@@ -974,17 +944,5 @@ public sealed class WindowsCleanerPlatformBridge : DefaultCleanerPlatformBridge
     [DllImport("rstrtmgr.dll", ExactSpelling = true)]
     private static extern int RmEndSession(uint dwSessionHandle);
 
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
-    private static extern int SHQueryRecycleBinW(string? pszRootPath, ref SHQUERYRBINFO pSHQueryRBInfo);
 
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
-    private static extern int SHEmptyRecycleBinW(IntPtr hwnd, string? pszRootPath, uint dwFlags);
-
-    [StructLayout(LayoutKind.Sequential, Pack = 4)]
-    private struct SHQUERYRBINFO
-    {
-        public int cbSize;
-        public long i64Size;
-        public long i64NumItems;
-    }
 }

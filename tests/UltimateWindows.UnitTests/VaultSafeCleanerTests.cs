@@ -39,6 +39,14 @@ public sealed class VaultSafeCleanerTests : IDisposable
     }
 
     [Fact]
+    public async Task MissingRecycleBinDoesNotFallBackToPermanentDeletion()
+    {
+        var path = WriteFakeFile(Path.Combine(_sandboxDir, "only-copy.txt"), "keep");
+        Assert.False(await new DefaultCleanerPlatformBridge().SendPathToRecycleBinAsync(path));
+        Assert.Equal("keep", File.ReadAllText(path));
+    }
+
+    [Fact]
     public async Task StandardPlan_SkipsChangedAndNewFiles_ButRemovesUnchangedCandidate()
     {
         var paths = CreateEmptySystemPaths();
@@ -76,6 +84,7 @@ public sealed class VaultSafeCleanerTests : IDisposable
         WriteFakeFile(chromeLocalState, "os_crypt_master_key_secret");
         var chromePasswords = WriteFakeFile(Path.Combine(chromeDefault, "Login Data"), "SQLITE_PASSWORDS_DEFAULT");
         var chromeAutofill = WriteFakeFile(Path.Combine(chromeDefault, "Web Data"), "SQLITE_AUTOFILL_FORMS");
+        var offline = WriteFakeFile(Path.Combine(chromeDefault, "Service Worker", "CacheStorage", "notes"), "offline-only draft");
         var chromeCookies = WriteFakeFile(Path.Combine(chromeDefault, "Network", "Cookies"), "ENCRYPTED_SESSION_COOKIES");
         var profile1Passwords = WriteFakeFile(Path.Combine(chromeProfile1, "Login Data"), "SQLITE_PASSWORDS_PROFILE1");
         var yandexVault = WriteFakeFile(Path.Combine(yandexDefault, "Ya Passman Data"), "YANDEX_PASSWORD_VAULT");
@@ -132,6 +141,7 @@ public sealed class VaultSafeCleanerTests : IDisposable
         Assert.Equal("SQLITE_PASSWORDS_DEFAULT", File.ReadAllText(chromePasswords));
         Assert.Equal("SQLITE_AUTOFILL_FORMS", File.ReadAllText(chromeAutofill));
         Assert.Equal("ENCRYPTED_SESSION_COOKIES", File.ReadAllText(chromeCookies));
+        Assert.Equal("offline-only draft", File.ReadAllText(offline));
         Assert.Equal("SQLITE_PASSWORDS_PROFILE1", File.ReadAllText(profile1Passwords));
         Assert.Equal("YANDEX_PASSWORD_VAULT", File.ReadAllText(yandexVault));
         Assert.Contains("bank.example", File.ReadAllText(ffLogins));

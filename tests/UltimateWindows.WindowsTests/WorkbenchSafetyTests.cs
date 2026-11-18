@@ -2,6 +2,7 @@ using System.IO;
 using Microsoft.Win32;
 using UltimateWindows.NativeInterop.Restore;
 using UltimateWindows.App.ViewModels;
+using UltimateWindows.App.Views;
 using UltimateWindows.Core.Enums;
 using UltimateWindows.Modules.Apps.Models;
 using UltimateWindows.Modules.Cleaner.Scanners;
@@ -115,6 +116,12 @@ public sealed class WorkbenchSafetyTests
             var vm = new CleanerStudioViewModel(svc, _ => Task.CompletedTask) { CleanBrowserCaches = false };
             await vm.RunScanPreviewAsync();
             Assert.True(vm.CanExecuteClean);
+            vm.SelectedSubTabIndex = 1;
+            using (var surface = UiSurface.Show(new DiskAndCleanerWorkspaceView { DataContext = vm }, 960, 510))
+            {
+                await surface.SettleAsync();
+                surface.Save("cleaner-plan");
+            }
             vm.CleanSystemTempAndShaders = false;
             Assert.False(vm.ExecuteSafeCleanCommand.CanExecute(null));
             Assert.Empty(vm.CandidateFilesPreview);

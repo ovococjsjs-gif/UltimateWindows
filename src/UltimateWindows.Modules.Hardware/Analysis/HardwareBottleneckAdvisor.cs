@@ -151,7 +151,7 @@ public static class HardwareBottleneckAdvisor
         // 5. Проверка здоровья накопителей S.M.A.R.T. и кабелей SATA
         foreach (var drive in snapshot.Drives)
         {
-            if (!drive.IsHealthy || drive.MediaIntegrityErrors is > 0 || drive.ReallocatedSectors is > 0 || drive.RemainingLifePercent is < 15)
+            if (drive.IsHealthy == false || drive.MediaIntegrityErrors is > 0 || drive.ReallocatedSectors is > 0 || drive.RemainingLifePercent is < 15)
             {
                 score -= 22;
                 findings.Add(new HardwareAdvisoryFinding(

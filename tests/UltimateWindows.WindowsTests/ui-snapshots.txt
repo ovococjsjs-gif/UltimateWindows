@@ -5,5 +5,6 @@
 # Пустой список — снимки не делаются и не передаются.
 
 workbench-home+
-cleaner-tab-1
+cleaner-plan
 workbench-small
+cleaner-tab-1

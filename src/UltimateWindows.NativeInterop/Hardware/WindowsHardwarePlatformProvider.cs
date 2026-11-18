@@ -718,7 +718,7 @@ public sealed class WindowsHardwarePlatformProvider : IHardwarePlatformProvider
                 FirmwareRevision: firmware,
                 BusKind: busKind,
                 CapacityBytes: capacity,
-                IsHealthy: nvmeMetrics?.IsHealthy ?? true,
+                IsHealthy: nvmeMetrics?.IsHealthy,
                 RemainingLifePercent: nvmeMetrics?.RemainingLifePercent,
                 TemperatureC: nvmeMetrics?.TemperatureC,
                 TotalHostReadsTb: nvmeMetrics?.TotalHostReadsTb,

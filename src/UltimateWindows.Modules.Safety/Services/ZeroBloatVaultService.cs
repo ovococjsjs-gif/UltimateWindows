@@ -137,6 +137,9 @@ public sealed class ZeroBloatVaultService : IVaultService
             return;
         }
 
+        if (record.RollbackUnavailableReason is { } reason)
+            throw new InvalidOperationException($"Откат недоступен: {reason}.");
+
         // Откат строго в обратном порядке (LIFO), чтобы корректно восстанавливать зависимые ключи и файлы
         foreach (var delta in record.Deltas.OrderByDescending(d => d.SequenceOrder))
         {
@@ -182,7 +185,7 @@ public sealed class ZeroBloatVaultService : IVaultService
             {
                 if (processedHashes.Add(item.BlobSha256))
                 {
-                    if (await TryEvictBlobAsync(item.BlobSha256, ct).ConfigureAwait(false))
+                    if (await TryEvictBlobAsync(item.BlobSha256, ct, now).ConfigureAwait(false))
                     {
                         removedBlobs++;
                     }
@@ -190,6 +193,7 @@ public sealed class ZeroBloatVaultService : IVaultService
             }
         }
 
+        processedHashes.Clear(); // свежие ссылки на тот же хеш участвуют в отдельном расчёте квоты
         // Шаг 2: Кольцевое вытеснение старых блобов, если суммарный объем превышает бюджет
         foreach (var item in candidates)
         {
@@ -234,17 +238,8 @@ public sealed class ZeroBloatVaultService : IVaultService
         return removed;
     }
 
-    private async Task<bool> TryEvictBlobAsync(string sha256Hex, CancellationToken ct)
-    {
-        if (await _repository.IsBlobReferencedByPinnedTransactionAsync(sha256Hex, ct).ConfigureAwait(false))
-        {
-            return false;
-        }
-
-        var deleted = _blobStore.DeleteBlobIfPresent(sha256Hex);
-        await _repository.DetachBlobFromUnpinnedTransactionsAndCompactAsync(sha256Hex, ct).ConfigureAwait(false);
-        return deleted;
-    }
+    private Task<bool> TryEvictBlobAsync(string hash, CancellationToken ct, DateTimeOffset? expiredAt = null) =>
+        _repository.ReleaseBlobReferencesAsync(hash, expiredAt, _blobStore.DeleteBlobIfPresent, ct);
 
     private sealed class SafetyTransactionSession : ITransactionSession
     {

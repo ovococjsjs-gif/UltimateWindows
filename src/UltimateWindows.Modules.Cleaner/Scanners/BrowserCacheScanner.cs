@@ -33,9 +33,7 @@ public sealed class BrowserCacheScanner
         "GPUCache",
         "DawnCache",
         "GrShaderCache",
-        "ShaderCache",
-        Path.Combine("Service Worker", "CacheStorage"),
-        Path.Combine("Service Worker", "ScriptCache")
+        "ShaderCache"
     ];
 
     private static readonly string[] FirefoxDisposableSubfolders =

@@ -333,6 +333,15 @@ public sealed class Stage7AppsAndAutomationTests : IDisposable
         Assert.Contains(mock.RecordedInvocations, args => args.Contains("install") && args.Contains("VideoLAN.VLC"));
     }
 
+    [Fact]
+    public async Task MaintenanceWithoutMeasurementsHasNoHealthScore()
+    {
+        var apps = new AppsAndAutomationService(_vault, new FakeWingetBridge(), stateDirectory: _tempDir);
+        var result = await apps.RunAutoMaintenanceNowAsync(cleanTempCache: false, checkDrives: false, checkSecurity: false);
+        Assert.Null(result.CompositeHealthScore);
+        Assert.Contains("не проверялся", result.Headline);
+    }
+
     private sealed class FakeWingetBridge : IAppsPlatformBridge
     {
         private readonly NullAppsPlatformBridge _inner = new();

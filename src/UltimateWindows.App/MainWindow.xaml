@@ -9,7 +9,7 @@
     <CommandBinding Command="ApplicationCommands.Find" Executed="OnFindTool" />
   </Window.CommandBindings>
   <Window.InputBindings><KeyBinding Key="K" Modifiers="Control" Command="ApplicationCommands.Find" /></Window.InputBindings>
-  <Grid>
+  <Grid Background="{DynamicResource AppBackgroundBrush}">
     <Grid.ColumnDefinitions><ColumnDefinition x:Name="RailColumn" Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
     <Border Background="{DynamicResource SurfaceSidebarBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,1,0" Padding="10,18,10,12">
       <DockPanel>

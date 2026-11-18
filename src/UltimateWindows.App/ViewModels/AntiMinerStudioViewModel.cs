@@ -81,7 +81,7 @@ public sealed class AntiMinerStudioViewModel : ObservableObject
     private int _selectedSubTabIndex;
     private bool _enableDropOnInspectProbe = true;
     private bool _isScanning;
-    private int _securityScore = 100;
+    private int? _securityScore;
     private string _scanHeadline = "Нажмите «Полная проверка ПК», чтобы проверить скрытые CPU/GPU-майнеры, 18 зон автозакрепления, исключения Защитника Windows, брандмауэр, hosts и память процессов.";
     private string _lastRemediationBanner = "";
     private ThreatItemViewModel? _selectedThreat;
@@ -183,7 +183,7 @@ public sealed class AntiMinerStudioViewModel : ObservableObject
         private set => SetProperty(ref _isScanning, value);
     }
 
-    public int SecurityScore
+    public int? SecurityScore
     {
         get => _securityScore;
         private set
@@ -195,7 +195,7 @@ public sealed class AntiMinerStudioViewModel : ObservableObject
         }
     }
 
-    public string SecurityScoreBadge => $"Индекс защиты: {SecurityScore} / 100";
+    public string SecurityScoreBadge => SecurityScore is int value ? $"Индекс защиты: {value} / 100" : "Нет результата проверки";
 
     public string ScanHeadline
     {

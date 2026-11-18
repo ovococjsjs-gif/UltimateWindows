@@ -83,7 +83,7 @@ switch (command)
         }
         foreach (var disk in snap.Drives)
         {
-            Console.WriteLine($"Накопитель #{disk.DriveIndex}        : {disk.Model} ({disk.FormattedCapacity}, {disk.BusKind}, Healthy={disk.IsHealthy})");
+            Console.WriteLine($"Накопитель #{disk.DriveIndex}        : {disk.Model} ({disk.FormattedCapacity}, {disk.BusKind}, {disk.HealthLabel})");
         }
         foreach (var mon in snap.Monitors)
         {

@@ -122,7 +122,7 @@ public static class HardwareReportExporter
         sb.AppendLine("[НАКОПИТЕЛИ (S.M.A.R.T.)]");
         foreach (var d in s.Drives)
         {
-            sb.AppendLine($"  #{d.DriveIndex} {d.Model} ({d.FormattedCapacity}, {d.BusKind}) | Здоровье: {(d.IsHealthy ? "OK" : "ТРЕВОГА")} | Ресурс: {d.RemainingLifePercent?.ToString() ?? "—"}% | Темп.: {d.TemperatureC?.ToString() ?? "—"}°C | Запись: {d.TotalBytesWrittenTb?.ToString("F1") ?? "—"} ТБ");
+            sb.AppendLine($"  #{d.DriveIndex} {d.Model} ({d.FormattedCapacity}, {d.BusKind}) | Здоровье: {d.HealthLabel} | Ресурс: {d.RemainingLifePercent?.ToString() ?? "—"}% | Темп.: {d.TemperatureC?.ToString() ?? "—"}°C | Запись: {d.TotalBytesWrittenTb?.ToString("F1") ?? "—"} ТБ");
         }
         sb.AppendLine();
 

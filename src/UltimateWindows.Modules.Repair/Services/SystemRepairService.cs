@@ -283,13 +283,12 @@ public sealed class SystemRepairService
             previousStateJson: JsonSerializer.Serialize(new { Package = package.PackageKey, Action = "Install" }),
             newStateJson: JsonSerializer.Serialize(new { Installed = true, package.WingetPackageId, package.DirectDownloadUrl }));
 
-        var committed = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
+        await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
 
         return new RepairOperationResult(
             Succeeded: true,
-            UserFriendlySummary: $"Официальный пакет «{package.FriendlyName}» проверен по цифровой подписи и успешно установлен.",
-            TechnicalLogOutput: log,
-            RollbackSessionId: committed.SessionId);
+            UserFriendlySummary: $"Официальный пакет «{package.FriendlyName}» установлен. В журнале сохранён отчёт, не копия для удаления.",
+            TechnicalLogOutput: log);
     }
 
     public Task<BsodMinidumpReport?> AnalyzeDumpFileAsync(string dumpFilePath, CancellationToken ct = default)
@@ -355,15 +354,14 @@ public sealed class SystemRepairService
             previousStateJson: JsonSerializer.Serialize(new { Playbook = playbookId.ToString() }),
             newStateJson: JsonSerializer.Serialize(new { CompletedAtUtc = DateTimeOffset.UtcNow }));
 
-        var committed = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
+        await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
 
         return new RepairOperationResult(
             Succeeded: true,
             UserFriendlySummary: verdict is null
                 ? $"Рецепт «{descriptor.FriendlyTitle}» успешно выполнен."
                 : $"Рецепт «{descriptor.FriendlyTitle}» выполнен. {verdict}",
-            TechnicalLogOutput: log,
-            RollbackSessionId: committed.SessionId);
+            TechnicalLogOutput: log);
     }
 
     private static string? ExtractVerdictLine(string? log)

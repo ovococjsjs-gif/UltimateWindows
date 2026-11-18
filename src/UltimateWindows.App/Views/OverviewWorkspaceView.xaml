@@ -54,6 +54,12 @@
           <TextBlock Text="{Binding OsDisplayHeader}" TextWrapping="Wrap" FontSize="14" FontWeight="SemiBold" Margin="0,7,0,0" />
         </StackPanel></Border>
       </Grid>
+      <Border Margin="0,10,0,0" Style="{StaticResource CardBorderStyle}" Background="{DynamicResource SurfaceSidebarBrush}">
+        <DockPanel><Button DockPanel.Dock="Right" VerticalAlignment="Center" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="TimeMachineVault" Content="Открыть журнал" Margin="12,0,0,0" />
+          <StackPanel><TextBlock Text="История изменений" FontSize="14" FontWeight="SemiBold" />
+            <TextBlock Text="Проверьте, что менялось и сохранилась ли копия для отката." Style="{StaticResource HintTextStyle}" /></StackPanel>
+        </DockPanel>
+      </Border>
       <StackPanel Visibility="{Binding HasSmartAuditActions, Converter={StaticResource BoolToVis}}" Margin="0,16,0,0">
         <TextBlock Text="По результатам проверки" FontWeight="SemiBold" FontSize="18" Margin="0,0,0,8" />
         <ItemsControl ItemsSource="{Binding SmartAuditActions}"><ItemsControl.ItemTemplate><DataTemplate>

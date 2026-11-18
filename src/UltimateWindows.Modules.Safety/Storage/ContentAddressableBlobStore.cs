@@ -179,23 +179,27 @@ public sealed class ContentAddressableBlobStore
     public string GetBlobFilePath(string sha256Hex)
     {
         var sanitized = sha256Hex.Trim().ToLowerInvariant();
+        if (sanitized.Length != 64 || !sanitized.All(char.IsAsciiHexDigit)) throw new InvalidDataException("Некорректный SHA-256 архива.");
         return Path.Combine(_blobsDirectory, $"{sanitized}.uwq");
     }
 
-    private static byte[] LoadOrCreateKey(string keyPath)
+    private byte[] LoadOrCreateKey(string keyPath)
     {
-        if (File.Exists(keyPath))
+        if (!File.Exists(keyPath))
         {
-            var existing = File.ReadAllBytes(keyPath);
-            if (existing.Length == KeySize)
+            if (Directory.EnumerateFiles(_blobsDirectory, "*.uwq").Any())
+                throw new InvalidDataException("Ключ отсутствует. Восстановите vault.key из копии этого хранилища.");
+            var temp = keyPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
             {
-                return existing;
+                File.WriteAllBytes(temp, RandomNumberGenerator.GetBytes(KeySize));
+                try { File.Move(temp, keyPath, overwrite: false); }
+                catch (IOException) when (File.Exists(keyPath)) { /* Другое окно создало ключ первым. */ }
             }
+            finally { File.Delete(temp); }
         }
-
-        var key = new byte[KeySize];
-        RandomNumberGenerator.Fill(key);
-        File.WriteAllBytes(keyPath, key);
-        return key;
+        var existing = File.ReadAllBytes(keyPath);
+        return existing.Length == KeySize ? existing : throw new InvalidDataException(
+            "Ключ повреждён. Восстановите vault.key из копии этого хранилища. Ключ и архивы не перезаписаны.");
     }
 }

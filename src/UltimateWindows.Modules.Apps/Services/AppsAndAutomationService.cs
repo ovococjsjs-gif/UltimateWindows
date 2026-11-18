@@ -316,7 +316,8 @@ public sealed class AppsAndAutomationService
         long freedBytes = 0;
         var unhealthyDrives = 0;
         var securityAlerts = 0;
-        var compositeScore = 96;
+        int? compositeScore = null;
+        string smartState = "не проверялся";
 
         if (cleanTempCache && _cleanerService is not null)
         {
@@ -339,7 +340,9 @@ public sealed class AppsAndAutomationService
         if (checkDrives && _hardwareService is not null)
         {
             var (snap, audit) = await _hardwareService.CaptureAndAnalyzeAsync(ct).ConfigureAwait(false);
-            unhealthyDrives = snap.Drives.Count(d => !d.IsHealthy);
+            unhealthyDrives = snap.Drives.Count(d => d.IsHealthy == false);
+            smartState = snap.Drives.Count == 0 ? "нет данных" :
+                $"предупреждений — {unhealthyDrives}, без показаний — {snap.Drives.Count(d => !d.IsHealthy.HasValue)}";
             compositeScore = audit.HardwareHealthScore;
         }
 
@@ -347,13 +350,13 @@ public sealed class AppsAndAutomationService
         {
             var sec = await _securityService.RunFullSecurityScanAsync(enableDropOnInspectProbe: false, ct).ConfigureAwait(false);
             securityAlerts = sec.Threats.Count + sec.SabotageLocks.Count;
-            compositeScore = Math.Min(compositeScore, sec.SecurityHealthScore);
+            compositeScore = Math.Min(compositeScore ?? sec.SecurityHealthScore, sec.SecurityHealthScore);
         }
 
         var now = DateTimeOffset.UtcNow;
         var headline =
             $"{now.ToLocalTime():dd.MM.yyyy HH:mm} • Очищено кэша: {UltimateWindows.Core.Models.ByteFormatter.Format(freedBytes)}, " +
-            $"проблем S.M.A.R.T.: {unhealthyDrives}, угроз защиты: {securityAlerts}";
+            $"S.M.A.R.T.: {smartState}, защита: {(checkSecurity && _securityService is not null ? $"сигналов — {securityAlerts}" : "не проверялась")}";
 
         var summary = new MaintenanceRunSummary(
             CompletedAtUtc: now,

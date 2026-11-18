@@ -258,52 +258,27 @@ public sealed class SqliteVaultRepository
         return list;
     }
 
-    /// <summary>
-    /// Проверяет, удерживает ли хотя бы одна ЗАКРЕПЛЕННАЯ (is_pinned = 1) транзакция данный SHA-256 блоб.
-    /// </summary>
-    public async Task<bool> IsBlobReferencedByPinnedTransactionAsync(string sha256Hex, CancellationToken ct = default)
+    /// <summary>TTL относится к ссылке транзакции, а не к физическому блобу. Проверка последней
+    /// ссылки и удаление сериализованы с фиксацией/закреплением другой сессии (в т.ч. из CLI).</summary>
+    internal async Task<bool> ReleaseBlobReferencesAsync(string hash, DateTimeOffset? expiredAt,
+        Func<string, bool> deleteBlob, CancellationToken ct)
     {
         await using var conn = await OpenConnectionAsync(ct).ConfigureAwait(false);
-        await using var cmd = conn.CreateCommand();
+        using var tx = conn.BeginTransaction(deferred: false);
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.Parameters.AddWithValue("$sha", hash);
+        cmd.Parameters.AddWithValue("$now", (object?)expiredAt?.UtcDateTime.ToString("O", CultureInfo.InvariantCulture) ?? DBNull.Value);
         cmd.CommandText = """
-            SELECT COUNT(1)
-            FROM deltas d
-            INNER JOIN transactions t ON t.session_id = d.session_id
-            WHERE d.blob_sha256 = $sha AND t.is_pinned = 1;
+            UPDATE deltas SET blob_sha256 = NULL WHERE blob_sha256 = $sha AND session_id IN
+              (SELECT session_id FROM transactions WHERE is_pinned = 0 AND ($now IS NULL OR blob_expires_at_utc <= $now));
             """;
-        cmd.Parameters.AddWithValue("$sha", sha256Hex);
-        var count = Convert.ToInt32(await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false), CultureInfo.InvariantCulture);
-        return count > 0;
-    }
-
-    /// <summary>
-    /// Отвязывает удаленный файловый блоб от незакрепленных дельт и запускает сжатие файла БД (incremental_vacuum),
-    /// сохраняя при этом историю транзакций и все записи отката реестра!
-    /// </summary>
-    public async Task DetachBlobFromUnpinnedTransactionsAndCompactAsync(string sha256Hex, CancellationToken ct = default)
-    {
-        await using var conn = await OpenConnectionAsync(ct).ConfigureAwait(false);
-        await using (var cmd = conn.CreateCommand())
-        {
-            cmd.CommandText = """
-                UPDATE deltas
-                SET blob_sha256 = NULL
-                WHERE blob_sha256 = $sha
-                  AND session_id IN (SELECT session_id FROM transactions WHERE is_pinned = 0);
-
-                UPDATE transactions
-                SET total_stored_bytes = 1024
-                WHERE is_pinned = 0
-                  AND session_id NOT IN (
-                      SELECT DISTINCT session_id FROM deltas WHERE blob_sha256 IS NOT NULL
-                  )
-                  AND total_stored_bytes > 4096;
-
-                PRAGMA incremental_vacuum;
-                """;
-            cmd.Parameters.AddWithValue("$sha", sha256Hex);
-            await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
-        }
+        var released = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        cmd.CommandText = "SELECT EXISTS (SELECT 1 FROM deltas WHERE blob_sha256 = $sha)";
+        var referenced = Convert.ToInt32(await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false), CultureInfo.InvariantCulture) != 0;
+        bool deleted = released > 0 && !referenced && deleteBlob(hash);
+        tx.Commit();
+        return deleted;
     }
 
     public async Task<(int ActiveCount, int RevertedCount)> GetTransactionCountsAsync(CancellationToken ct = default)

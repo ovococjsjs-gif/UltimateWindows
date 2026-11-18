@@ -78,7 +78,7 @@ public sealed class HardwareStudioViewModel : ObservableObject
     private StorageBenchmarkResult? _lastDiskBench;
 
     private int _selectedSubTabIndex;
-    private int _hardwareScore = 100;
+    private int? _hardwareScore;
     private string _shortMachineSpecLine = "Определение конфигурации ПК...";
     private string _cpuSummary = "Сканирование процессора...";
     private string _cpuExpert = "";
@@ -195,7 +195,7 @@ public sealed class HardwareStudioViewModel : ObservableObject
     public bool IsVulnerableTab => SelectedSubTabIndex == 6;
 
     public bool HasNoAdvisories => Advisories.Count == 0;
-    public int HardwareScore { get => _hardwareScore; private set => SetProperty(ref _hardwareScore, value); }
+    public int? HardwareScore { get => _hardwareScore; private set => SetProperty(ref _hardwareScore, value); }
     public string ShortMachineSpecLine { get => _shortMachineSpecLine; private set => SetProperty(ref _shortMachineSpecLine, value); }
 
     public string CpuSummary { get => _cpuSummary; private set => SetProperty(ref _cpuSummary, value); }
@@ -343,7 +343,7 @@ public sealed class HardwareStudioViewModel : ObservableObject
             {
                 var life = d.RemainingLifePercent.HasValue ? $", ресурс {d.RemainingLifePercent}%" : "";
                 var temp = d.TemperatureC.HasValue ? $", {d.TemperatureC}°C" : "";
-                var state = d.IsHealthy ? "Исправен" : "ТРЕВОГА S.M.A.R.T.!";
+                var state = d.HealthLabel;
                 return $"{d.Model} ({d.FormattedCapacity}, {d.BusKind}) — {state}{life}{temp}";
             }));
             StorageExpert = string.Join(" || ", snap.Drives.Select(d =>

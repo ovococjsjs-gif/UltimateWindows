@@ -173,7 +173,7 @@ public sealed class DriverStudioViewModel : ObservableObject
 
     private bool _queryWindowsUpdateOnline;
     private bool _isBusy;
-    private int _driverScore = 100;
+    private int? _driverScore;
     private string _driverSummaryHeadline = "Нажмите «Проверить драйверы», чтобы опросить все устройства CfgMgr32, версии, подписи и обновления WHQL.";
     private string _driverKpiStrip = "Ожидание проверки устройств...";
     private string _lastDriverOperationBanner = "";
@@ -256,7 +256,7 @@ public sealed class DriverStudioViewModel : ObservableObject
         private set => SetProperty(ref _isBusy, value);
     }
 
-    public int DriverScore
+    public int? DriverScore
     {
         get => _driverScore;
         private set
@@ -268,7 +268,7 @@ public sealed class DriverStudioViewModel : ObservableObject
         }
     }
 
-    public string DriverScoreBadge => $"Драйверы: {DriverScore} / 100";
+    public string DriverScoreBadge => DriverScore is int value ? $"Драйверы: {value} / 100" : "Нет результата проверки";
 
     public string DriverSummaryHeadline
     {

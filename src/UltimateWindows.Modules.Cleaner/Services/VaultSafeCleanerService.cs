@@ -83,35 +83,8 @@ public class DefaultCleanerPlatformBridge : ICleanerPlatformBridge
         CancellationToken ct = default)
         => Task.FromResult(0);
 
-    public virtual Task<(long RecycleBinBytes, int RecycleBinItems)> QueryRecycleBinSizeAsync(CancellationToken ct = default)
-        => Task.FromResult((0L, 0));
-
-    public virtual Task<bool> EmptyRecycleBinAsync(CancellationToken ct = default)
-        => Task.FromResult(false);
-
-    public virtual Task<bool> SendPathToRecycleBinAsync(string fullPath, CancellationToken ct = default)
-    {
-        try
-        {
-            if (File.Exists(fullPath))
-            {
-                File.Delete(fullPath);
-                return Task.FromResult(true);
-            }
-
-            if (Directory.Exists(fullPath))
-            {
-                Directory.Delete(fullPath, recursive: true);
-                return Task.FromResult(true);
-            }
-        }
-        catch
-        {
-            // Ignore
-        }
-
-        return Task.FromResult(false);
-    }
+    // Если системная корзина недоступна, нельзя молча заменять её безвозвратным удалением.
+    public virtual Task<bool> SendPathToRecycleBinAsync(string fullPath, CancellationToken ct = default) => Task.FromResult(false);
 
     public virtual bool RegistryKeyExists(string keyPath) => false;
 
@@ -318,7 +291,7 @@ public sealed class VaultSafeCleanerService
         await using var tx = _vaultService.BeginTransaction(
             SystemDomain.SmartCleaner,
             friendlyTitle: $"Исправление проблем реестра ({safeList.Count} шт.)",
-            friendlySummary: "Очищены устаревшие ссылки на удаленные файлы и приложения. Полная резервная копия сохранена в Машине времени.",
+            friendlySummary: "Снимок выбранных значений перед исправлением. При откате существующие отличающиеся значения не заменяются.",
             technicalDetails: string.Join("; ", safeList.Take(12).Select(r => r.FullRegistryDisplayPath)));
 
         foreach (var orphan in safeList)
@@ -330,6 +303,7 @@ public sealed class VaultSafeCleanerService
                 ValueName = orphan.ValueName,
                 ExistedBefore = true,
                 ValueKind = orphan.RegistryValueKindCode,
+                OnlyRestoreIfAbsent = true,
                 SerializedData = orphan.PreviousValueSerialized
             });
 
@@ -340,13 +314,11 @@ public sealed class VaultSafeCleanerService
                 newStateJson: null);
         }
 
+        var backup = await tx.CommitVerifiedBackupAsync(ct).ConfigureAwait(false);
         var fixedCount = await _platformBridge.DeleteVerifiedRegistryOrphansAsync(safeList, ct).ConfigureAwait(false);
-        Guid? sessionId = null;
-        if (fixedCount > 0)
-        {
-            var committed = await tx.CommitAsync(ct: ct).ConfigureAwait(false);
-            sessionId = committed.SessionId;
-        }
+        // Значения хранятся в самой SQLite; файлов для удержания от вытеснения здесь нет.
+        await _vaultService.SetPinnedAsync(backup.SessionId, false, CancellationToken.None).ConfigureAwait(false);
+        Guid? sessionId = fixedCount > 0 ? backup.SessionId : null;
 
         return (
             fixedCount,

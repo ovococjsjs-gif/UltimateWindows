@@ -138,7 +138,8 @@ public sealed record RegistryValueSnapshot(
     bool ExistedBefore,
     RegistryValueKind ValueKind,
     string? SerializedData,
-    string? CreatedKeyPath = null);
+    string? CreatedKeyPath = null,
+    bool OnlyRestoreIfAbsent = false);
 
 /// <summary>
 /// Полноценный исполнитель откатов для Windows: восстанавливает значения реестра, типы запуска служб, задания планировщика, видеорежимы монитора, схемы питания и файлы из карантина.
@@ -546,6 +547,12 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
             _ => snapshot.SerializedData
         };
 
+        if (snapshot.OnlyRestoreIfAbsent && writableKey.GetValue(snapshot.ValueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames) is { } current)
+        {
+            if (writableKey.GetValueKind(snapshot.ValueName) == snapshot.ValueKind &&
+                System.Collections.StructuralComparisons.StructuralEqualityComparer.Equals(current, valueToWrite)) return;
+            throw new IOException($"Значение «{snapshot.SubKey} :: {snapshot.ValueName}» изменилось. Перезапись отменена.");
+        }
         writableKey.SetValue(snapshot.ValueName, valueToWrite, snapshot.ValueKind);
     }
 

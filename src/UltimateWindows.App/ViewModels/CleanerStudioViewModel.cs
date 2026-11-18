@@ -445,8 +445,9 @@ public sealed class CleanerStudioViewModel : ObservableObject
     {
         if (!SetProperty(ref field, value, property)) return;
         _selectionVersion++;
-        ResetPreview();
+        _previewCts?.Cancel();
         LastCleanupOutcome = "";
+        ResetPreview();
         ScanSummaryHeadline = "Выбор изменён. Рассчитайте новый план перед очисткой.";
     }
 
@@ -545,12 +546,23 @@ public sealed class CleanerStudioViewModel : ObservableObject
         (p.Files.TotalFilesCount > 0 || p.Files.TotalRegistryOrphansCount > 0 ||
          p.BrowserItems.Any(i => !i.BlockedByRunningBrowser && i.ItemCount > 0));
 
+    private int _planTabIndex;
+    public int PlanTabIndex { get => _planTabIndex; set => SetProperty(ref _planTabIndex, value); }
+    public bool ShowPlanTable => Categories.Count + BrowserDetailItems.Count + SkippedFiles.Count > 0;
+    public string PlanPlaceholderTitle => IsScanning ? "Анализируем выбранные категории" : IsCleaning ? "Применяем план" :
+        HasCleanupOutcome ? "Результат операции" : _preview is not null ? "Подходящих объектов нет" : "План ещё не рассчитан";
+    public string PlanPlaceholderText => IsScanning ? "Файлы и настройки не меняются." : IsCleaning ? "Изменившиеся и занятые файлы будут пропущены." :
+        HasCleanupOutcome ? "Итоги показаны ниже. Чтобы продолжить, рассчитайте новый план." :
+        _preview is not null ? "Попробуйте другие категории или закройте браузер и повторите анализ." :
+        "После анализа здесь появятся категории, размеры и примеры файлов. Перед удалением вы сможете проверить выбор.";
+
     public string ApplyPlanLabel => _preview is { } p && p.Files.TotalReclaimableBytes > 0
         ? $"Очистить · {p.Files.FormattedTotalReclaimable}" : "Применить план";
 
     private void ResetPreview()
     {
         _preview = null;
+        PlanTabIndex = 0;
         SkippedFiles.Clear();
         Categories.Clear();
         BrowserDetailItems.Clear();
@@ -563,6 +575,9 @@ public sealed class CleanerStudioViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CanExecuteClean));
         OnPropertyChanged(nameof(ApplyPlanLabel));
+        OnPropertyChanged(nameof(ShowPlanTable));
+        OnPropertyChanged(nameof(PlanPlaceholderTitle));
+        OnPropertyChanged(nameof(PlanPlaceholderText));
         ExecuteSafeCleanCommand.RaiseCanExecuteChanged();
     }
 
@@ -805,10 +820,14 @@ public sealed class CleanerStudioViewModel : ObservableObject
             foreach (var file in report.CandidateFiles.OrderByDescending(x => x.SizeBytes).Take(200)) CandidateFilesPreview.Add(file);
             BrowserWarningBanner = string.Join("\n", report.RunningBrowserWarnings.Concat(browser?.Warnings ?? []).Distinct());
             _preview = new Preview(report, browser);
+            if (report.Categories.Count == 0 && items.Count > 0) PlanTabIndex = 3;
             ScanSummaryHeadline = $"План на {report.ScannedAtUtc.ToLocalTime():HH:mm:ss} · файлов: {report.TotalFilesCount:N0} · {report.FormattedTotalReclaimable}. " +
                 (items.Count > 0 ? $"Пунктов данных браузеров: {items.Count}. " : "") + "Ничего не удалено.";
         }
-        catch (OperationCanceledException) { ScanSummaryHeadline = "Анализ остановлен. Ничего не удалено."; }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            if (version == _selectionVersion) ScanSummaryHeadline = "Анализ остановлен. Ничего не удалено.";
+        }
         catch (Exception ex) { ResetPreview(); ScanSummaryHeadline = $"Не удалось рассчитать план: {ex.Message}"; }
         finally { _previewCts = null; IsScanning = false; }
     }
@@ -817,7 +836,8 @@ public sealed class CleanerStudioViewModel : ObservableObject
     {
         if (!CanExecuteClean || _preview is not { } plan) return;
         var details = string.Join("\n", plan.Files.Categories.Select(c => $"{c.FriendlyTitle}: {c.FormattedSize}"));
-        var browser = string.Join("\n", plan.BrowserItems.Where(i => !i.BlockedByRunningBrowser).Select(i => i.FriendlyTitle));
+        var browser = string.Join("\n", plan.BrowserItems.Where(i => !i.BlockedByRunningBrowser && i.ItemCount > 0)
+            .GroupBy(i => i.Kind).Select(g => $"{g.Key switch { BrowserDataKind.History => "История", BrowserDataKind.Downloads => "Журнал загрузок", BrowserDataKind.Cookies => "Cookie", _ => "Сеансы" }}: {g.Sum(i => i.ItemCount):N0} (профилей: {g.Count()})"));
         if (!UserPrompts.Confirm(new("Применить план очистки?",
             $"{details}\n{browser}\n\nВременные файлы и выбранные данные браузеров удаляются без резервной копии и без корзины.", true))) return;
         if (_preview != plan) return;
@@ -835,6 +855,7 @@ public sealed class CleanerStudioViewModel : ObservableObject
                 LastCleanupOutcome += "\n" + outcome.UserSummaryMessage;
                 foreach (var warning in outcome.Warnings.Take(100)) SkippedFiles.Add(new("Браузер", warning));
             }
+            if (SkippedFiles.Count > 0) PlanTabIndex = 2;
             ScanSummaryHeadline = "План завершён. Для следующей очистки нужен новый анализ.";
             ReloadVolumes();
             await _onActionCompletedAsync(LastCleanupOutcome);

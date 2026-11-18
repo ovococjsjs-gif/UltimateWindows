@@ -41,7 +41,10 @@ public sealed class MainWindowSmokeTests
             window.Width = 860; window.Height = 540;
             await surface.SettleAsync();
             Assert.True(window.CompactNavigation);
-            surface.Save("workbench-small");
+            var app = (UltimateWindows.App.App)System.Windows.Application.Current;
+            app.ToggleTheme();
+            try { await surface.SettleAsync(); surface.Save("workbench-small"); }
+            finally { app.ToggleTheme(); }
             window.Width = 1360; window.Height = 840;
             using (var finder = UiSurface.Show(new ToolFinderWindow(), 590, 446))
             {

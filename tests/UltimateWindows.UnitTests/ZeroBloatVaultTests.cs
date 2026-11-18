@@ -196,6 +196,65 @@ public sealed class ZeroBloatVaultTests : IDisposable
         Assert.Equal(2, history.Count);
     }
 
+    [Fact]
+    public async Task ExpirationReleasesOnlyTheOldReferenceToSharedContent()
+    {
+        var clock = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        var vault = new ZeroBloatVaultService(Path.Combine(_tempRoot, "shared"), timeProvider: clock);
+        async Task<(string Path, Guid Id)> Save(string name)
+        {
+            var path = Path.Combine(_tempRoot, name);
+            await File.WriteAllTextAsync(path, "same content");
+            await using var tx = vault.BeginTransaction(SystemDomain.SmartCleaner, name, "copy");
+            await tx.BackupFileAsync(path);
+            return (path, (await tx.CommitAsync()).SessionId);
+        }
+        var older = await Save("first");
+        clock.Advance(TimeSpan.FromDays(10));
+        var newer = await Save("second");
+        clock.Advance(TimeSpan.FromDays(5));
+        await vault.EnforceQuotaAndRetentionAsync();
+        var history = await vault.GetHistoryAsync();
+        Assert.True(history.Single(r => r.SessionId == older.Id).HasExpiredFile);
+        Assert.False(history.Single(r => r.SessionId == newer.Id).HasExpiredFile);
+        File.Delete(newer.Path);
+        await vault.RollbackTransactionAsync(newer.Id);
+        Assert.Equal("same content", await File.ReadAllTextAsync(newer.Path));
+    }
+
+    [Fact]
+    public async Task BrokenOrMissingKeyNeverOverwritesCredentialsForExistingArchives()
+    {
+        var dir = Path.Combine(_tempRoot, "key");
+        var store = new ContentAddressableBlobStore(dir);
+        var blob = await store.StoreBytesAsync([1, 2, 3]);
+        var key = Path.Combine(dir, "vault.key");
+        var goodKey = File.ReadAllBytes(key);
+        File.WriteAllBytes(key, [0]);
+        Assert.Throws<InvalidDataException>(() => new ContentAddressableBlobStore(dir));
+        Assert.Equal(new byte[] { 0 }, File.ReadAllBytes(key));
+        File.Delete(key);
+        Assert.Throws<InvalidDataException>(() => new ContentAddressableBlobStore(dir));
+        Assert.False(File.Exists(key));
+        File.WriteAllBytes(key, goodKey);
+        Assert.Equal(new byte[] { 1, 2, 3 }, await new ContentAddressableBlobStore(dir).RestoreBytesAsync(blob.Sha256Hex));
+    }
+
+    [Theory]
+    [InlineData("OfficialRuntime:sample")]
+    [InlineData("RepairBatch:sample")]
+    [InlineData("RepairPlaybook:sample")]
+    public async Task JournalOnlyRecordsCannotBeReportedAsReverted(string target)
+    {
+        var vault = new ZeroBloatVaultService(Path.Combine(_tempRoot, "history"));
+        await using var tx = vault.BeginTransaction(SystemDomain.DllAndRepair, "Report", "No inverse action");
+        tx.RecordStateDelta(StateTargetKind.SystemSetting, target, "{}", null);
+        var saved = await tx.CommitAsync();
+        Assert.True(saved.IsJournalOnly);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => vault.RollbackTransactionAsync(saved.SessionId));
+        Assert.False(Assert.Single(await vault.GetHistoryAsync()).IsReverted);
+    }
+
     public void Dispose()
     {
         try

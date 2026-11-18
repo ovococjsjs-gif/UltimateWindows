@@ -32,11 +32,11 @@
         <RadioButton GroupName="CleanerSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
                      IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=2}"
-                     Content="Реестр (13)" />
+                     Content="Реестр" />
         <RadioButton GroupName="CleanerSubTabs"
                      Style="{StaticResource SubTabRadioStyle}"
                      IsChecked="{Binding SelectedSubTabIndex, Converter={StaticResource IntEq}, ConverterParameter=3}"
-                     Content="Дубли и резервы C:\" />
+                     Content="Дубликаты и резервы" />
       </WrapPanel>
     </Border>
 
@@ -364,7 +364,14 @@
           <TextBlock Text="{Binding BrowserWarningBanner}" TextWrapping="Wrap" Foreground="{DynamicResource AmberTextBrush}" Visibility="{Binding HasBrowserWarnings, Converter={StaticResource BoolToVis}}" />
           <ProgressBar Style="{StaticResource LoadingBarStyle}" Margin="0,6,0,0" Visibility="{Binding IsScanning, Converter={StaticResource BoolToVis}}" />
         </StackPanel></Border>
-        <TabControl Grid.Row="1" Background="{DynamicResource SurfaceCardBrush}" BorderBrush="{DynamicResource SurfaceBorderBrush}" Padding="3">
+        <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Visibility="{Binding ShowPlanTable, Converter={StaticResource InverseBoolToVis}}">
+          <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="330" Margin="12,0">
+            <Border HorizontalAlignment="Center" CornerRadius="12" Background="{DynamicResource AccentSubtleBrush}" Width="52" Height="52"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE9F9;" FontSize="24" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+            <TextBlock Text="{Binding PlanPlaceholderTitle}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Center" Margin="0,12,0,5" />
+            <TextBlock Text="{Binding PlanPlaceholderText}" TextAlignment="Center" Style="{StaticResource HintTextStyle}" />
+          </StackPanel>
+        </Border>
+        <TabControl Grid.Row="1" SelectedIndex="{Binding PlanTabIndex}" Visibility="{Binding ShowPlanTable, Converter={StaticResource BoolToVis}}" Background="{DynamicResource SurfaceCardBrush}" BorderBrush="{DynamicResource SurfaceBorderBrush}" Padding="3">
           <TabControl.Resources><Style TargetType="TabItem">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
             <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabItem">

@@ -50,8 +50,8 @@ public sealed class TransactionItemViewModel : ObservableObject
     public string CreatedDisplay => Record.CreatedDisplayLocal;
     public string StoredSizeText => Record.FormattedStoredSize;
     public bool IsPinned => Record.IsPinned;
-    public bool CanRollback => !Record.IsReverted;
-    public string StatusBadge => Record.IsReverted ? "Отменено" : (Record.IsPinned ? "Закреплено" : "Активно");
+    public bool CanRollback => Record.RollbackUnavailableReason is null;
+    public string StatusBadge => Record.RollbackUnavailableReason ?? (Record.IsPinned ? "Закреплено" : "В журнале");
     public string PinButtonText => Record.IsPinned ? "Открепить" : "Закрепить";
 
     public ICommand RollbackCommand { get; }
@@ -467,6 +467,7 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task PurgeUnpinnedBlobsAsync()
     {
+        if (!UserPrompts.Confirm(new("Удалить незакреплённые архивы?", "Файлы в этих копиях нельзя будет восстановить. Журнал и закреплённые копии останутся.", true))) return;
         var removed = await _vaultService.PurgeAllUnpinnedBlobsAsync();
         StatusNotification = $"Очищено архивов карантина: {removed}.";
         await RefreshVaultStateAsync();

@@ -432,7 +432,7 @@ public sealed class RepairDiagnosticEngine
             }
 
             var committed = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
-            rollbackId = committed.SessionId;
+            if (recordedDeltas > 0) rollbackId = committed.SessionId;
         }
 
         var headline = failedCount == 0

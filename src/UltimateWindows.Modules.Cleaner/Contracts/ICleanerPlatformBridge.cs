@@ -21,10 +21,6 @@ public interface ICleanerPlatformBridge
         IReadOnlyList<RegistryOrphanCandidate> candidates,
         CancellationToken ct = default);
 
-    Task<(long RecycleBinBytes, int RecycleBinItems)> QueryRecycleBinSizeAsync(CancellationToken ct = default);
-
-    Task<bool> EmptyRecycleBinAsync(CancellationToken ct = default);
-
     Task<bool> SendPathToRecycleBinAsync(string fullPath, CancellationToken ct = default);
 
     /// <summary>Проверяет наличие раздела реестра вида «HKCU\Software\...» или «HKLM\Software\...».</summary>

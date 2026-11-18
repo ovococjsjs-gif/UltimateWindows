@@ -181,7 +181,8 @@ public sealed class PeDoctorBsodAndRepairTests : IDisposable
         // Сброс кэша иконок не требует прав администратора и фиксируется в журнале Машины времени
         var iconOk = await service.ExecutePlaybookAsync(RepairPlaybookId.IconAndThumbnailCacheRebuild);
         Assert.True(iconOk.Succeeded);
-        Assert.NotNull(iconOk.RollbackSessionId);
+        Assert.Null(iconOk.RollbackSessionId);
+        Assert.True(Assert.Single(await vault.GetHistoryAsync()).IsJournalOnly);
     }
 
     [Fact]
@@ -205,7 +206,8 @@ public sealed class PeDoctorBsodAndRepairTests : IDisposable
 
         var ok = await passing.ExecutePlaybookAsync(RepairPlaybookId.WindowsUpdateReset);
         Assert.True(ok.Succeeded);
-        Assert.NotNull(ok.RollbackSessionId);
+        Assert.Null(ok.RollbackSessionId);
+        Assert.True(Assert.Single(await vault.GetHistoryAsync()).IsJournalOnly);
         Assert.Contains("компоненты Центра обновления сброшены", ok.UserFriendlySummary);
 
         // Описание рецепта должно соответствовать тому, что он делает на самом деле

@@ -265,7 +265,7 @@ public sealed record MaintenanceRunSummary(
     long ReclaimedCacheBytes,
     int UnhealthyDrivesCount,
     int SecurityAlertsCount,
-    int CompositeHealthScore,
+    int? CompositeHealthScore,
     string Headline)
 {
     public string FormattedReclaimed => ByteFormatter.Format(ReclaimedCacheBytes);

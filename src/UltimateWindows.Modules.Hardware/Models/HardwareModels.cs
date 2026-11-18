@@ -192,7 +192,7 @@ public sealed record StorageDriveSmartInfo(
     string FirmwareRevision,
     StorageBusKind BusKind,
     long CapacityBytes,
-    bool IsHealthy,
+    bool? IsHealthy,
     int? RemainingLifePercent,
     int? TemperatureC,
     double? TotalHostReadsTb,
@@ -205,6 +205,7 @@ public sealed record StorageDriveSmartInfo(
     long? UltraDmaCrcErrors)
 {
     public string FormattedCapacity => ByteFormatter.Format(CapacityBytes);
+    public string HealthLabel => IsHealthy switch { true => "Без предупреждений", false => "Предупреждение S.M.A.R.T.", null => "S.M.A.R.T. недоступен" };
 }
 
 public sealed record DisplayMonitorInfo(
