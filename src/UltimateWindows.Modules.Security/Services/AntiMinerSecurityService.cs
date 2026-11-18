@@ -1,6 +1,6 @@
-using System.Text.Json;
 using UltimateWindows.Core.Contracts;
 using UltimateWindows.Core.Enums;
+using UltimateWindows.Core.Models;
 using UltimateWindows.Modules.Security.Analyzers;
 using UltimateWindows.Modules.Security.Models;
 using UltimateWindows.Modules.Security.Scanners;
@@ -11,10 +11,10 @@ namespace UltimateWindows.Modules.Security.Services;
 /// Оркестратор модуля «Анти-майнер и Защита 2.0»:
 /// 1) Полный многовекторный аудит (CPU+GPU Drop-on-Inspect с реальным монитором, 18 зон автозакрепления, Stratum IPv4/IPv6 + DNS-кэш,
 ///    исключения Защитника Windows, правила брандмауэра, скрытые учетные записи, staging-папки и блокировки ОС);
-/// 2) Комплексное обезвреживание в 1 клик (остановка процесса + удаление закрепления + карантин .uwq с полным откатом в «Машине времени»);
+/// 2) Комплексное обезвреживание в 1 клик (остановка процесса + удаление закрепления + карантин .uwq с журналом подтверждённых изменений);
 /// 3) Интеграция с Microsoft Defender (удаление опасных слепых зон, запуск быстрой и выборочной проверки) и опциональными PE-sieve / YARA.
 /// </summary>
-public sealed class AntiMinerSecurityService
+public sealed partial class AntiMinerSecurityService
 {
     private readonly IVaultService _vaultService;
     private readonly ISecurityPlatformBridge _bridge;
@@ -116,259 +116,6 @@ public sealed class AntiMinerSecurityService
     }
 
     /// <summary>
-    /// Комплексно обезвреживает найденную угрозу в один шаг:
-    /// 1) Блокирует удаление любых штатных системных бинарников внутри C:\Windows;
-    /// 2) При наличии подозрительного процесса завершает его дерево;
-    /// 3) При наличии связанной точки автозакрепления, опасного исключения Defender или правила брандмауэра снимает их с записью отката;
-    /// 4) Помещает вредоносный исполняемый файл в шифрованный дедуплицированный карантин .uwq.
-    /// </summary>
-    public async Task<SecurityRemediationResult> QuarantineThreatAsync(
-        SecurityThreatFinding finding,
-        CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(finding);
-
-        var winPrefix = _bridge.GetWindowsDirectory().TrimEnd('\\', '/') + @"\";
-        bool hasFileTarget = !string.IsNullOrWhiteSpace(finding.SuspectFilePath);
-        bool isUnderWindows = hasFileTarget &&
-                              Path.GetFullPath(finding.SuspectFilePath!).StartsWith(winPrefix, StringComparison.OrdinalIgnoreCase);
-
-        bool hasNonFileAction =
-            (finding.PersistenceRecord?.CanRemediate ?? false) ||
-            finding.LinkedExclusion is not null ||
-            finding.LinkedFirewallRule is not null ||
-            finding.Vector is ThreatDetectionVector.ProcessHollowingOrImplant or ThreatDetectionVector.ExternalPeSieveImplant;
-
-        // Строгая защита от самострела: никогда не удаляем и не помещаем в карантин файлы из папки C:\Windows!
-        if (isUnderWindows && !hasNonFileAction)
-        {
-            return new SecurityRemediationResult(
-                false,
-                null,
-                0,
-                $"Защита безопасности: файл внутри системного каталога Windows («{finding.SuspectFilePath}») запрещено помещать в карантин.");
-        }
-
-        if (!hasFileTarget && !hasNonFileAction && finding.SuspectProcessId is null or <= 4)
-        {
-            return new SecurityRemediationResult(
-                false,
-                null,
-                0,
-                "Для данной находки не требуется автоматическое удаление файла.");
-        }
-
-        await using var tx = _vaultService.BeginTransaction(
-            SystemDomain.AntiMiner,
-            $"Обезвреживание угрозы: {finding.SimpleTitle}",
-            finding.SimpleExplanation,
-            finding.ExpertTechnicalEvidence);
-
-        int actionsDone = 0;
-        var summaryParts = new List<string>();
-
-        // Снимок файла готовим до изменений процесса и настроек. До Commit он не удаляется.
-        string? pendingFile = null;
-        if (hasFileTarget && !isUnderWindows && finding.CanQuarantineFileSafely)
-        {
-            pendingFile = Path.GetFullPath(finding.SuspectFilePath!);
-            try { await tx.QuarantineFileAsync(pendingFile, ct).ConfigureAwait(false); }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                return new(false, null, 0, $"Не удалось подготовить снимок «{pendingFile}»: {ex.Message} Изменения не начинались.");
-            }
-        }
-
-        // 1. Завершаем активный подозрительный процесс (или донор с имплантом памяти)
-        if (finding.SuspectProcessId is int pid and > 4)
-        {
-            if (await _bridge.TerminateSuspectProcessAsync(pid, ct).ConfigureAwait(false))
-            {
-                actionsDone++;
-                summaryParts.Add($"остановлен процесс PID {pid}");
-            }
-        }
-
-        // 2. Снимаем точку автозакрепления (реестр / служба / задача / WMI / BITS)
-        if (finding.PersistenceRecord is { CanRemediate: true } persistence)
-        {
-            var (removed, rbKind, rbTarget, prevJson) = await _bridge.RemovePersistenceEntryAsync(persistence, ct).ConfigureAwait(false);
-            if (removed)
-            {
-                if (rbKind.HasValue && !string.IsNullOrWhiteSpace(rbTarget))
-                {
-                    tx.RecordStateDelta(rbKind.Value, rbTarget, prevJson, null);
-                }
-
-                actionsDone++;
-                summaryParts.Add($"снято закрепление «{persistence.EntryName}»");
-            }
-        }
-
-        // 3. Удаляем опасное исключение Защитника Windows
-        if (finding.LinkedExclusion is not null)
-        {
-            if (await _bridge.RemoveDefenderExclusionAsync(finding.LinkedExclusion, ct).ConfigureAwait(false))
-            {
-                var prevExclJson = JsonSerializer.Serialize(new
-                {
-                    Kind = finding.LinkedExclusion.Kind.ToString(),
-                    finding.LinkedExclusion.Value,
-                    finding.LinkedExclusion.IsPolicyEnforced,
-                    finding.LinkedExclusion.RegistryPath
-                });
-                tx.RecordStateDelta(
-                    StateTargetKind.SystemSetting,
-                    $"DefenderExclusion:{finding.LinkedExclusion.Kind}:{finding.LinkedExclusion.Value}",
-                    prevExclJson,
-                    null);
-                actionsDone++;
-                summaryParts.Add($"удалено исключение Defender «{finding.LinkedExclusion.Value}»");
-            }
-        }
-
-        // 4. Удаляем вредоносное правило Брандмауэра Windows
-        if (finding.LinkedFirewallRule is not null)
-        {
-            if (await _bridge.RemoveFirewallRuleAsync(finding.LinkedFirewallRule, ct).ConfigureAwait(false))
-            {
-                var prevFwJson = JsonSerializer.Serialize(new
-                {
-                    finding.LinkedFirewallRule.RuleId,
-                    finding.LinkedFirewallRule.RawRegistryValue
-                });
-                tx.RecordStateDelta(
-                    StateTargetKind.SystemSetting,
-                    $"FirewallRule:{finding.LinkedFirewallRule.RuleId}",
-                    prevFwJson,
-                    null);
-                actionsDone++;
-                summaryParts.Add($"удалено правило брандмауэра «{finding.LinkedFirewallRule.DisplayName}»");
-            }
-        }
-
-        if (actionsDone == 0 && pendingFile is null)
-            return new(false, null, 0, "Не удалось выполнить автоматическое действие (возможно, требуются права администратора).");
-
-        try
-        {
-            var record = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
-            if (pendingFile is not null)
-            {
-                actionsDone++;
-                summaryParts.Add($"файл «{Path.GetFileName(pendingFile)}» изолирован в карантин");
-            }
-            Guid? rollbackId = record.RollbackUnavailableReason is null ? record.SessionId : null;
-            return new(true, rollbackId, actionsDone, $"Выполнено: {string.Join(", ", summaryParts)}. " +
-                (rollbackId.HasValue ? "Сохранённые файлы и настройки доступны в «Машине времени»." : "Это действие не имеет отката."));
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            return new(false, null, actionsDone, $"Не удалось завершить операцию: {ex.Message} Выполнено других действий: {actionsDone}. Проверьте журнал.");
-        }
-    }
-
-    /// <summary>
-    /// Снимает выбранную точку автозакрепления напрямую со вкладки «Автозакрепление (18 зон)».
-    /// </summary>
-    public async Task<SecurityRemediationResult> RemovePersistenceAnomalyAsync(
-        PersistenceAnomalyRecord anomaly,
-        CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(anomaly);
-        if (!anomaly.CanRemediate)
-        {
-            return new SecurityRemediationResult(false, null, 0, "Эта запись является штатной и не требует удаления.");
-        }
-
-        await using var tx = _vaultService.BeginTransaction(
-            SystemDomain.AntiMiner,
-            $"Снятие автозакрепления: {anomaly.EntryName}",
-            $"{anomaly.ZoneTitle} — {anomaly.PayloadCommandOrPath}",
-            anomaly.RegistryOrTaskPath);
-
-        var (removed, rbKind, rbTarget, prevJson) = await _bridge.RemovePersistenceEntryAsync(anomaly, ct).ConfigureAwait(false);
-        if (!removed)
-        {
-            return new SecurityRemediationResult(
-                false,
-                null,
-                0,
-                $"Не удалось снять точку закрепления «{anomaly.EntryName}» (проверьте запуск от имени администратора).");
-        }
-
-        if (rbKind.HasValue && !string.IsNullOrWhiteSpace(rbTarget))
-        {
-            tx.RecordStateDelta(rbKind.Value, rbTarget, prevJson, null);
-        }
-
-        var record = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
-        return new SecurityRemediationResult(
-            true,
-            record.SessionId,
-            1,
-            $"Точка автозакрепления «{anomaly.EntryName}» отключена. Изменение сохранено в «Машине времени».");
-    }
-
-    /// <summary>
-    /// Пакетно удаляет опасные слепые зоны (исключения) Microsoft Defender с сохранением отката.
-    /// </summary>
-    public async Task<SecurityRemediationResult> RemoveDangerousDefenderExclusionsAsync(
-        IReadOnlyList<DefenderExclusionFinding> exclusions,
-        CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(exclusions);
-        var targets = exclusions.Where(e => e.IsDangerousMinerExclusion).ToList();
-        if (targets.Count == 0)
-        {
-            return new SecurityRemediationResult(true, null, 0, "Опасных исключений Защитника Windows не найдено.");
-        }
-
-        await using var tx = _vaultService.BeginTransaction(
-            SystemDomain.AntiMiner,
-            "Очистка опасных исключений Microsoft Defender",
-            $"Удаление слепых зон антивируса ({targets.Count} шт.)",
-            string.Join("; ", targets.Select(t => $"{t.Kind}:{t.Value}")));
-
-        int removed = 0;
-        foreach (var item in targets)
-        {
-            if (await _bridge.RemoveDefenderExclusionAsync(item, ct).ConfigureAwait(false))
-            {
-                var prevJson = JsonSerializer.Serialize(new
-                {
-                    Kind = item.Kind.ToString(),
-                    item.Value,
-                    item.IsPolicyEnforced,
-                    item.RegistryPath
-                });
-                tx.RecordStateDelta(
-                    StateTargetKind.SystemSetting,
-                    $"DefenderExclusion:{item.Kind}:{item.Value}",
-                    prevJson,
-                    null);
-                removed++;
-            }
-        }
-
-        if (removed == 0)
-        {
-            return new SecurityRemediationResult(
-                false,
-                null,
-                0,
-                "Не удалось удалить исключения Защитника Windows (требуются права администратора и отключённая защита от подделки Tamper Protection для некоторых ключей).");
-        }
-
-        var record = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
-        return new SecurityRemediationResult(
-            true,
-            record.SessionId,
-            removed,
-            $"Удалено опасных исключений Защитника Windows: {removed} из {targets.Count}.");
-    }
-
-    /// <summary>
     /// Запускает быструю или выборочную проверку Microsoft Defender (MpCmdRun.exe).
     /// </summary>
     public Task<(bool Succeeded, string OutputMessage)> StartDefenderScanAsync(
@@ -394,81 +141,6 @@ public sealed class AntiMinerSecurityService
         => _externalScanners.RunYaraScanAsync(targetPath, _bridge.GetWindowsDirectory(), ct);
 
     /// <summary>
-    /// Снимает все послевирусные блокировки (Диспетчер задач, Реестр, CMD, Защитник, MRT, Брандмауэр, hosts).
-    /// </summary>
-    public async Task<SecurityRemediationResult> HealAllSabotageLocksAsync(
-        IReadOnlyList<OsSabotageFinding> locksToHeal,
-        CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(locksToHeal);
-        if (locksToHeal.Count == 0)
-        {
-            return new SecurityRemediationResult(true, null, 0, "Активных блокировок системы не обнаружено.");
-        }
-
-        await using var tx = _vaultService.BeginTransaction(
-            SystemDomain.AntiMiner,
-            "Восстановление системы после саботажа майнера",
-            $"Снятие блокировок с Диспетчера задач, Реестра, Защитника Windows и файла hosts ({locksToHeal.Count} шт.)",
-            "Реабилитация политик безопасности и сетевого доступа");
-
-        int fixedCount = 0;
-        foreach (var lockItem in locksToHeal)
-        {
-            var (ok, origHosts) = await _bridge.RepairSabotageLockAsync(lockItem, ct).ConfigureAwait(false);
-            if (!ok) continue;
-
-            if (lockItem.Kind == OsSabotageKind.SecurityDomainsBlockedInHosts && origHosts is not null)
-            {
-                var prevHostsJson = JsonSerializer.Serialize(new { Path = lockItem.TargetDisplayPath, Content = origHosts });
-                tx.RecordStateDelta(StateTargetKind.SystemSetting, "HostsSabotageCleanup", prevHostsJson, null);
-            }
-            else if (lockItem.Kind == OsSabotageKind.FirewallOutboundSecurityBlock)
-            {
-                var prevFwJson = JsonSerializer.Serialize(new
-                {
-                    RuleId = lockItem.ValueName,
-                    RawRegistryValue = lockItem.CurrentMaliciousValue
-                });
-                tx.RecordStateDelta(StateTargetKind.SystemSetting, $"FirewallRule:{lockItem.ValueName}", prevFwJson, null);
-            }
-            else
-            {
-                // RegistryValueKind: 1 = String (IFEO Debugger), 4 = DWord (политики)
-                int valueKindInt = lockItem.Kind == OsSabotageKind.SystemToolIfeoBlocked ? 1 : 4;
-                var prevJson = JsonSerializer.Serialize(new
-                {
-                    lockItem.Hive,
-                    SubKey = lockItem.SubKeyPath,
-                    lockItem.ValueName,
-                    ExistedBefore = true,
-                    ValueKind = valueKindInt,
-                    SerializedData = lockItem.CurrentMaliciousValue
-                });
-                tx.RecordStateDelta(StateTargetKind.RegistryValue, lockItem.TargetDisplayPath, prevJson, null);
-            }
-
-            fixedCount++;
-        }
-
-        if (fixedCount == 0)
-        {
-            return new SecurityRemediationResult(
-                false,
-                null,
-                0,
-                "Не удалось снять системные блокировки (запустите программу от имени администратора).");
-        }
-
-        var record = await tx.CommitAsync(pinTransaction: false, ct).ConfigureAwait(false);
-        return new SecurityRemediationResult(
-            true,
-            record.SessionId,
-            fixedCount,
-            $"Успешно снято блокировок системы: {fixedCount} из {locksToHeal.Count}. Доступ к утилитам и обновлениям восстановлен.");
-    }
-
-    /// <summary>
     /// Возвращает список изолированных угроз и действий раздела «Анти-майнер» из хранилища «Машины времени».
     /// </summary>
     public async Task<IReadOnlyList<QuarantinedThreatEntry>> GetQuarantineHistoryAsync(CancellationToken ct = default)
@@ -482,12 +154,14 @@ public sealed class AntiMinerSecurityService
                 FriendlyTitle: h.FriendlyTitle,
                 FriendlySummary: h.FriendlySummary,
                 QuarantinedPaths: h.Deltas
-                    .Where(d => d.TargetKind == StateTargetKind.QuarantinedFile)
+                    .Where(d => d.TargetKind == StateTargetKind.QuarantinedFile && !d.IsJournalOnly)
                     .Select(d => d.TargetPath)
                     .ToList(),
                 StateDeltaCount: h.Deltas.Count,
                 IsReverted: h.IsReverted,
-                RollbackUnavailableReason: h.RollbackUnavailableReason))
+                RollbackUnavailableReason: h.RollbackUnavailableReason,
+                StepSummary: h.StepSummary, Planned: h.Deltas.Count(d => d.Step is not null),
+                Applied: h.Deltas.Count(d => d.Step?.State == StepState.Applied)))
             .ToList();
     }
 
@@ -498,18 +172,18 @@ public sealed class AntiMinerSecurityService
     {
         try
         {
+            var saved = await _vaultService.GetTransactionAsync(sessionId, ct).ConfigureAwait(false);
+            if (saved?.Domain != SystemDomain.AntiMiner) return new(false, null, 0, "Запись раздела защиты не найдена.");
+            if (saved.IsReverted) return new(true, null, 0, "Доступные изменения уже отменены.");
+            if (saved.RollbackUnavailableReason is { } reason) return new(false, null, 0, $"Откат недоступен: {reason}.");
             await _vaultService.RollbackTransactionAsync(sessionId, ct).ConfigureAwait(false);
-            return new SecurityRemediationResult(
-                true,
-                sessionId,
-                1,
-                "Объект успешно восстановлен из шифрованного карантина (.uwq) на прежнее место.");
+            return new(true, null, saved.RestorableDeltas.Count(), "Доступные файлы и настройки восстановлены. Остановленные процессы не запускались.");
         }
         catch (Exception ex)
         {
             return new SecurityRemediationResult(
                 false,
-                sessionId,
+                null,
                 0,
                 $"Не удалось восстановить объект из карантина: {ex.Message}");
         }

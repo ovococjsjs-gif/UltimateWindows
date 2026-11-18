@@ -12,6 +12,7 @@ using UltimateWindows.Modules.Safety.Services;
 using UltimateWindows.Modules.Safety.Storage;
 using UltimateWindows.NativeInterop.Optimizer;
 using UltimateWindows.NativeInterop.Security;
+using UltimateWindows.NativeInterop.SecurityHunter;
 
 namespace UltimateWindows.NativeInterop.Restore;
 
@@ -139,7 +140,10 @@ public sealed record RegistryValueSnapshot(
     RegistryValueKind ValueKind,
     string? SerializedData,
     string? CreatedKeyPath = null,
-    bool OnlyRestoreIfAbsent = false);
+    bool OnlyRestoreIfAbsent = false,
+    RegistryView View = RegistryView.Default,
+    RegistryValueKind? ExpectedKind = null,
+    string? ExpectedData = null);
 
 /// <summary>
 /// Полноценный исполнитель откатов для Windows: восстанавливает значения реестра, типы запуска служб, задания планировщика, видеорежимы монитора, схемы питания и файлы из карантина.
@@ -221,6 +225,7 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
 
             if (string.Equals(delta.TargetPath, "HostsSabotageCleanup", StringComparison.OrdinalIgnoreCase))
             {
+                if (delta.Step is not null) { ReviewedHostsRepair.Restore(delta.PreviousStateJson); return; }
                 using var doc = JsonDocument.Parse(delta.PreviousStateJson);
                 var p = doc.RootElement.TryGetProperty("Path", out var pEl) ? pEl.GetString() : null;
                 var c = doc.RootElement.TryGetProperty("Content", out var cEl) ? cEl.GetString() : null;
@@ -468,13 +473,15 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
         }
 
         var current = WindowsServiceControl.Query(name);
+        if (delta.Step is not null && (current is null || (current.Startup != ServiceStartupMode.Disabled && current.Startup != startup)))
+            throw new IOException("Служба отсутствует или тип запуска изменился после операции.");
         if (current is null || current.Startup == startup)
         {
             return;
         }
 
         var result = WindowsServiceControl.SetStartup(name, startup);
-        if (!result.Succeeded)
+        if (!result.Succeeded || (delta.Step is not null && WindowsServiceControl.Query(name)?.Startup != startup))
         {
             throw new InvalidOperationException(
                 $"Не удалось вернуть службе «{name}» тип запуска «{ServiceDisplay.GetTitle(startup)}»: {result.Error}.");
@@ -497,13 +504,14 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
 
         var enabled = enabledElement.GetBoolean();
         var current = WindowsTaskScheduler.Query([path]);
+        if (delta.Step is not null && !current.ContainsKey(path)) throw new IOException("Проверенное задание не найдено.");
         if (!current.TryGetValue(path, out var snapshot) || snapshot.Enabled == enabled)
         {
             return;
         }
 
         var result = WindowsTaskScheduler.SetEnabled(path, enabled);
-        if (!result.Succeeded)
+        if (!result.Succeeded || (delta.Step is not null && (!WindowsTaskScheduler.Query([path]).TryGetValue(path, out var check) || check.Enabled != enabled)))
         {
             throw new InvalidOperationException(
                 $"Не удалось вернуть задание «{path}» в состояние «{TweakScheduledTaskAction.FormatEnabled(enabled)}»: {result.Error}.");
@@ -520,7 +528,7 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
             _ => RegistryHive.CurrentUser
         };
 
-        using var baseKey = RegistryKey.OpenBaseKey(hive, RegistryView.Default);
+        using var baseKey = RegistryKey.OpenBaseKey(hive, snapshot.View);
         if (!snapshot.ExistedBefore)
         {
             using (var subKey = baseKey.OpenSubKey(snapshot.SubKey, writable: true))
@@ -547,13 +555,24 @@ public sealed class WindowsSystemStateApplier : DefaultFileStateApplier
             _ => snapshot.SerializedData
         };
 
-        if (snapshot.OnlyRestoreIfAbsent && writableKey.GetValue(snapshot.ValueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames) is { } current)
+        if (snapshot.OnlyRestoreIfAbsent || snapshot.ExpectedKind.HasValue)
         {
-            if (writableKey.GetValueKind(snapshot.ValueName) == snapshot.ValueKind &&
-                System.Collections.StructuralComparisons.StructuralEqualityComparer.Equals(current, valueToWrite)) return;
-            throw new IOException($"Значение «{snapshot.SubKey} :: {snapshot.ValueName}» изменилось. Перезапись отменена.");
+            var exists = writableKey.GetValueNames().Contains(snapshot.ValueName, StringComparer.OrdinalIgnoreCase);
+            if (exists)
+            {
+                var current = writableKey.GetValue(snapshot.ValueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
+                var currentKind = writableKey.GetValueKind(snapshot.ValueName);
+                if (currentKind == snapshot.ValueKind && System.Collections.StructuralComparisons.StructuralEqualityComparer.Equals(current, valueToWrite)) return;
+                if (currentKind != snapshot.ExpectedKind || current is null || WindowsSecurityPlatformBridge.FormatRaw(current) != snapshot.ExpectedData)
+                    throw new IOException($"Значение «{snapshot.SubKey} :: {snapshot.ValueName}» изменилось. Перезапись отменена.");
+            }
+            else if (!snapshot.OnlyRestoreIfAbsent) throw new IOException("Значение удалено после исправления; повторное создание отменено.");
         }
         writableKey.SetValue(snapshot.ValueName, valueToWrite, snapshot.ValueKind);
+        if ((snapshot.OnlyRestoreIfAbsent || snapshot.ExpectedKind.HasValue) &&
+            (writableKey.GetValueKind(snapshot.ValueName) != snapshot.ValueKind || !System.Collections.StructuralComparisons.StructuralEqualityComparer.Equals(
+                writableKey.GetValue(snapshot.ValueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames), valueToWrite)))
+            throw new IOException("Не удалось подтвердить восстановленное значение реестра.");
     }
 
     /// <summary>

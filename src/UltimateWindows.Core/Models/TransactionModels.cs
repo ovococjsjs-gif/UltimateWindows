@@ -16,10 +16,15 @@ public sealed record StateDeltaRecord(
     string? BlobSha256,
     long OriginalSizeBytes)
 {
-    public bool IsJournalOnly => TargetKind == StateTargetKind.RegistryValueSnapshot ||
+    public StepReceipt? Step { get; init; }
+    public bool IsJournalOnly => Step is { State: not StepState.Applied } ||
+        TargetKind is StateTargetKind.JournalEntry or StateTargetKind.RegistryValueSnapshot ||
         (TargetKind == StateTargetKind.SystemSetting &&
          (TargetPath.StartsWith("OfficialRuntime:", StringComparison.OrdinalIgnoreCase) ||
           TargetPath.StartsWith("RepairPlaybook:", StringComparison.OrdinalIgnoreCase) ||
+          TargetPath.StartsWith("DeletedRegistryKey:", StringComparison.OrdinalIgnoreCase) ||
+          TargetPath.StartsWith("WmiSubscription:", StringComparison.OrdinalIgnoreCase) ||
+          TargetPath.StartsWith("BitsJob:", StringComparison.OrdinalIgnoreCase) ||
           TargetPath.StartsWith("RepairBatch:", StringComparison.OrdinalIgnoreCase)));
 }
 
@@ -42,9 +47,13 @@ public sealed record TransactionRecord(
     IReadOnlyList<StateDeltaRecord> Deltas)
 {
     public bool IsJournalOnly => Deltas.All(d => d.IsJournalOnly);
-    public bool HasExpiredFile => Deltas.Any(d => d.TargetKind == StateTargetKind.QuarantinedFile && d.BlobSha256 is null);
+    public bool HasExpiredFile => Deltas.Any(d => !d.IsJournalOnly && d.TargetKind == StateTargetKind.QuarantinedFile && d.BlobSha256 is null);
+    public IEnumerable<StateDeltaRecord> RestorableDeltas => Deltas.Where(d => !d.IsJournalOnly &&
+        (d.TargetKind != StateTargetKind.QuarantinedFile || d.BlobSha256 is not null));
+    public string StepSummary => string.Join("; ", Deltas.Where(d => d.Step is not null).Select(d =>
+        $"{d.Step!.Label}: {d.Step.StatusText}{(d.Step.State == StepState.Applied && d.IsJournalOnly ? " (без отката)" : "")}"));
     public string? RollbackUnavailableReason => IsReverted ? "Уже отменено" : IsJournalOnly ? "Только журнал" :
-        HasExpiredFile ? "Копия удалена" : null;
+        HasExpiredFile && (!Deltas.Any(d => d.Step is not null) || !RestorableDeltas.Any()) ? "Копия удалена" : null;
 
     public string FormattedStoredSize => ByteFormatter.Format(TotalStoredBytes);
 

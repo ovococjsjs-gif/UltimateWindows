@@ -41,12 +41,12 @@
     <!-- Информационный баннер последнего действия -->
     <Border Grid.Row="1"
             Visibility="{Binding HasRemediationBanner, Converter={StaticResource BoolToVis}}"
-            Background="{DynamicResource SafeEmeraldSubtleBrush}"
+            Background="{DynamicResource SurfaceCardBrush}"
             Padding="14,6">
       <TextBlock Text="{Binding LastRemediationBanner}"
                  FontSize="12"
-                 Foreground="{DynamicResource SafeEmeraldBrush}"
-                 TextTrimming="CharacterEllipsis" />
+                 Foreground="{DynamicResource TextPrimaryBrush}" AutomationProperties.LiveSetting="Polite"
+                 TextWrapping="Wrap" ToolTip="{Binding LastRemediationBanner}" />
     </Border>
 
     <!-- ==================== ВКЛАДКА 0: ЕДИНЫЙ ОБЗОР УГРОЗ И ОХОТНИК DROP-ON-INSPECT ==================== -->
@@ -463,7 +463,7 @@
                   Content="Обновить карантин" />
           <StackPanel>
             <TextBlock Text="Шифрованный карантин (.uwq) и журнал обезвреживания" FontSize="13" FontWeight="SemiBold" />
-            <TextBlock Text="Все изолированные файлы сжаты и обезврежены внутри контейнера Zero-Bloat Vault. При ложном срабатывании любой объект и ключ реестра можно вернуть на место в один клик."
+            <TextBlock Text="Выберите запись, чтобы увидеть результат каждого шага. Откат восстанавливает только подтверждённые файлы и настройки; процессы не перезапускаются."
                        FontSize="11.5"
                        Foreground="{DynamicResource TextSecondaryBrush}"
                        TextWrapping="Wrap" />
@@ -471,7 +471,8 @@
         </DockPanel>
       </Border>
 
-      <DataGrid Grid.Row="1" ItemsSource="{Binding QuarantineHistory}">
+      <DataGrid Grid.Row="1" ItemsSource="{Binding QuarantineHistory}" RowDetailsVisibilityMode="VisibleWhenSelected">
+        <DataGrid.RowDetailsTemplate><DataTemplate><TextBlock Text="{Binding Details}" TextWrapping="Wrap" Margin="10,5" /></DataTemplate></DataGrid.RowDetailsTemplate>
         <DataGrid.Columns>
           <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampLocalText}" Width="145" />
           <DataGridTextColumn Header="Операция" Binding="{Binding FriendlyTitle}" Width="240" />

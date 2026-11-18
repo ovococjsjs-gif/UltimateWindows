@@ -1045,8 +1045,9 @@ switch (command)
         Console.WriteLine($"=== Журнал карантина .uwq раздела Анти-майнер ({list.Count}) ===");
         foreach (var q in list)
         {
-            var status = q.IsReverted ? "[ВОССТАНОВЛЕНО]" : "[В КАРАНТИНЕ ]";
+            var status = $"[{q.StatusText}; {q.RollbackUnavailableReason ?? "доступен откат"}]";
             Console.WriteLine($"  {q.TimestampLocalText} {status} {q.SessionId} | {q.FriendlyTitle} | {q.PrimaryPath}");
+            if (q.StepSummary.Length > 0) Console.WriteLine("    " + q.StepSummary);
         }
         break;
     }

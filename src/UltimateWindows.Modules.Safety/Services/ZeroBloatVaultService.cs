@@ -19,6 +19,7 @@ public class DefaultFileStateApplier : ISystemStateApplier
         Func<string, CancellationToken, Task<byte[]>> restoreBlobBytesAsync,
         CancellationToken ct = default)
     {
+        if (delta.Step is not null && delta.TargetKind != StateTargetKind.QuarantinedFile) throw new NotSupportedException("Для отката этого шага требуется платформенный исполнитель.");
         if (delta.TargetKind == StateTargetKind.QuarantinedFile)
         {
             if (string.IsNullOrWhiteSpace(delta.BlobSha256))
@@ -60,7 +61,7 @@ public class DefaultFileStateApplier : ISystemStateApplier
 /// <summary>
 /// Сервис управления «Машиной времени» и не засоряющим систему хранилищем бэкапов (Zero-Bloat Vault).
 /// </summary>
-public sealed class ZeroBloatVaultService : IVaultService
+public sealed partial class ZeroBloatVaultService : IVaultService
 {
     private readonly string _vaultDirectory;
     private readonly SqliteVaultRepository _repository;
@@ -107,6 +108,8 @@ public sealed class ZeroBloatVaultService : IVaultService
             technicalDetails);
     }
 
+    public Task<TransactionRecord?> GetTransactionAsync(Guid id, CancellationToken ct = default) => _repository.GetTransactionByIdAsync(id, ct);
+
     public Task<IReadOnlyList<TransactionRecord>> GetHistoryAsync(int limit = 100, CancellationToken ct = default)
         => _repository.GetRecentTransactionsAsync(limit, ct);
 
@@ -129,6 +132,7 @@ public sealed class ZeroBloatVaultService : IVaultService
 
     public async Task RollbackTransactionAsync(Guid sessionId, CancellationToken ct = default)
     {
+        using var lease = AcquireSessionLease(sessionId);
         var record = await _repository.GetTransactionByIdAsync(sessionId, ct).ConfigureAwait(false)
             ?? throw new KeyNotFoundException($"Транзакция '{sessionId}' не найдена в журнале отката.");
 
@@ -141,7 +145,7 @@ public sealed class ZeroBloatVaultService : IVaultService
             throw new InvalidOperationException($"Откат недоступен: {reason}.");
 
         // Откат строго в обратном порядке (LIFO), чтобы корректно восстанавливать зависимые ключи и файлы
-        foreach (var delta in record.Deltas.Where(d => !d.IsJournalOnly).OrderByDescending(d => d.SequenceOrder))
+        foreach (var delta in record.RestorableDeltas.OrderByDescending(d => d.SequenceOrder))
         {
             await _stateApplier.ApplyRollbackDeltaAsync(
                 delta,
@@ -152,8 +156,11 @@ public sealed class ZeroBloatVaultService : IVaultService
         await _repository.MarkRevertedAsync(sessionId, _timeProvider.GetUtcNow(), ct).ConfigureAwait(false);
     }
 
-    public Task SetPinnedAsync(Guid sessionId, bool isPinned, CancellationToken ct = default)
-        => _repository.SetPinnedAsync(sessionId, isPinned, ct);
+    public async Task SetPinnedAsync(Guid sessionId, bool isPinned, CancellationToken ct = default)
+    {
+        using var lease = AcquireSessionLease(sessionId);
+        await _repository.SetPinnedAsync(sessionId, isPinned, ct).ConfigureAwait(false);
+    }
 
     public async Task UpdatePolicyAsync(VaultQuotaPolicy newPolicy, CancellationToken ct = default)
     {
@@ -245,7 +252,7 @@ public sealed class ZeroBloatVaultService : IVaultService
         return await _repository.CollectReleasedBlobAsync(hash, _blobStore.DeleteBlobIfPresent, ct).ConfigureAwait(false);
     }
 
-    private sealed class SafetyTransactionSession : ITransactionSession
+    private sealed partial class SafetyTransactionSession : ITransactionSession
     {
         private readonly ZeroBloatVaultService _owner;
         private readonly SqliteVaultRepository _repository;
@@ -423,12 +430,12 @@ public sealed class ZeroBloatVaultService : IVaultService
             _prepared.Clear();
         }
 
-        public ValueTask DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             _finished = true;
             _canConfirmRegistry = false;
             DiscardPrepared();
-            return ValueTask.CompletedTask;
+            await CloseRecordedPlanAsync().ConfigureAwait(false);
         }
 
         private void EnsureNotCommitted()

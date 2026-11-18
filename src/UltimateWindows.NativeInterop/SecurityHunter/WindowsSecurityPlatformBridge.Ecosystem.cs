@@ -92,55 +92,6 @@ public sealed partial class WindowsSecurityPlatformBridge
         }, ct);
     }
 
-    public override Task<bool> RemoveDefenderExclusionAsync(DefenderExclusionFinding exclusion, CancellationToken ct = default)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return Task.FromResult(false);
-        }
-
-        return Task.Run(() =>
-        {
-            bool removedAny = false;
-            var escaped = exclusion.Value.Replace("'", "''", StringComparison.Ordinal);
-
-            // 1. Для групповых политик удаляем значение напрямую из HKLM\SOFTWARE\Policies\Microsoft\Windows Defender\Exclusions
-            if (exclusion.IsPolicyEnforced)
-            {
-                try
-                {
-                    var subKey = exclusion.RegistryPath.StartsWith(@"HKLM\", StringComparison.OrdinalIgnoreCase)
-                        ? exclusion.RegistryPath[5..]
-                        : exclusion.RegistryPath;
-                    using var key = Registry.LocalMachine.OpenSubKey(subKey, writable: true);
-                    if (key is not null)
-                    {
-                        key.DeleteValue(exclusion.Value, throwOnMissingValue: false);
-                        removedAny = true;
-                    }
-                }
-                catch { }
-            }
-
-            // 2. Штатное удаление через командлет Защитника Remove-MpPreference
-            string paramName = exclusion.Kind switch
-            {
-                DefenderExclusionKind.Path => "ExclusionPath",
-                DefenderExclusionKind.Process => "ExclusionProcess",
-                DefenderExclusionKind.Extension => "ExclusionExtension",
-                DefenderExclusionKind.IpAddress => "ExclusionIpAddress",
-                _ => "ExclusionPath"
-            };
-
-            if (RunShortPowerShell($"Remove-MpPreference -{paramName} '{escaped}' -ErrorAction Stop", timeoutMs: 6000))
-            {
-                removedAny = true;
-            }
-
-            return removedAny;
-        }, ct);
-    }
-
     public override async Task<(bool Succeeded, string OutputMessage)> StartDefenderScanAsync(
         DefenderScanMode mode,
         string? customTargetPath = null,
@@ -341,30 +292,6 @@ public sealed partial class WindowsSecurityPlatformBridge
             catch { }
 
             return list;
-        }, ct);
-    }
-
-    public override Task<bool> RemoveFirewallRuleAsync(FirewallRuleAnomaly rule, CancellationToken ct = default)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return Task.FromResult(false);
-        }
-
-        return Task.Run(() =>
-        {
-            const string fwRulesPath = @"SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\FirewallRules";
-            try
-            {
-                using var key = Registry.LocalMachine.OpenSubKey(fwRulesPath, writable: true);
-                if (key is null) return false;
-                key.DeleteValue(rule.RuleId, throwOnMissingValue: false);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
         }, ct);
     }
 
@@ -796,67 +723,6 @@ public sealed partial class WindowsSecurityPlatformBridge
             }
 
             return findings;
-        }, ct);
-    }
-
-    public override Task<(bool Succeeded, string? OriginalHostsBackupContent)> RepairSabotageLockAsync(
-        OsSabotageFinding lockFinding,
-        CancellationToken ct = default)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return Task.FromResult((false, (string?)null));
-        }
-
-        return Task.Run(() =>
-        {
-            if (lockFinding.Kind == OsSabotageKind.SecurityDomainsBlockedInHosts)
-            {
-                try
-                {
-                    var hostsPath = GetHostsFilePath();
-                    if (!File.Exists(hostsPath)) return (false, (string?)null);
-
-                    var original = File.ReadAllText(hostsPath);
-                    var suspiciousLines = NetworkAndHostsInspector.ParseHostsContent(original)
-                        .Where(h => h.IsSuspiciousSecurityBlock)
-                        .Select(h => h.LineNumber)
-                        .ToHashSet();
-
-                    var rawLines = original.Split(["\r\n", "\n"], StringSplitOptions.None);
-                    var cleaned = new StringBuilder();
-                    for (int i = 0; i < rawLines.Length; i++)
-                    {
-                        if (!suspiciousLines.Contains(i + 1))
-                        {
-                            cleaned.AppendLine(rawLines[i]);
-                        }
-                    }
-
-                    File.WriteAllText(hostsPath, cleaned.ToString(), Encoding.UTF8);
-                    return (true, original);
-                }
-                catch
-                {
-                    return (false, (string?)null);
-                }
-            }
-
-            try
-            {
-                var root = string.Equals(lockFinding.Hive, "HKLM", StringComparison.OrdinalIgnoreCase)
-                    ? Registry.LocalMachine
-                    : Registry.CurrentUser;
-
-                using var key = root.OpenSubKey(lockFinding.SubKeyPath, writable: true);
-                if (key is null) return (false, (string?)null);
-                key.DeleteValue(lockFinding.ValueName, throwOnMissingValue: false);
-                return (true, (string?)null);
-            }
-            catch
-            {
-                return (false, (string?)null);
-            }
         }, ct);
     }
 

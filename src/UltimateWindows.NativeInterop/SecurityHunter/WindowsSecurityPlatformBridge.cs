@@ -142,7 +142,7 @@ public sealed partial class WindowsSecurityPlatformBridge : DefaultSecurityPlatf
         }
     }
 
-    public override async Task<bool> TerminateSuspectProcessAsync(int processId, CancellationToken ct = default)
+    public override async Task<bool> TerminateSuspectProcessAsync(int processId, string? reviewedPath, CancellationToken ct = default)
     {
         if (!OperatingSystem.IsWindows() || processId <= 4 || processId == Environment.ProcessId)
         {
@@ -163,9 +163,11 @@ public sealed partial class WindowsSecurityPlatformBridge : DefaultSecurityPlatf
                 return false;
             }
 
-            proc.Kill(entireProcessTree: true);
-            using var waitCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            waitCts.CancelAfter(TimeSpan.FromSeconds(3));
+            if (string.IsNullOrWhiteSpace(reviewedPath) || !string.Equals(proc.MainModule?.FileName,
+                Path.GetFullPath(reviewedPath), StringComparison.OrdinalIgnoreCase)) return false;
+            ct.ThrowIfCancellationRequested();
+            proc.Kill(entireProcessTree: false); // дочерние процессы не входили в подтверждённую цель
+            using var waitCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             await proc.WaitForExitAsync(waitCts.Token).ConfigureAwait(false);
             return true;
         }

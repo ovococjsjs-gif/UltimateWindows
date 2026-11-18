@@ -32,6 +32,10 @@ public interface ITransactionSession : IAsyncDisposable
     /// Только после успешного возврата можно изменять оригиналы.</summary>
     Task<TransactionRecord> CommitVerifiedBackupAsync(CancellationToken ct = default);
 
+    /// <summary>Фиксирует проверенные снимки и план, но ещё ничего не применяет.
+    /// Исполнитель действует только до Dispose сессии; каждый шаг допускается начать один раз.</summary>
+    Task<IRecordedPlan> PrepareRecordedPlanAsync(IReadOnlyList<string> labels, CancellationToken ct = default);
+
     /// <summary>После проверенного снимка реестра разрешает откат только для значений,
     /// которые действительно были удалены. Неподтверждённые остаются только в журнале.</summary>
     Task ConfirmRemovedRegistryValuesAsync(IReadOnlyList<Guid> removedDeltaIds, CancellationToken ct = default);
@@ -47,6 +51,14 @@ public interface ITransactionSession : IAsyncDisposable
     Task<TransactionRecord> CommitAsync(bool pinTransaction = false, CancellationToken ct = default);
 }
 
+public interface IRecordedPlan
+{
+    TransactionRecord Snapshot { get; }
+
+    /// <summary>Для файлов apply должен быть null: проверка версии и карантин — ответственность Vault.</summary>
+    Task<StepExecution> ExecuteAsync(int index, Func<CancellationToken, Task<bool>>? apply, CancellationToken ct = default);
+}
+
 /// <summary>
 /// Главный сервис управления хранилищем откатов и квотами (Zero-Bloat Vault).
 /// </summary>
@@ -59,6 +71,8 @@ public interface IVaultService
         string friendlyTitle,
         string friendlySummary,
         string technicalDetails = "");
+
+    Task<TransactionRecord?> GetTransactionAsync(Guid id, CancellationToken ct = default);
 
     Task<IReadOnlyList<TransactionRecord>> GetHistoryAsync(int limit = 100, CancellationToken ct = default);
 

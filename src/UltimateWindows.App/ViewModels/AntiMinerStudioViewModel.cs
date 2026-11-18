@@ -58,7 +58,8 @@ public sealed class QuarantineEntryViewModel : ObservableObject
     public string TimestampLocalText => Entry.TimestampLocalText;
     public string FriendlyTitle => Entry.FriendlyTitle;
     public string PrimaryPath => Entry.PrimaryPath;
-    public string StatusBadge => Entry.RollbackUnavailableReason ?? (Entry.QuarantinedPaths.Count > 0 ? "Файловый снимок" : "Настройки");
+    public string Details => string.IsNullOrWhiteSpace(Entry.StepSummary) ? Entry.FriendlySummary : Entry.StepSummary;
+    public string StatusBadge => Entry.StatusText;
     public bool CanRestore => !Entry.IsReverted && Entry.RollbackUnavailableReason is null;
     public ICommand RestoreCommand { get; }
 }
@@ -524,10 +525,8 @@ public sealed class AntiMinerStudioViewModel : ObservableObject
     {
         var res = await _securityService.QuarantineThreatAsync(finding);
         LastRemediationBanner = res.UserFriendlyMessage;
-        if (res.Succeeded)
-        {
+        if (res.FixedItemsCount > 0 || res.JournalSessionId.HasValue)
             await ExecuteScanInternalAsync(useDecoyProbe: false);
-        }
 
         await _onActionCompletedAsync(res.UserFriendlyMessage);
     }
@@ -542,13 +541,15 @@ public sealed class AntiMinerStudioViewModel : ObservableObject
         }
 
         int okCount = 0;
+        string? failure = null;
         foreach (var f in remediable)
         {
             var r = await _securityService.QuarantineThreatAsync(f);
-            if (r.Succeeded) okCount++;
+            if (!r.Succeeded) { failure = r.UserFriendlyMessage; break; }
+            okCount++;
         }
 
-        LastRemediationBanner = $"Обезврежено угроз: {okCount} из {remediable.Count}. Подробности сохранены в «Машине времени».";
+        LastRemediationBanner = $"Полностью выполнено операций: {okCount} из {remediable.Count}. " + (failure ?? "Итоги шагов доступны в журнале защиты.");
         await ExecuteScanInternalAsync(useDecoyProbe: false);
         await _onActionCompletedAsync(LastRemediationBanner);
     }
@@ -557,10 +558,8 @@ public sealed class AntiMinerStudioViewModel : ObservableObject
     {
         var res = await _securityService.RemovePersistenceAnomalyAsync(record);
         LastRemediationBanner = res.UserFriendlyMessage;
-        if (res.Succeeded)
-        {
+        if (res.FixedItemsCount > 0 || res.JournalSessionId.HasValue)
             await ExecuteScanInternalAsync(useDecoyProbe: false);
-        }
 
         await _onActionCompletedAsync(res.UserFriendlyMessage);
     }
@@ -569,10 +568,8 @@ public sealed class AntiMinerStudioViewModel : ObservableObject
     {
         var res = await _securityService.RemoveDangerousDefenderExclusionsAsync(_allDefenderExclusions);
         LastRemediationBanner = res.UserFriendlyMessage;
-        if (res.Succeeded && res.FixedItemsCount > 0)
-        {
+        if (res.FixedItemsCount > 0 || res.JournalSessionId.HasValue)
             await ExecuteScanInternalAsync(useDecoyProbe: false);
-        }
 
         await _onActionCompletedAsync(res.UserFriendlyMessage);
     }
@@ -648,10 +645,8 @@ public sealed class AntiMinerStudioViewModel : ObservableObject
 
         var res = await _securityService.HealAllSabotageLocksAsync(_lastSabotageList);
         LastRemediationBanner = res.UserFriendlyMessage;
-        if (res.Succeeded)
-        {
+        if (res.FixedItemsCount > 0 || res.JournalSessionId.HasValue)
             await ExecuteScanInternalAsync(useDecoyProbe: false);
-        }
 
         await _onActionCompletedAsync(res.UserFriendlyMessage);
     }

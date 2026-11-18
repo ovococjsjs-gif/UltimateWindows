@@ -86,6 +86,11 @@ public sealed class SqliteVaultRepository
                 FOREIGN KEY (session_id) REFERENCES transactions(session_id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS step_receipts (
+                delta_id TEXT PRIMARY KEY REFERENCES deltas(delta_id) ON DELETE CASCADE,
+                label TEXT NOT NULL, intended_kind INTEGER NOT NULL, state INTEGER NOT NULL, detail TEXT NOT NULL
+            );
+
             -- Ссылки снимаются ДО физического удаления. После сбоя можно безопасно повторить сборку мусора.
             CREATE TABLE IF NOT EXISTS pending_blob_deletes (sha TEXT PRIMARY KEY);
 
@@ -150,13 +155,25 @@ public sealed class SqliteVaultRepository
             deltaCmd.Parameters.AddWithValue("$did", delta.DeltaId.ToString("D"));
             deltaCmd.Parameters.AddWithValue("$sid", delta.SessionId.ToString("D"));
             deltaCmd.Parameters.AddWithValue("$seq", delta.SequenceOrder);
-            deltaCmd.Parameters.AddWithValue("$kind", (int)delta.TargetKind);
+            // Даже читатель предыдущей версии не должен воспроизвести неподтверждённое изменение.
+            deltaCmd.Parameters.AddWithValue("$kind", (int)(delta.Step is null ? delta.TargetKind : StateTargetKind.JournalEntry));
             deltaCmd.Parameters.AddWithValue("$path", delta.TargetPath);
             deltaCmd.Parameters.AddWithValue("$prev", (object?)delta.PreviousStateJson ?? DBNull.Value);
             deltaCmd.Parameters.AddWithValue("$next", (object?)delta.NewStateJson ?? DBNull.Value);
             deltaCmd.Parameters.AddWithValue("$sha", (object?)delta.BlobSha256 ?? DBNull.Value);
             deltaCmd.Parameters.AddWithValue("$origBytes", delta.OriginalSizeBytes);
             await deltaCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            if (delta.Step is { } step)
+            {
+                using var receipt = conn.CreateCommand();
+                receipt.Transaction = tx;
+                receipt.CommandText = "INSERT INTO step_receipts(delta_id,label,intended_kind,state,detail) VALUES($id,$label,$kind,$state,'')";
+                receipt.Parameters.AddWithValue("$id", delta.DeltaId.ToString("D"));
+                receipt.Parameters.AddWithValue("$label", step.Label);
+                receipt.Parameters.AddWithValue("$kind", (int)delta.TargetKind);
+                receipt.Parameters.AddWithValue("$state", (int)step.State);
+                await receipt.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            }
         }
 
         // Все строки проверены, удерживается тот же writer, что и при сборке мусора.
@@ -223,6 +240,32 @@ public sealed class SqliteVaultRepository
         cmd.Parameters.AddWithValue("$id", id.ToString("D"));
         cmd.CommandText = "UPDATE transactions SET is_pinned = 0 WHERE session_id = $id";
         await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        tx.Commit();
+    }
+
+    internal async Task AdvanceStepAsync(Guid sessionId, Guid deltaId, StepState from, StepState to, string detail, CancellationToken ct)
+    {
+        await using var conn = await OpenConnectionAsync(ct).ConfigureAwait(false);
+        using var tx = conn.BeginTransaction(deferred: false);
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = """
+            UPDATE step_receipts SET state = $to, detail = $detail WHERE delta_id = $delta AND state = $from
+              AND EXISTS (SELECT 1 FROM deltas d JOIN transactions t USING(session_id)
+                          WHERE d.delta_id = $delta AND t.session_id = $id AND t.is_reverted = 0);
+            """;
+        cmd.Parameters.AddWithValue("$id", sessionId.ToString("D"));
+        cmd.Parameters.AddWithValue("$delta", deltaId.ToString("D"));
+        cmd.Parameters.AddWithValue("$from", (int)from);
+        cmd.Parameters.AddWithValue("$to", (int)to);
+        cmd.Parameters.AddWithValue("$detail", detail);
+        if (await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false) != 1)
+            throw new InvalidOperationException("Шаг уже начат или запись изменилась; повторное выполнение запрещено.");
+        if (to == StepState.Applied)
+        {
+            cmd.CommandText = "UPDATE deltas SET target_kind = (SELECT intended_kind FROM step_receipts WHERE delta_id = $delta) WHERE session_id = $id AND delta_id = $delta";
+            if (await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false) != 1) throw new IOException("Снимок шага не найден.");
+        }
         tx.Commit();
     }
 
@@ -468,9 +511,9 @@ public sealed class SqliteVaultRepository
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
         cmd.CommandText = """
-            SELECT delta_id, session_id, sequence_order, target_kind, target_path,
-                   previous_state_json, new_state_json, blob_sha256, original_size_bytes
-            FROM deltas
+            SELECT d.delta_id, session_id, sequence_order, COALESCE(s.intended_kind, d.target_kind), target_path,
+                   previous_state_json, new_state_json, blob_sha256, original_size_bytes, s.label, s.state, s.detail
+            FROM deltas d LEFT JOIN step_receipts s ON s.delta_id = d.delta_id
             WHERE session_id = $sid
             ORDER BY sequence_order ASC;
             """;
@@ -489,7 +532,10 @@ public sealed class SqliteVaultRepository
                 PreviousStateJson: reader.IsDBNull(5) ? null : reader.GetString(5),
                 NewStateJson: reader.IsDBNull(6) ? null : reader.GetString(6),
                 BlobSha256: reader.IsDBNull(7) ? null : reader.GetString(7),
-                OriginalSizeBytes: reader.GetInt64(8)));
+                OriginalSizeBytes: reader.GetInt64(8))
+            {
+                Step = reader.IsDBNull(9) ? null : new(reader.GetString(9), (StepState)reader.GetInt32(10), reader.GetString(11))
+            });
         }
 
         return list;

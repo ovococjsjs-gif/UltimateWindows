@@ -1,5 +1,6 @@
 using System.Text;
 using UltimateWindows.Core.Enums;
+using UltimateWindows.Core.Models;
 using UltimateWindows.Modules.Safety.Services;
 using UltimateWindows.Modules.Security.Analyzers;
 using UltimateWindows.Modules.Security.Catalog;
@@ -19,7 +20,7 @@ public sealed class Stage4Security2Tests : IDisposable
     {
         _tempDir = Path.Combine(Path.GetTempPath(), "uw-stage4-sec-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempDir);
-        _vault = new ZeroBloatVaultService(explicitVaultDirectory: Path.Combine(_tempDir, "vault"));
+        _vault = new ZeroBloatVaultService(explicitVaultDirectory: Path.Combine(_tempDir, "vault"), stateApplier: new FixtureApplier());
     }
 
     public void Dispose()
@@ -306,18 +307,9 @@ public sealed class Stage4Security2Tests : IDisposable
         var bridge = new Stage4FakeBridge();
         var service = new AntiMinerSecurityService(_vault, bridge);
 
-        var persistence = new PersistenceAnomalyRecord(
-            Vector: ThreatDetectionVector.ComClassHijack,
-            RegistryOrTaskPath: @"HKCU\Software\Classes\CLSID\{11111111-2222-3333-4444-555555555555}\InprocServer32",
-            EntryName: "{11111111-2222-3333-4444-555555555555}",
-            PayloadCommandOrPath: minerPath,
-            ReferencedExecutablePath: minerPath,
-            IsMissingSecurityDescriptorSd: false,
-            PreviousValueSerialized: minerPath,
-            Category: PersistenceZone.ComInprocAndLocalServerHijack,
-            IsAnomaly: true,
-            RemediationKind: PersistenceRemediationKind.DeleteRegistrySubKey,
-            RemediationTarget: @"HKCU|Software\Classes\CLSID\{11111111-2222-3333-4444-555555555555}");
+        var persistence = new PersistenceAnomalyRecord(ThreatDetectionVector.SuspiciousRegistryAutorun,
+            @"HKCU\Software\Fixture", "Sample", minerPath, minerPath, false, minerPath,
+            RemediationKind: PersistenceRemediationKind.DeleteRegistryValue, RemediationTarget: @"HKCU|Software\Fixture|Sample");
 
         var finding = new SecurityThreatFinding(
             FindingId: "comp-1",
@@ -358,22 +350,20 @@ public sealed class Stage4Security2Tests : IDisposable
         public override bool IsRunningAsAdministrator() => true;
         public override string GetWindowsDirectory() => @"C:\Windows";
 
-        public override Task<bool> TerminateSuspectProcessAsync(int processId, CancellationToken ct = default)
+        public override Task<bool> TerminateSuspectProcessAsync(int processId, string? reviewedPath, CancellationToken ct = default)
         {
             KilledPids.Add(processId);
             return Task.FromResult(true);
         }
 
-        public override Task<(bool Succeeded, StateTargetKind? RollbackKind, string? RollbackTarget, string? PreviousStateJson)> RemovePersistenceEntryAsync(
-            PersistenceAnomalyRecord record,
-            CancellationToken ct = default)
-        {
-            RemovedPersistenceEntries.Add(record.EntryName);
-            return Task.FromResult<(bool, StateTargetKind?, string?, string?)>((
-                true,
-                StateTargetKind.SystemSetting,
-                $"DeletedRegistryKey:{record.RegistryOrTaskPath}",
-                record.PreviousValueSerialized ?? "{}"));
-        }
+        public override PreparedSecurityChange PreparePersistence(PersistenceAnomalyRecord record) =>
+            new(record.EntryName, StateTargetKind.RegistryValue, record.RegistryOrTaskPath, "fixture",
+                _ => { RemovedPersistenceEntries.Add(record.EntryName); return Task.FromResult(true); });
+    }
+
+    private sealed class FixtureApplier : DefaultFileStateApplier
+    {
+        public override Task ApplyRollbackDeltaAsync(StateDeltaRecord delta, Func<string, CancellationToken, Task<byte[]>> restore, CancellationToken ct = default) =>
+            delta.TargetKind == StateTargetKind.RegistryValue && delta.PreviousStateJson == "fixture" ? Task.CompletedTask : base.ApplyRollbackDeltaAsync(delta, restore, ct);
     }
 }

@@ -431,7 +431,7 @@ public sealed class MainViewModel : ObservableObject
         try
         {
             await Task.Run(() => _vaultService.RollbackTransactionAsync(sessionId));
-            StatusNotification = "Изменения отменены — параметры возвращены в прежнее состояние.";
+            StatusNotification = "Доступные изменения отменены. Действия без отката не повторялись.";
         }
         catch (Exception ex)
         {

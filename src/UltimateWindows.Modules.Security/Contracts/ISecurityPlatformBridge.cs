@@ -24,7 +24,7 @@ public interface ISecurityPlatformBridge
 
     Task<IReadOnlyList<DefenderExclusionFinding>> ScanDefenderExclusionsAsync(CancellationToken ct = default);
 
-    Task<bool> RemoveDefenderExclusionAsync(DefenderExclusionFinding exclusion, CancellationToken ct = default);
+    PreparedSecurityChange PrepareDefenderExclusion(DefenderExclusionFinding exclusion);
 
     Task<(bool Succeeded, string OutputMessage)> StartDefenderScanAsync(
         DefenderScanMode mode,
@@ -33,7 +33,7 @@ public interface ISecurityPlatformBridge
 
     Task<IReadOnlyList<FirewallRuleAnomaly>> ScanFirewallRuleAnomaliesAsync(CancellationToken ct = default);
 
-    Task<bool> RemoveFirewallRuleAsync(FirewallRuleAnomaly rule, CancellationToken ct = default);
+    PreparedSecurityChange PrepareFirewallRule(FirewallRuleAnomaly rule);
 
     Task<IReadOnlyList<SuspiciousUserAccountFinding>> ScanSuspiciousUserAccountsAsync(CancellationToken ct = default);
 
@@ -41,15 +41,11 @@ public interface ISecurityPlatformBridge
 
     Task<IReadOnlyList<string>> ScanDnsCacheMiningPoolDomainsAsync(CancellationToken ct = default);
 
-    Task<bool> TerminateSuspectProcessAsync(int processId, CancellationToken ct = default);
+    Task<bool> TerminateSuspectProcessAsync(int processId, string? reviewedPath, CancellationToken ct = default);
 
-    Task<(bool Succeeded, StateTargetKind? RollbackKind, string? RollbackTarget, string? PreviousStateJson)> RemovePersistenceEntryAsync(
-        PersistenceAnomalyRecord record,
-        CancellationToken ct = default);
+    PreparedSecurityChange PreparePersistence(PersistenceAnomalyRecord record);
 
-    Task<(bool Succeeded, string? OriginalHostsBackupContent)> RepairSabotageLockAsync(
-        OsSabotageFinding lockFinding,
-        CancellationToken ct = default);
+    PreparedSecurityChange PrepareSabotageRepair(OsSabotageFinding finding);
 }
 
 /// <summary>
@@ -82,8 +78,8 @@ public class DefaultSecurityPlatformBridge : ISecurityPlatformBridge
     public virtual Task<IReadOnlyList<DefenderExclusionFinding>> ScanDefenderExclusionsAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<DefenderExclusionFinding>>([]);
 
-    public virtual Task<bool> RemoveDefenderExclusionAsync(DefenderExclusionFinding exclusion, CancellationToken ct = default) =>
-        Task.FromResult(false);
+    public virtual PreparedSecurityChange PrepareDefenderExclusion(DefenderExclusionFinding exclusion) =>
+        throw new NotSupportedException("Изменение исключений недоступно.");
 
     public virtual Task<(bool Succeeded, string OutputMessage)> StartDefenderScanAsync(
         DefenderScanMode mode,
@@ -94,8 +90,8 @@ public class DefaultSecurityPlatformBridge : ISecurityPlatformBridge
     public virtual Task<IReadOnlyList<FirewallRuleAnomaly>> ScanFirewallRuleAnomaliesAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<FirewallRuleAnomaly>>([]);
 
-    public virtual Task<bool> RemoveFirewallRuleAsync(FirewallRuleAnomaly rule, CancellationToken ct = default) =>
-        Task.FromResult(false);
+    public virtual PreparedSecurityChange PrepareFirewallRule(FirewallRuleAnomaly rule) =>
+        throw new NotSupportedException("Изменение правил недоступно.");
 
     public virtual Task<IReadOnlyList<SuspiciousUserAccountFinding>> ScanSuspiciousUserAccountsAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<SuspiciousUserAccountFinding>>([]);
@@ -106,16 +102,12 @@ public class DefaultSecurityPlatformBridge : ISecurityPlatformBridge
     public virtual Task<IReadOnlyList<string>> ScanDnsCacheMiningPoolDomainsAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<string>>([]);
 
-    public virtual Task<bool> TerminateSuspectProcessAsync(int processId, CancellationToken ct = default) =>
+    public virtual Task<bool> TerminateSuspectProcessAsync(int processId, string? reviewedPath, CancellationToken ct = default) =>
         Task.FromResult(false);
 
-    public virtual Task<(bool Succeeded, StateTargetKind? RollbackKind, string? RollbackTarget, string? PreviousStateJson)> RemovePersistenceEntryAsync(
-        PersistenceAnomalyRecord record,
-        CancellationToken ct = default) =>
-        Task.FromResult<(bool, StateTargetKind?, string?, string?)>((false, null, null, null));
+    public virtual PreparedSecurityChange PreparePersistence(PersistenceAnomalyRecord record) =>
+        throw new NotSupportedException("Нет проверенного способа снять эту точку закрепления.");
 
-    public virtual Task<(bool Succeeded, string? OriginalHostsBackupContent)> RepairSabotageLockAsync(
-        OsSabotageFinding lockFinding,
-        CancellationToken ct = default) =>
-        Task.FromResult((false, (string?)null));
+    public virtual PreparedSecurityChange PrepareSabotageRepair(OsSabotageFinding finding) =>
+        throw new NotSupportedException("Нет проверенного способа исправить эту настройку.");
 }

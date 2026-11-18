@@ -1,3 +1,4 @@
+using UltimateWindows.Core.Models;
 using UltimateWindows.Core.Enums;
 
 namespace UltimateWindows.Modules.Security.Models;
@@ -355,10 +356,14 @@ public sealed record QuarantinedThreatEntry(
     IReadOnlyList<string> QuarantinedPaths,
     int StateDeltaCount,
     bool IsReverted,
-    string? RollbackUnavailableReason = null)
+    string? RollbackUnavailableReason = null,
+    string StepSummary = "",
+    int Planned = 0, int Applied = 0)
 {
     public string TimestampLocalText => QuarantinedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss");
-    public string PrimaryPath => QuarantinedPaths.Count > 0 ? QuarantinedPaths[0] : "Системная запись (реестр / задача / служба)";
+    public string PrimaryPath => QuarantinedPaths.Count > 0 ? QuarantinedPaths[0] : "Без изолированного файла";
+    public string StatusText => IsReverted ? "Откат выполнен" : Planned == 0 ? RollbackUnavailableReason ?? "В журнале" :
+        Applied == 0 ? "Нет подтверждения" : Applied < Planned ? $"Частично · {Applied}/{Planned}" : $"Выполнено · {Applied}/{Planned}";
 }
 
 /// <summary>
@@ -399,4 +404,16 @@ public sealed record SecurityRemediationResult(
     bool Succeeded,
     Guid? RollbackSessionId,
     int FixedItemsCount,
-    string UserFriendlyMessage);
+    string UserFriendlyMessage)
+{
+    public Guid? JournalSessionId { get; init; }
+    public IReadOnlyList<SecurityStepResult> Steps { get; init; } = [];
+    public bool WasCancelled { get; init; }
+}
+
+public sealed record SecurityStepResult(string Label, StepState State, bool CanRollback = false, bool ReceiptSaved = true, string Detail = "");
+
+/// <summary>Получение снимка не меняет систему. Apply повторно сверяет цель перед изменением.
+/// Для файла делегат отсутствует: удалять вправе только Vault после проверки сохранённых байтов.</summary>
+public sealed record PreparedSecurityChange(string Label, StateTargetKind Kind, string Target, string? BeforeJson,
+    Func<CancellationToken, Task<bool>>? Apply, string? AfterJson = null);

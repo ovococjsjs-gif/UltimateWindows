@@ -50,7 +50,9 @@ public enum StateTargetKind
     DriverStoreReference = 4,
     SystemSetting = 5,
     // Сохранено перед удалением. Пока удаление не подтверждено, автоматического отката нет.
-    RegistryValueSnapshot = 6
+    RegistryValueSnapshot = 6,
+    // Факт выполнения без обратного действия (например, остановка процесса).
+    JournalEntry = 7
 }
 
 /// <summary>

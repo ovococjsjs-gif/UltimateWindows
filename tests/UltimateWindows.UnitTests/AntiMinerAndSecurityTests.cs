@@ -233,21 +233,14 @@ public sealed class AntiMinerAndSecurityTests : IDisposable
         public override Task<IReadOnlyList<OsSabotageFinding>> ScanOsSabotageLocksAsync(CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<OsSabotageFinding>>(SabotageLocks);
 
-        public override Task<bool> TerminateSuspectProcessAsync(int processId, CancellationToken ct = default)
+        public override Task<bool> TerminateSuspectProcessAsync(int processId, string? reviewedPath, CancellationToken ct = default)
         {
             TerminatedPids.Add(processId);
             return Task.FromResult(true);
         }
 
-        public override Task<(bool Succeeded, string? OriginalHostsBackupContent)> RepairSabotageLockAsync(
-            OsSabotageFinding lockFinding,
-            CancellationToken ct = default)
-        {
-            RepairedTargets.Add(lockFinding.TargetDisplayPath);
-            var origHosts = lockFinding.Kind == OsSabotageKind.SecurityDomainsBlockedInHosts
-                ? "127.0.0.1 localhost\r\n0.0.0.0 virustotal.com\r\n"
-                : null;
-            return Task.FromResult((true, origHosts));
-        }
+        public override PreparedSecurityChange PrepareSabotageRepair(OsSabotageFinding item) =>
+            new(item.SimpleTitle, StateTargetKind.RegistryValue, item.TargetDisplayPath, item.CurrentMaliciousValue,
+                _ => { RepairedTargets.Add(item.TargetDisplayPath); return Task.FromResult(true); });
     }
 }

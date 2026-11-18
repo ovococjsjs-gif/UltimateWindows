@@ -223,6 +223,8 @@ internal sealed class InMemoryVault : IVaultService
         string technicalDetails = "") =>
         new Session(this, domain, friendlyTitle, friendlySummary, technicalDetails);
 
+    public Task<TransactionRecord?> GetTransactionAsync(Guid id, CancellationToken ct = default) => Task.FromResult(_records.SingleOrDefault(r => r.SessionId == id));
+
     public Task<IReadOnlyList<TransactionRecord>> GetHistoryAsync(int limit = 100, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<TransactionRecord>>(_records.AsEnumerable().Reverse().Take(limit).ToList());
 
@@ -274,6 +276,9 @@ internal sealed class InMemoryVault : IVaultService
 
         public Task<TransactionRecord> CommitVerifiedBackupAsync(CancellationToken ct = default) =>
             throw new NotSupportedException("No verified storage in this test double.");
+
+        public Task<IRecordedPlan> PrepareRecordedPlanAsync(IReadOnlyList<string> labels, CancellationToken ct = default) =>
+            throw new NotSupportedException("No durable journal in this test double.");
 
         public Task ConfirmRemovedRegistryValuesAsync(IReadOnlyList<Guid> removedDeltaIds, CancellationToken ct = default) =>
             throw new NotSupportedException("No verified registry snapshots in this test double.");

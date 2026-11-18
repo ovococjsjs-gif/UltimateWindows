@@ -87,97 +87,6 @@ public sealed partial class WindowsSecurityPlatformBridge
         }, ct);
     }
 
-    public override Task<(bool Succeeded, StateTargetKind? RollbackKind, string? RollbackTarget, string? PreviousStateJson)> RemovePersistenceEntryAsync(
-        PersistenceAnomalyRecord record,
-        CancellationToken ct = default)
-    {
-        if (!OperatingSystem.IsWindows() || !record.CanRemediate)
-        {
-            return Task.FromResult<(bool, StateTargetKind?, string?, string?)>((false, null, null, null));
-        }
-
-        return Task.Run<(bool, StateTargetKind?, string?, string?)>(() =>
-        {
-            try
-            {
-                switch (record.RemediationKind)
-                {
-                    case PersistenceRemediationKind.DeleteRegistryValue:
-                    case PersistenceRemediationKind.RestoreRegistryDefault:
-                        return RemediateRegistryValue(record);
-
-                    case PersistenceRemediationKind.DeleteRegistrySubKey:
-                        return RemediateRegistrySubKey(record);
-
-                    case PersistenceRemediationKind.DisableScheduledTask:
-                    {
-                        var taskPath = record.RemediationTarget;
-                        if (string.IsNullOrWhiteSpace(taskPath)) return (false, null, null, null);
-                        var res = WindowsTaskScheduler.SetEnabled(taskPath, enabled: false);
-                        if (!res.Succeeded) return (false, null, null, null);
-                        var prevJson = JsonSerializer.Serialize(new { TaskPath = taskPath, Enabled = true });
-                        return (true, StateTargetKind.ScheduledTask, taskPath, prevJson);
-                    }
-
-                    case PersistenceRemediationKind.DeleteScheduledTask:
-                    {
-                        // Для скрытой задачи без SD удаляем ветку в TaskCache\Tree с сохранением TaskId
-                        return RemediateRegistrySubKey(record);
-                    }
-
-                    case PersistenceRemediationKind.DisableWindowsService:
-                    {
-                        var svcName = record.RemediationTarget;
-                        if (string.IsNullOrWhiteSpace(svcName)) return (false, null, null, null);
-                        var prevCfg = WindowsServiceControl.Query(svcName);
-                        _ = WindowsServiceControl.ControlAsync(svcName, start: false, TimeSpan.FromSeconds(4), ct).GetAwaiter().GetResult();
-                        var res = WindowsServiceControl.SetStartup(svcName, ServiceStartupMode.Disabled);
-                        if (!res.Succeeded) return (false, null, null, null);
-                        var prevStartup = (prevCfg?.Startup ?? ServiceStartupMode.Automatic).ToString();
-                        var prevJson = JsonSerializer.Serialize(new { ServiceName = svcName, Startup = prevStartup });
-                        return (true, StateTargetKind.WindowsService, svcName, prevJson);
-                    }
-
-                    case PersistenceRemediationKind.DeleteWmiSubscription:
-                    {
-                        var ok = RunShortPowerShell(
-                            $"Get-CimInstance -Namespace root/subscription -ClassName CommandLineEventConsumer -Filter \"Name='{EscapeWmiSingleQuotes(record.EntryName)}'\" | Remove-CimInstance; " +
-                            $"Get-CimInstance -Namespace root/subscription -ClassName ActiveScriptEventConsumer -Filter \"Name='{EscapeWmiSingleQuotes(record.EntryName)}'\" | Remove-CimInstance",
-                            timeoutMs: 4000);
-                        return (ok, StateTargetKind.SystemSetting, $"WmiSubscription:{record.EntryName}", record.PreviousValueSerialized);
-                    }
-
-                    case PersistenceRemediationKind.CancelBitsJob:
-                    {
-                        var ok = RunShortPowerShell(
-                            $"Get-BitsTransfer -AllUsers -ErrorAction SilentlyContinue | Where-Object {{ $_.DisplayName -eq '{EscapeWmiSingleQuotes(record.EntryName)}' }} | Remove-BitsTransfer",
-                            timeoutMs: 4000);
-                        return (ok, StateTargetKind.SystemSetting, $"BitsJob:{record.EntryName}", record.PreviousValueSerialized);
-                    }
-
-                    case PersistenceRemediationKind.QuarantineStartupFile:
-                    {
-                        // Сам файл стартапа будет помещён в .uwq основным сервисом QuarantineThreatAsync;
-                        // при прямом вызове со вкладки закрепления удаляем ярлык после проверки
-                        if (!string.IsNullOrWhiteSpace(record.RemediationTarget) && File.Exists(record.RemediationTarget))
-                        {
-                            File.SetAttributes(record.RemediationTarget, FileAttributes.Normal);
-                            File.Delete(record.RemediationTarget);
-                            return (true, null, null, null);
-                        }
-                        return (false, null, null, null);
-                    }
-                }
-            }
-            catch
-            {
-                // Возврат неудачи без исключения
-            }
-
-            return (false, null, null, null);
-        }, ct);
-    }
-
     // ==================== 18 ЗОН АВТОЗАКРЕПЛЕНИЯ ====================
 
     private void ScanRunKeys(List<PersistenceAnomalyRecord> sink, string winDir, CancellationToken ct)
@@ -569,7 +478,7 @@ public sealed partial class WindowsSecurityPlatformBridge
                         PayloadCommandOrPath: dlls,
                         ReferencedExecutablePath: firstDll is not null && !firstDll.StartsWith(winDir, StringComparison.OrdinalIgnoreCase) ? firstDll : null,
                         IsMissingSecurityDescriptorSd: false,
-                        PreviousValueSerialized: dlls,
+                        PreviousValueSerialized: loadFlag.ToString(CultureInfo.InvariantCulture),
                         Category: PersistenceZone.AppInitDlls,
                         IsAnomaly: true,
                         IsSigned: signed,
@@ -1272,90 +1181,6 @@ public sealed partial class WindowsSecurityPlatformBridge
         }
         catch { }
     }
-
-    private static (bool Succeeded, StateTargetKind? RollbackKind, string? RollbackTarget, string? PreviousStateJson) RemediateRegistryValue(
-        PersistenceAnomalyRecord record)
-    {
-        var parts = record.RemediationTarget.Split('|');
-        if (parts.Length < 3) return (false, null, null, null);
-
-        var hiveLabel = parts[0];
-        var subKeyPath = parts[1];
-        var valueName = parts[2];
-        var (hive, view, normalizedHive) = ParseHiveAndView(hiveLabel);
-
-        using var baseKey = RegistryKey.OpenBaseKey(hive, view);
-        using var key = baseKey.OpenSubKey(subKeyPath, writable: true);
-        if (key is null) return (false, null, null, null);
-
-        var prevVal = key.GetValue(valueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
-        if (prevVal is null) return (false, null, null, null);
-
-        var prevKind = key.GetValueKind(valueName);
-        string serializedPrev = prevKind switch
-        {
-            RegistryValueKind.MultiString when prevVal is string[] arr => JsonSerializer.Serialize(arr),
-            RegistryValueKind.Binary when prevVal is byte[] bytes => Convert.ToBase64String(bytes),
-            _ => Convert.ToString(prevVal, CultureInfo.InvariantCulture) ?? ""
-        };
-
-        if (record.RemediationKind == PersistenceRemediationKind.RestoreRegistryDefault && parts.Length >= 4)
-        {
-            var defaultSpec = parts[3];
-            if (defaultSpec.StartsWith("DWORD:", StringComparison.OrdinalIgnoreCase) &&
-                int.TryParse(defaultSpec[6..], NumberStyles.Integer, CultureInfo.InvariantCulture, out int dw))
-            {
-                key.SetValue(valueName, dw, RegistryValueKind.DWord);
-            }
-            else if (defaultSpec.StartsWith("MULTI:", StringComparison.OrdinalIgnoreCase))
-            {
-                key.SetValue(valueName, new[] { defaultSpec[6..] }, RegistryValueKind.MultiString);
-            }
-            else
-            {
-                key.SetValue(valueName, defaultSpec, RegistryValueKind.String);
-            }
-        }
-        else
-        {
-            key.DeleteValue(valueName, throwOnMissingValue: false);
-        }
-
-        var snapshotJson = JsonSerializer.Serialize(new
-        {
-            Hive = normalizedHive,
-            SubKey = subKeyPath,
-            ValueName = valueName,
-            ExistedBefore = true,
-            ValueKind = (int)prevKind,
-            SerializedData = serializedPrev
-        });
-
-        return (true, StateTargetKind.RegistryValue, $@"{normalizedHive}\{subKeyPath}::{valueName}", snapshotJson);
-    }
-
-    private static (bool Succeeded, StateTargetKind? RollbackKind, string? RollbackTarget, string? PreviousStateJson) RemediateRegistrySubKey(
-        PersistenceAnomalyRecord record)
-    {
-        var parts = record.RemediationTarget.Split('|');
-        if (parts.Length < 2) return (false, null, null, null);
-
-        var (hive, view, normalizedHive) = ParseHiveAndView(parts[0]);
-        var subKeyPath = parts[1];
-
-        using var baseKey = RegistryKey.OpenBaseKey(hive, view);
-        baseKey.DeleteSubKeyTree(subKeyPath, throwOnMissingSubKey: false);
-
-        return (true, StateTargetKind.SystemSetting, $"DeletedRegistryKey:{normalizedHive}\\{subKeyPath}", record.PreviousValueSerialized ?? "{}");
-    }
-
-    private static (RegistryHive Hive, RegistryView View, string NormalizedHive) ParseHiveAndView(string label) =>
-        label.ToUpperInvariant() switch
-        {
-            "HKLM32" => (RegistryHive.LocalMachine, RegistryView.Registry32, "HKLM"),
-            "HKLM" => (RegistryHive.LocalMachine, RegistryView.Default, "HKLM"),
-            _ => (RegistryHive.CurrentUser, RegistryView.Default, "HKCU")
-        };
 
     private static string? ExtractSecondaryUserinitPayload(string userinit, string winDir)
     {
